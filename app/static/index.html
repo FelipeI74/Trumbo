@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trumbo Alpha</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="brand">TRUMBO</div>
+      <div class="subbrand">Alpha 0.1 · La escena como unidad viva</div>
+    </div>
+    <div class="runtime-box">
+      <span>Duración estimada</span>
+      <strong id="projectRuntime">00:00</strong>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <select id="projectSelect" aria-label="Proyecto"></select>
+        <button id="newProjectButton" title="Nuevo proyecto">+</button>
+      </div>
+      <div class="project-title-row">
+        <input id="projectTitle" aria-label="Título del proyecto">
+      </div>
+      <div class="scene-list-header">
+        <span>Escenas</span>
+        <button id="newSceneButton">Nueva</button>
+      </div>
+      <div id="sceneList" class="scene-list"></div>
+    </aside>
+
+    <section class="editor">
+      <div class="editor-toolbar">
+        <span id="sceneIdentity">ESCENA 1</span>
+        <span id="saveState">Guardado</span>
+      </div>
+      <input id="sceneHeading" class="scene-heading" placeholder="INT. LOCACIÓN - DÍA">
+      <textarea id="sceneBody" class="scene-body" spellcheck="true" placeholder="Escribe la escena..."></textarea>
+      <div class="scene-footer">
+        <span>Duración de escena</span>
+        <strong id="sceneRuntime">00:00</strong>
+      </div>
+    </section>
+
+    <aside class="inspector">
+      <div class="tabs">
+        <button class="tab active" data-tab="synopsis">Sinopsis</button>
+        <button class="tab" data-tab="notes">Notas</button>
+        <button class="tab" data-tab="breakdown">Desglose</button>
+      </div>
+
+      <section id="panel-synopsis" class="panel active">
+        <label for="sceneSynopsis">Sinopsis de escena</label>
+        <textarea id="sceneSynopsis" placeholder="Resumen narrativo o de producción"></textarea>
+        <button id="suggestSynopsisButton" class="secondary">Proponer sinopsis</button>
+        <p class="hint">La propuesta es demostrativa y nunca modifica el guion.</p>
+      </section>
+
+      <section id="panel-notes" class="panel">
+        <div class="inline-form">
+          <input id="noteInput" placeholder="Nueva nota">
+          <button id="addNoteButton">Agregar</button>
+        </div>
+        <div id="notesList"></div>
+      </section>
+
+      <section id="panel-breakdown" class="panel">
+        <div class="breakdown-form">
+          <select id="breakdownCategory">
+            <option value="prop">Prop</option>
+            <option value="character">Personaje</option>
+            <option value="location">Locación</option>
+            <option value="vehicle">Vehículo</option>
+            <option value="wardrobe">Vestuario</option>
+            <option value="fx">FX</option>
+          </select>
+          <input id="breakdownName" placeholder="Elemento">
+          <button id="addBreakdownButton">Agregar</button>
+        </div>
+        <div id="breakdownList"></div>
+      </section>
+    </aside>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
