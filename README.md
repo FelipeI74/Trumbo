@@ -57,3 +57,16 @@ python -m unittest discover -s tests
 ## Alcance
 
 Esta versión no resuelve todavía storyboard, stripboard, hojas de llamado ni planificación. Su misión es fijar correctamente el corazón del sistema: Proyecto → Escena → Información derivada.
+
+## Alpha 0.2 en desarrollo
+
+Esta versión incorpora el primer analizador determinista de formato cinematográfico. Reconoce, sin modificar el texto:
+
+- encabezados de escena;
+- acción;
+- personajes;
+- diálogo;
+- parentéticos;
+- transiciones.
+
+El panel de Desglose muestra un resumen automático de la estructura detectada y los personajes identificados. También se reforzó el autoguardado para evitar que una respuesta antigua sobrescriba el estado visual de una edición más reciente.
