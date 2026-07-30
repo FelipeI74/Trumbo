@@ -6,6 +6,8 @@ Core entity: Block
 
 from dataclasses import dataclass
 
+from core.block_type import BlockType
+
 
 @dataclass
 class Block:
@@ -19,5 +21,6 @@ class Block:
     id: str
     scene_id: str
     order: int
-    block_type: str
+    block_type: BlockType
+    content: str
     content: str
