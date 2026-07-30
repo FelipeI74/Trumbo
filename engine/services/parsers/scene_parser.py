@@ -10,6 +10,7 @@ from uuid import uuid4
 from core.block import Block
 from core.scene import Scene
 from core.types.block_type import BlockType
+from models.parsed_scene import ParsedScene
 
 
 class SceneParser:
@@ -20,9 +21,9 @@ class SceneParser:
     It does not interpret dramatic meaning.
     """
 
-    def parse(self, scene: Scene) -> list[Block]:
+    def parse(self, scene: Scene) -> ParsedScene:
         """
-        Parse the scene content and return its structured blocks.
+        Parse the scene content and return a structured result.
         """
 
         blocks: list[Block] = []
@@ -51,7 +52,12 @@ class SceneParser:
             blocks.append(block)
             previous_type = block_type
 
-        return blocks
+        return ParsedScene(
+            blocks=blocks,
+            errors=[],
+            warnings=[],
+            statistics={},
+        )
 
     def _detect_block_type(
         self,
@@ -104,4 +110,5 @@ class SceneParser:
         if line.endswith((".", ":", "!", "?")):
             return False
 
+        return any(character.isalpha() for character in line)
         return any(character.isalpha() for character in line)
