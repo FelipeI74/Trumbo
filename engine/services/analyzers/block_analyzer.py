@@ -4,14 +4,14 @@ Trumbo Engine
 Temporary compatibility wrapper for SceneParser.
 """
 
-from core.block import Block
 from core.scene import Scene
+from core.block import Block
 from services.parsers.scene_parser import SceneParser
 
 
 class BlockAnalyzer:
     """
-    Temporary wrapper kept for compatibility.
+    Temporary compatibility wrapper.
 
     New code should use SceneParser directly.
     """
@@ -21,7 +21,9 @@ class BlockAnalyzer:
 
     def analyze(self, scene: Scene) -> list[Block]:
         """
-        Parse the scene using SceneParser.
+        Return only the parsed blocks.
         """
 
-        return self._parser.parse(scene)lpha() for character in line)
+        parsed_scene = self._parser.parse(scene)
+
+        return parsed_scene.blocks
