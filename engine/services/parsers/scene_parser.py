@@ -5,6 +5,7 @@ Parser responsible for converting scene text
 into structured screenplay blocks.
 """
 
+import re
 from uuid import uuid4
 
 from core.block import Block
@@ -56,7 +57,6 @@ class SceneParser:
             blocks=blocks,
             errors=[],
             warnings=[],
-            statistics={},
         )
 
     def _detect_block_type(
@@ -99,16 +99,23 @@ class SceneParser:
     def _looks_like_character_cue(self, line: str) -> bool:
         """
         Return True when a line resembles a character cue.
+
+        Examples:
+        JUAN
+        JUAN (V.O.)
+        JUAN (O.S.)
+        JUAN (CONT'D)
         """
+
+        if len(line) > 50:
+            return False
 
         if line != line.upper():
             return False
 
-        if len(line) > 40:
-            return False
+        character_pattern = (
+            r"^[A-ZÁÉÍÓÚÜÑ0-9 .'\-]+"
+            r"(?:\s+\((?:V\.O\.|O\.S\.|CONT'D|CONTINUED)\))?$"
+        )
 
-        if line.endswith((".", ":", "!", "?")):
-            return False
-
-        return any(character.isalpha() for character in line)
-        return any(character.isalpha() for character in line)
+        return re.fullmatch(character_pattern, line) is not None
