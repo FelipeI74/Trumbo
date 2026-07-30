@@ -40,3 +40,29 @@ Estoy aquí.
     assert parsed_scene.blocks[4].content == "JUAN (CONT'D)"
 
     assert parsed_scene.blocks[5].block_type == BlockType.DIALOGUE
+
+def test_scene_parser_recognizes_parenthetical() -> None:
+    scene = Scene(
+        id="3",
+        number="3",
+        interior_exterior="INT",
+        general_location="CASA",
+        specific_location=None,
+        time_of_day="NOCHE",
+        content="""
+JUAN
+
+(con rabia)
+
+No vuelvas.
+""",
+    )
+
+    parser = SceneParser()
+    parsed_scene = parser.parse(scene)
+
+    assert len(parsed_scene.blocks) == 3
+
+    assert parsed_scene.blocks[0].block_type == BlockType.CHARACTER
+    assert parsed_scene.blocks[1].block_type == BlockType.PARENTHETICAL
+    assert parsed_scene.blocks[2].block_type == BlockType.DIALOGUE
