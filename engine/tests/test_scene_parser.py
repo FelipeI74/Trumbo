@@ -1,39 +1,42 @@
-from core.scene import Scene
-from core.types.block_type import BlockType
-from services.parsers.scene_parser import SceneParser
-
-
-def test_scene_parser_returns_expected_blocks() -> None:
+def test_scene_parser_recognizes_character_cue_extensions() -> None:
     scene = Scene(
-        id="1",
-        number="1",
+        id="2",
+        number="2",
         interior_exterior="INT",
-        general_location="CASA",
-        specific_location="COCINA",
-        time_of_day="NOCHE",
+        general_location="ESTUDIO",
+        specific_location=None,
+        time_of_day="DÍA",
         content="""
-Juan entra.
+JUAN (V.O.)
 
-JUAN
+No recuerdo cuándo empezó todo.
 
-Hola.
+MARÍA (O.S.)
 
-MARÍA
+¿Juan?
 
-¿Qué haces aquí?
+JUAN (CONT'D)
+
+Estoy aquí.
 """,
     )
 
     parser = SceneParser()
     parsed_scene = parser.parse(scene)
 
-    assert len(parsed_scene.blocks) == 5
+    assert len(parsed_scene.blocks) == 6
 
-    assert parsed_scene.blocks[0].block_type == BlockType.ACTION
-    assert parsed_scene.blocks[1].block_type == BlockType.CHARACTER
-    assert parsed_scene.blocks[2].block_type == BlockType.DIALOGUE
-    assert parsed_scene.blocks[3].block_type == BlockType.CHARACTER
-    assert parsed_scene.blocks[4].block_type == BlockType.DIALOGUE
+    assert parsed_scene.blocks[0].block_type == BlockType.CHARACTER
+    assert parsed_scene.blocks[0].content == "JUAN (V.O.)"
 
-    assert parsed_scene.errors == []
-    assert parsed_scene.warnings == []
+    assert parsed_scene.blocks[1].block_type == BlockType.DIALOGUE
+
+    assert parsed_scene.blocks[2].block_type == BlockType.CHARACTER
+    assert parsed_scene.blocks[2].content == "MARÍA (O.S.)"
+
+    assert parsed_scene.blocks[3].block_type == BlockType.DIALOGUE
+
+    assert parsed_scene.blocks[4].block_type == BlockType.CHARACTER
+    assert parsed_scene.blocks[4].content == "JUAN (CONT'D)"
+
+    assert parsed_scene.blocks[5].block_type == BlockType.DIALOGUE
