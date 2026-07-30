@@ -1,3 +1,8 @@
+from core.scene import Scene
+from core.types.block_type import BlockType
+from services.parsers.scene_parser import SceneParser
+
+
 def test_scene_parser_recognizes_character_cue_extensions() -> None:
     scene = Scene(
         id="2",
