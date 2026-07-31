@@ -5,15 +5,16 @@ Core entity: Event
 """
 
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass
 class Event:
     """
-    Represents a dramatic event inside a screenplay scene.
+    Represents a meaningful event inside a screenplay scene.
 
-    An event marks a meaningful change in action, information,
-    intention, conflict or dramatic direction.
+    An event can describe a dramatic change or a concrete action
+    useful for production, continuity and storyboard.
     """
 
     id: str
@@ -21,3 +22,7 @@ class Event:
     order: int
     title: str
     summary: str
+
+    subject: Optional[str] = None
+    verb: Optional[str] = None
+    object: Optional[str] = None
