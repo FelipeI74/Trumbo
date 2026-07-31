@@ -71,22 +71,40 @@ class SceneParser:
         normalized = line.strip()
         upper_line = normalized.upper()
 
+        # Scene heading
         if upper_line.startswith(
             ("INT.", "EXT.", "INT/EXT.", "EXT/INT.")
         ):
             return BlockType.HEADING
 
-        if upper_line.endswith(
-            ("A:", "CORTE A:", "FUNDIDO A:")
-        ):
+        # Editing transitions
+        if upper_line in {
+            "CORTE A:",
+            "FUNDIDO A:",
+            "DISOLVENCIA A:",
+        }:
             return BlockType.TRANSITION
 
+        # Text over image marker
+        if upper_line in {
+            "SUPER:",
+            "GC:",
+        }:
+            return BlockType.SUPER
+
+        # Text immediately following SUPER: or GC:
+        if previous_type == BlockType.SUPER:
+            return BlockType.SUPER
+
+        # Parenthetical
         if normalized.startswith("(") and normalized.endswith(")"):
             return BlockType.PARENTHETICAL
 
+        # Character cue
         if self._looks_like_character_cue(normalized):
             return BlockType.CHARACTER
 
+        # Dialogue
         if previous_type in {
             BlockType.CHARACTER,
             BlockType.PARENTHETICAL,
@@ -94,6 +112,7 @@ class SceneParser:
         }:
             return BlockType.DIALOGUE
 
+        # Default
         return BlockType.ACTION
 
     def _looks_like_character_cue(self, line: str) -> bool:

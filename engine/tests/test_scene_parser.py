@@ -71,3 +71,57 @@ No vuelvas.
     assert parsed_scene.blocks[0].block_type == BlockType.CHARACTER
     assert parsed_scene.blocks[1].block_type == BlockType.PARENTHETICAL
     assert parsed_scene.blocks[2].block_type == BlockType.DIALOGUE
+
+def test_scene_parser_recognizes_transitions() -> None:
+    scene = Scene(
+        id="4",
+        number="4",
+        interior_exterior="INT",
+        general_location="CASA",
+        specific_location=None,
+        time_of_day="NOCHE",
+        content="""
+CORTE A:
+
+FUNDIDO A:
+
+DISOLVENCIA A:
+""",
+    )
+
+    parser = SceneParser()
+    parsed_scene = parser.parse(scene)
+
+    assert len(parsed_scene.blocks) == 3
+
+    assert parsed_scene.blocks[0].block_type == BlockType.TRANSITION
+    assert parsed_scene.blocks[1].block_type == BlockType.TRANSITION
+    assert parsed_scene.blocks[2].block_type == BlockType.TRANSITION
+def test_scene_parser_recognizes_super_and_gc() -> None:
+    scene = Scene(
+        id="5",
+        number="5",
+        interior_exterior="EXT",
+        general_location="SANTIAGO",
+        specific_location=None,
+        time_of_day="DÍA",
+        content="""
+GC:
+
+SANTIAGO, 11 DE SEPTIEMBRE DE 1973
+
+SUPER:
+
+TRES HORAS DESPUÉS
+""",
+    )
+
+    parser = SceneParser()
+    parsed_scene = parser.parse(scene)
+
+    assert len(parsed_scene.blocks) == 4
+
+    assert parsed_scene.blocks[0].block_type == BlockType.SUPER
+    assert parsed_scene.blocks[1].block_type == BlockType.SUPER
+    assert parsed_scene.blocks[2].block_type == BlockType.SUPER
+    assert parsed_scene.blocks[3].block_type == BlockType.SUPER
