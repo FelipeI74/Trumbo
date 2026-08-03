@@ -4,9 +4,9 @@ Trumbo Engine
 Temporary compatibility wrapper for SceneParser.
 """
 
-from core.scene import Scene
-from core.block import Block
-from services.parsers.scene_parser import SceneParser
+from engine.core.scene import Scene
+from engine.core.block import Block
+from engine.services.parsers.scene_parser import SceneParser
 
 
 class BlockAnalyzer:

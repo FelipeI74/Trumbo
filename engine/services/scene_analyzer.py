@@ -4,7 +4,7 @@ Trumbo Engine
 Service: Scene Analyzer
 """
 
-from core.scene import Scene
+from engine.core.scene import Scene
 
 
 class SceneAnalyzer:

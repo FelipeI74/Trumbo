@@ -1,6 +1,6 @@
-from core.block import Block
-from core.types.block_type import BlockType
-from services.analyzers.event_extractor import (
+from engine.core.block import Block
+from engine.core.types.block_type import BlockType
+from engine.services.analyzers.event_extractor import (
     EventExtractor,
 )
 

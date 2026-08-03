@@ -1,9 +1,9 @@
 from dataclasses import dataclass, field
 
-from core.block import Block
-from core.event import Event
-from core.character import Character
-from core.location import Location
+from engine.core.block import Block
+from engine.core.event import Event
+from engine.core.character import Character
+from engine.core.location import Location
 
 
 @dataclass

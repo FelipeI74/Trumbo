@@ -6,7 +6,7 @@ Model: Character Statistics
 
 from dataclasses import dataclass
 
-from core.character import Character
+from engine.core.character import Character
 
 
 @dataclass

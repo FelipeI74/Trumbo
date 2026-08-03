@@ -6,7 +6,7 @@ Core entity: Block
 
 from dataclasses import dataclass
 
-from core.types.block_type import BlockType
+from engine.core.types.block_type import BlockType
 
 
 @dataclass

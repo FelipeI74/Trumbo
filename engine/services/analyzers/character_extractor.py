@@ -6,9 +6,9 @@ Analyzer: Character Extractor
 
 from uuid import uuid4
 
-from core.character import Character
-from core.event import Event
-from models.character_statistics import CharacterStatistics
+from engine.core.character import Character
+from engine.core.event import Event
+from engine.models.character_statistics import CharacterStatistics
 
 
 class CharacterExtractor:

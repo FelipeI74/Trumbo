@@ -2,8 +2,8 @@
 Basic test for BlockAnalyzer
 """
 
-from core.scene import Scene
-from services.analyzers.block_analyzer import BlockAnalyzer
+from engine.core.scene import Scene
+from engine.services.analyzers.block_analyzer import BlockAnalyzer
 
 
 def test_block_analyzer():

@@ -6,7 +6,7 @@ Model: Production Element Statistics
 
 from dataclasses import dataclass
 
-from core.production_element import ProductionElement
+from engine.core.production_element import ProductionElement
 
 
 @dataclass
@@ -21,4 +21,3 @@ class ProductionElementStatistics:
     first_scene_id: str
 
     appearance_count: int = 0
-    

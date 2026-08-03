@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .database import connect, initialize, rows
 from .domain import estimate_runtime, screenplay_summary
+from .services.engine_analysis_adapter import analyze_scene_with_engine
 from .schemas import (
     BreakdownItemCreate,
     NoteCreate,
@@ -589,9 +590,10 @@ def analyze_scene(
                 "Escena no encontrada",
             )
 
-        return screenplay_summary(
-            scene["heading"],
-            scene["body"],
+        return analyze_scene_with_engine(
+            scene_id=scene_id,
+            heading=scene["heading"],
+            body=scene["body"],
         )
 
 

@@ -4,11 +4,11 @@ Trumbo Engine
 Production Catalog Service.
 """
 
-from catalogs.production_catalog import (
+from engine.catalogs.production_catalog import (
     PRODUCTION_CATALOG,
 )
 
-from core.types.production_element_type import (
+from engine.core.types.production_element_type import (
     ProductionElementType,
 )
 

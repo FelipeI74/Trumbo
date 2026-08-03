@@ -7,9 +7,9 @@ Extracts structured events from screenplay blocks.
 import re
 from uuid import uuid4
 
-from core.block import Block
-from core.event import Event
-from core.types.block_type import BlockType
+from engine.core.block import Block
+from engine.core.event import Event
+from engine.core.types.block_type import BlockType
 
 
 class EventExtractor:

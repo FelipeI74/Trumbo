@@ -6,7 +6,7 @@ Represents the result of parsing a screenplay scene.
 
 from dataclasses import dataclass, field
 
-from core.block import Block
+from engine.core.block import Block
 
 
 @dataclass

@@ -7,10 +7,10 @@ Analyzer: Production Element Analyzer
 import re
 from uuid import uuid4
 
-from catalogs.production_catalog import PRODUCTION_CATALOG
-from core.block import Block
-from core.production_element import ProductionElement
-from core.types.block_type import BlockType
+from engine.catalogs.production_catalog import PRODUCTION_CATALOG
+from engine.core.block import Block
+from engine.core.production_element import ProductionElement
+from engine.core.types.block_type import BlockType
 
 
 class ProductionElementAnalyzer:

@@ -1,7 +1,7 @@
-from core.block import Block
-from core.types.block_type import BlockType
-from core.types.production_element_type import ProductionElementType
-from services.analyzers.production_element_analyzer import (
+from engine.core.block import Block
+from engine.core.types.block_type import BlockType
+from engine.core.types.production_element_type import ProductionElementType
+from engine.services.analyzers.production_element_analyzer import (
     ProductionElementAnalyzer,
 )
 
@@ -44,4 +44,3 @@ def test_production_element_analyzer_detects_known_elements() -> None:
 
     assert elements[2].name == "Teléfono"
     assert elements[2].element_type == ProductionElementType.PROP
-    

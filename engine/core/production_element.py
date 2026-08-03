@@ -6,7 +6,7 @@ Core entity: Production Element
 
 from dataclasses import dataclass
 
-from core.types.production_element_type import (
+from engine.core.types.production_element_type import (
     ProductionElementType,
 )
 
@@ -21,4 +21,3 @@ class ProductionElement:
     id: str
     name: str
     element_type: ProductionElementType
-    

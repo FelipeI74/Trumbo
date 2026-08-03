@@ -6,7 +6,7 @@ Production element catalog.
 Defines known production elements and their categories.
 """
 
-from core.types.production_element_type import (
+from engine.core.types.production_element_type import (
     ProductionElementType,
 )
 

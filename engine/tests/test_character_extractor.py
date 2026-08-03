@@ -1,5 +1,5 @@
-from core.event import Event
-from services.analyzers.character_extractor import CharacterExtractor
+from engine.core.event import Event
+from engine.services.analyzers.character_extractor import CharacterExtractor
 
 
 def test_character_extractor_groups_events_by_character() -> None:
