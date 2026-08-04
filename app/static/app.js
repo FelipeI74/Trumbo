@@ -296,6 +296,13 @@ function sceneToSemanticLines(scene) {
     });
   }
 
+  if (!heading && !bodyLines.some(Boolean)) {
+    return [{
+      type: "transition",
+      text: "FADE IN:",
+    }];
+  }
+
   scene.semantic_lines = result;
 
   return result;
@@ -307,9 +314,7 @@ function createLine(type = "action", text = "") {
   line.dataset.type = type;
   line.contentEditable = "true";
 
-  line.spellcheck =
-    type !== "character" &&
-    type !== "heading";
+  setLineSpellcheck(line);
 
   line.setAttribute(
     "role",
@@ -387,12 +392,8 @@ function ensureSceneStructure(sceneNode) {
   if (!lines.length) {
     sceneNode.append(
       createLine(
-        "heading",
-        "INT. LOCACIÓN - DÍA"
-      ),
-      createLine(
-        "action",
-        ""
+        "transition",
+        "FADE IN:"
       )
     );
 
@@ -628,6 +629,23 @@ function getLineType(line) {
   return line?.dataset.type || "action";
 }
 
+function setLineSpellcheck(line) {
+  if (!line) {
+    return;
+  }
+
+  const type = getLineType(line);
+  const enabled =
+    type !== "character" &&
+    type !== "heading";
+
+  line.spellcheck = enabled;
+  line.setAttribute(
+    "spellcheck",
+    String(enabled)
+  );
+}
+
 function setLineType(line, type) {
   if (
     !line ||
@@ -648,9 +666,7 @@ function setLineType(line, type) {
     LINE_LABELS[type] || "Línea"
   );
 
-  line.spellcheck =
-    type !== "character" &&
-    type !== "heading";
+  setLineSpellcheck(line);
 
   if (
     type === "character" ||
@@ -815,6 +831,17 @@ function insertLineAfter(
 
 function nextTypeAfterEnter(line) {
   const type = getLineType(line);
+  const content =
+    (line?.textContent || "")
+      .trim()
+      .toUpperCase();
+
+  if (
+    content === "SUPER:" ||
+    content === "GC:"
+  ) {
+    return "action";
+  }
 
   if (type === "heading") {
     return "action";
@@ -833,7 +860,7 @@ function nextTypeAfterEnter(line) {
   }
 
   if (type === "transition") {
-    return "heading";
+    return "action";
   }
 
   return "action";
@@ -880,6 +907,52 @@ function splitLineAtCaret(
     nextType,
     tail
   );
+}
+
+function removeCurrentLineIfEmpty(line) {
+  if (!line) {
+    return false;
+  }
+
+  if ((line.textContent || "").trim()) {
+    return false;
+  }
+
+  const sceneNode =
+    line.closest(".script-scene");
+
+  if (!sceneNode) {
+    return false;
+  }
+
+  const siblings =
+    sceneNode.querySelectorAll(
+      ":scope > .script-line"
+    );
+
+  if (siblings.length <= 1) {
+    line.textContent = "";
+    focusLine(line, true);
+    return false;
+  }
+
+  const target =
+    line.previousElementSibling?.classList.contains(
+      "script-line"
+    )
+      ? line.previousElementSibling
+      : line.nextElementSibling;
+
+  if (!target) {
+    return false;
+  }
+
+  line.remove();
+
+  focusLine(target, true);
+  scheduleSceneSave(sceneNode);
+
+  return true;
 }
 
 function mergeWithPreviousLine(line) {
@@ -1115,6 +1188,20 @@ function handleLineKeydown(event) {
     );
 
     return;
+  }
+
+  if (
+    event.key === "Delete" ||
+    event.key === "Del"
+  ) {
+    if (removeCurrentLineIfEmpty(line)) {
+      event.preventDefault();
+      return;
+    }
+
+    if ((line.textContent || "").trim()) {
+      return;
+    }
   }
 
   if (
@@ -1904,41 +1991,28 @@ async function analyzeActiveScene() {
 function renderScriptAnalysis(
   analysis
 ) {
-  const labels = {
-    heading:
-      "Encabezados",
-
-    action:
-      "Acción",
-
-    character:
-      "Personajes",
-
-    dialogue:
-      "Diálogos",
-
-    parenthetical:
-      "Parentéticos",
-
-    transition:
-      "Transiciones",
-  };
-
   const counts =
     analysis?.counts || {};
 
   const chips =
     Object
-      .entries(labels)
+      .entries({
+        heading: "Encabezados",
+        action: "Acción",
+        character: "Personajes",
+        dialogue: "Diálogos",
+        parenthetical: "Parentéticos",
+        transition: "Transiciones",
+      })
       .map(
         ([key, label]) => `
           <div class="analysis-chip">
             <span>
-              ${label}
+              ${escapeHtml(label)}
             </span>
 
             <strong>
-              ${counts[key] || 0}
+              ${escapeHtml(counts[key] || 0)}
             </strong>
           </div>
         `
@@ -1948,21 +2022,125 @@ function renderScriptAnalysis(
   const characters =
     analysis?.characters?.length
       ? `
-        <div class="analysis-characters">
-          <strong>
-            Detectados:
-          </strong>
+        <div class="analysis-section">
+          <div class="analysis-section-title">
+            Personajes
+          </div>
 
-          ${
-            analysis.characters
-              .map(escapeHtml)
-              .join(", ")
-          }
+          <ul class="analysis-list">
+            ${analysis.characters
+              .map(
+                character => `
+                  <li>
+                    ${escapeHtml(character)}
+                  </li>
+                `
+              )
+              .join("")}
+          </ul>
         </div>
       `
       : `
-        <div class="analysis-characters">
-          Aún no se detectan personajes.
+        <div class="analysis-section">
+          <div class="analysis-section-title">
+            Personajes
+          </div>
+
+          <div class="analysis-empty">
+            Aún no se detectan personajes.
+          </div>
+        </div>
+      `;
+
+  const events =
+    analysis?.events?.length
+      ? `
+        <div class="analysis-section">
+          <div class="analysis-section-title">
+            Eventos
+          </div>
+
+          <ul class="analysis-list">
+            ${analysis.events
+              .map(
+                event => `
+                  <li>
+                    <strong>
+                      ${escapeHtml(event.title || "Evento")}
+                    </strong>
+                  </li>
+                `
+              )
+              .join("")}
+          </ul>
+        </div>
+      `
+      : `
+        <div class="analysis-section">
+          <div class="analysis-section-title">
+            Eventos
+          </div>
+
+          <div class="analysis-empty">
+            Aún no se detectan eventos.
+          </div>
+        </div>
+      `;
+
+  const productionElements =
+    analysis?.production_elements?.length
+      ? `
+        <div class="analysis-section">
+          <div class="analysis-section-title">
+            Elementos de producción
+          </div>
+
+          ${Object.entries(
+            analysis.production_elements.reduce(
+              (groups, element) => {
+                const key = element.element_type || "unknown";
+                if (!groups[key]) {
+                  groups[key] = [];
+                }
+                groups[key].push(element);
+                return groups;
+              },
+              {}
+            )
+          )
+            .map(
+              ([group, items]) => `
+                <div class="analysis-group">
+                  <div class="analysis-group-title">
+                    ${escapeHtml(group)}
+                  </div>
+
+                  <ul class="analysis-list">
+                    ${items
+                      .map(
+                        item => `
+                          <li>
+                            ${escapeHtml(item.name || "Elemento")}
+                          </li>
+                        `
+                      )
+                      .join("")}
+                  </ul>
+                </div>
+              `
+            )
+            .join("")}
+        </div>
+      `
+      : `
+        <div class="analysis-section">
+          <div class="analysis-section-title">
+            Elementos de producción
+          </div>
+
+          <div class="analysis-empty">
+            Aún no se detectan elementos de producción.
+          </div>
         </div>
       `;
 
@@ -1972,7 +2150,11 @@ function renderScriptAnalysis(
         ${chips}
       </div>
 
-      ${characters}
+      <div class="analysis-stack">
+        ${characters}
+        ${events}
+        ${productionElements}
+      </div>
     `;
 }
 
@@ -2322,14 +2504,20 @@ async function createScene() {
       }
     );
 
-    const heading =
+    const focusTarget =
+      node.querySelector(
+        ".script-line.transition"
+      ) ||
       node.querySelector(
         ".script-line.heading"
+      ) ||
+      node.querySelector(
+        ".script-line"
       );
 
-    if (heading) {
+    if (focusTarget) {
       focusLine(
-        heading,
+        focusTarget,
         true
       );
     }

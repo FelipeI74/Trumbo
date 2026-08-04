@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from engine.core.scene import Scene
 from engine.core.types.block_type import BlockType
+from engine.services.analyzers.event_extractor import EventExtractor
+from engine.services.analyzers.production_element_analyzer import ProductionElementAnalyzer
 from engine.services.parsers.scene_parser import SceneParser
 
 
@@ -29,6 +31,12 @@ def analyze_scene_with_engine(
     parsed_scene = parser.parse(scene)
 
     blocks = parsed_scene.blocks
+
+    event_extractor = EventExtractor()
+    events = event_extractor.extract(blocks)
+
+    production_element_analyzer = ProductionElementAnalyzer()
+    production_elements = production_element_analyzer.extract(blocks)
 
     counts = {
         "heading": 0,
@@ -67,4 +75,25 @@ def analyze_scene_with_engine(
         "counts": counts,
         "characters": characters,
         "elements": elements,
+        "events": [
+            {
+                "id": event.id,
+                "scene_id": event.scene_id,
+                "order": event.order,
+                "title": event.title,
+                "summary": event.summary,
+                "subject": event.subject,
+                "verb": event.verb,
+                "object": event.object,
+            }
+            for event in events
+        ],
+        "production_elements": [
+            {
+                "id": element.id,
+                "name": element.name,
+                "element_type": element.element_type.value,
+            }
+            for element in production_elements
+        ],
     }
