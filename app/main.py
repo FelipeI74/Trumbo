@@ -188,18 +188,6 @@ def create_project(
 
         project_id = cursor.lastrowid
 
-        connection.execute(
-            """
-            INSERT INTO scenes(
-                project_id,
-                scene_number,
-                semantic_lines
-            )
-            VALUES (?, 1, '[]')
-            """,
-            (project_id,),
-        )
-
         project = connection.execute(
             """
             SELECT *
