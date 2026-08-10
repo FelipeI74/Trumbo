@@ -1,0 +1,14 @@
+Before modifying Trumbo, read the complete folder docs/sophocles_reference/ (or the location where this Sophocles_Copilot_Kit was copied).
+
+Treat SOPHOCLES_EDITOR_SPEC.md as the functional reference for screenplay-editor behavior and SOPHOCLES_ARCHITECTURE_MAP.md as architectural evidence, not source code.
+
+Rules:
+- Do not invent UX when Sophocles already defines the workflow.
+- Do not copy compiled code.
+- Do not rewrite the Trumbo Engine.
+- Do not modify more than one editor subsystem per iteration.
+- For exact keyboard behavior, prioritize the Sophocles manual and Felipe's direct observation over inference from binary strings.
+- Every change must pass pytest and then manual validation before being considered complete.
+- After a manual validation, create a Git checkpoint before moving to the next subsystem.
+
+First task: audit the current Trumbo editor against SOPHOCLES_EDITOR_SPEC.md and report mismatches only. Do not modify code until the mismatch report is reviewed.

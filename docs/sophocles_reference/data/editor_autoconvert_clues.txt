@@ -1,0 +1,121 @@
+Print / Preview Paragraph Notes
+COmittedSceneList::IsCorrupt
+ext.
+int.
+fade up:
+fade in:
+fade out.
+dissolve to:
+cut to:
+Transition Out
+Transition In
+Scene Header
+" is already present in the list.
+A string beginning with "
+String already present in list
+Only 20 strings are allowed per paragraph type.
+ALLOW
+TOTAL
+ACCT
+The "minimum rows" value must be between 0 and 100
+The "excess rows" value must be between 0 and 50
+ReportFace
+The interior margin must be between 0.1 and 0.5 inches
+InitialOpt
+Budget
+Cards
+Resource Continuity
+Resource List
+Day-Out-of-Days
+Call Sheets
+Breakdown Pages
+Strips
+One-Line Schedule
+Shooting Schedule
+Menus & Tabs
+Detail / Breakdown
+Step / Chrono / Schedule
+Script View (Page Layout)
+Script View
+General
+Explorer Views
+Timing
+Files
+Screen Fonts
+Reports
+Auto-Convert
+Changes to the tabs will take effect the next time you start Sophocles
+rtop
+StripHeight
+Notice: When this box is checked, bookmarked paragraphs will appear with a yellow background when you print.
+Auto-backup interval must be between 120 and 5000 seconds.
+Keystroke value must be between 100 and 5000.
+Select a default export folder
+Select a default import folder
+Select a default scripts folder
+Select a default budget folder
+The change to the "Menus & Tabs" font will take effect the next time you start Sophocles
+The rain in Spain falls mainly on the plain.
+THE RAIN IN SPAIN FALLS MAINLY ON THE PLAIN.  The rain in Spain falls mainly on the plain.
+THE RAIN IN SPAIN FALLS MAINLY ON THE PLAIN.
+%d  (%d%%)
+Note: If you change the INT. or EXT. strings, you should also update the auto-convert strings for scene headers.  To do so, select "Auto-Convert" on the left, then select "Scene Header" in the drop-down box.
+ lists.
+ and 
+" appears in both the 
+Duplicate string detected:  "
+CONTINUOUS
+DUSK
+DAWN
+NIGHT
+EXTERIOR
+INTERIOR
+DAY Strings
+NIGHT Strings
+DAWN Strings
+DUSK Strings
+INT. Strings
+EXT. Strings
+V.O. Strings
+CONTINUOUS Strings
+Margin percents must be between 0 and 70
+Max margin must be between 0 and 100 characters
+Margins must total no more than 70%
+OptionsDropDown
+The header height must be between 1.0 and 8.0 inches
+ @The strip height must be between 0.1 and 2.0 inches
+All timing values must be between 0 and 10 seconds.
+Not found
+COutlineView
+OnBeginEdit
+COutlineView::OnSetFocus
+COutlineView::HilightBegin
+RefreshCaretPos ERR1
+COutlineView::HilightEnd
+    
+  BCKSPC=
+  ESC=
+  SHIFT+TAB=
+  TAB=
+  ENTER=
+ Scene
+ Sequence
+ Act
+ Step
+ Divider
+%d occurrences replaced
+OnRemovingElement
+COutlineView::BeginEdit
+COutlineView::OnKeyDown
+TERM
+FIRST
+TRM/FRST
+END/TRM
+TRM/LGNTH
+FRST/LNGTH
+CPage::IsCorrupt
+CPageBreaks
+CPageFormats
+?For this style of dialogue to look right, some margins and formats should be changed.  Would you like Sophocles to make these changes for you automatically, using reasonable default values?
+CPageGeneral
+The font selected for this script does not exist on this computer. Would you like to switch to the default screenplay font?

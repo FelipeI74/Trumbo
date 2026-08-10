@@ -70,3 +70,22 @@ class BreakdownItemCreate(BaseModel):
     name: str = Field(min_length=1)
     source: str = "manual"
     state: str = "confirmed"
+
+
+class BreakdownItemUpdate(BaseModel):
+    category: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    name: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    source: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    state: str | None = Field(
+        default=None,
+        min_length=1,
+    )

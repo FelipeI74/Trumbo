@@ -1,0 +1,94 @@
+106	Dual dialogue, left column
+107	Dual dialogue, right column
+111	Change the type of the current paragraph
+112	Assign a thread to the current step
+113	Single column dialogue
+114	Determine start of production for current unit
+115	Select chart
+4557	ERROR: Not all of the resources needed by Xtreme Toolkit have been correctly initialized.
+4571	The operating system is out of memory or resources.
+32777	Turn bookmark on or off for current paragraph
+32787	Insert an empty sequence header paragraph
+32789	Insert an empty act header paragraph
+32793	Insert interior scene header paragraph
+32794	Insert exterior scene header paragraph
+32796	Center the current paragraph
+32797	Insert empty transition-in paragraph
+32798	Insert CUT TO paragraph
+32800	Insert FADE OUT paragraph
+32801	Insert DISSOLVE TO paragraph
+32802	Insert empty transition-out paragraph
+32811	Insert FADE TO paragraph
+32819	Check document for spelling errors
+32826	Insert FADE IN paragraph
+32844	Insert empty scene header
+32855	Convert current paragraph to action
+32856	Convert current paragraph to scene header
+32857	Convert current paragraph to transition-in
+32858	Convert current paragraph to transition-out
+32859	Convert current paragraph to sequence header
+32861	Convert current paragraph to act header
+32862	Convert current paragraph to dialogue
+32863	Convert current paragraph to dialog cue
+32869	Insert empty custom paragraph
+32870	Convert current paragraph to custom
+32871	Toggle revision tracking mode on or off
+32878	Toggle current paragraph as numbered
+32888	Omit or restore numbered scene
+32895	Isolate first word of paragraph
+32934	Activate the thesaurus
+32950	Jump to a specified location
+32954	Synchronize Explorer Window to current position
+32968	Edit scene number extension
+32969	Toggle automatic scene numbering
+32971	Go to next revised scene
+32972	Go to prior revised scene
+32973	Go to prior revised paragraph
+32974	Go to next revised paragraph
+32975	Undo any revisions to current scene
+32976	Undo any revisions to current paragraph
+32985	Edit the revision slug
+32997	Insert special character
+33014	Activate the breakdown view
+33016	Split the explorer view
+33018	Show or hide the explorer window
+33022	Create a new character
+33029	Create a new thread
+33034	Create a new location
+33035	Create a new production resource
+33036	Create a new resource category
+33055	Insert a step
+33066	Toggle step as off-screen
+33099	Collapse explorer nodes
+33100	Expand to first level of explorer nodes
+33101	Expand to second level of explorer nodes
+33115	Hide empty resource categories
+33117	Sort explorer items
+33128	Edit properties for current resource
+33136	Add/remove production units
+33137	Edit properties for current thread
+33138	Add/remove character aliases
+33159	Run the auto-schedule tool
+33160	View production checklist
+33173	Store current schedule
+33174	Load a previously stored schedule
+33176	Bookmark all scenes containing the current resource
+33178	Display any availability violations for resources contained in the current breakdown page
+33203	Preview and print the budget
+33209	Edit the budget
+33211	Create a file containing production data
+33212	Revert list to chronological order
+33215	Add resource to scene
+33226	Word statistics by character
+33229	Add or remove words from the custom spell-check dictionary
+33237	Delete all locations
+33238	Auto-generate locations
+33239	Delete all locations
+33242	Toggle revision mark
+33243	Toggle gap revision mark
+33245	Restore paragraph marks
+33246	Edit locked paragraph
+33251	Revision page generation
+33253	Edit manual revision marks
+61474	A required resource was unavailable.
+61716	Please enter no more than %1 characters.

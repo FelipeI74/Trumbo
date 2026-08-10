@@ -1,0 +1,13 @@
+
+/mnt/data/sophocles_reverse/decompressed/011_FILE_148_1033.out:     file format pei-i386
+
+Sections:
+Idx Name          Size      VMA       LMA       File off  Algn
+  0 .text         002c8bae  00401000  00401000  00001000  2**2
+                  CONTENTS, ALLOC, LOAD, READONLY, CODE
+  1 .rdata        000c1812  006ca000  006ca000  002ca000  2**2
+                  CONTENTS, ALLOC, LOAD, READONLY, DATA
+  2 .data         00008000  0078c000  0078c000  0038c000  2**2
+                  CONTENTS, ALLOC, LOAD, DATA
+  3 .rsrc         001adf0c  007c4000  007c4000  00394000  2**2
+                  CONTENTS, ALLOC, LOAD, READONLY, DATA

@@ -14,6 +14,10 @@ const state = {
 
   activeLine: null,
   isRendering: false,
+  isHydratingScenesFromDocument: false,
+  isReconcilingScenes: false,
+  reconcileTimer: null,
+  pendingReconcile: false,
 };
 
 const LINE_TYPES = [
@@ -54,6 +58,21 @@ const TAB_BACKWARD = {
 
 const $ = selector => document.querySelector(selector);
 
+const HEADING_PREFIX_REGEX =
+  /^(INT\.|EXT\.)\s*/i;
+
+const HEADING_TOKEN_ONLY_REGEX =
+  /^(INT\.|EXT\.)$/i;
+
+const HEADING_COMPLETE_REGEX =
+  /^(INT\.|EXT\.)\s*.+/i;
+
+const TRANSITION_IN_REGEX =
+  /^FADE IN:$/i;
+
+const TRANSITION_OUT_REGEX =
+  /^(CUT TO:|FADE OUT:|MATCH CUT:|SMASH CUT:|JUMP CUT:|DISSOLVE TO:|WIPE TO:|CORTE A:|FUNDIDO A:|DISOLVENCIA A:)$/i;
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -61,6 +80,46 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function isHeadingPrefixText(value) {
+  return HEADING_PREFIX_REGEX.test(
+    String(value || "").trim()
+  );
+}
+
+function isHeadingTokenOnly(value) {
+  return HEADING_TOKEN_ONLY_REGEX.test(
+    String(value || "").trim()
+  );
+}
+
+function isCompleteHeadingText(value) {
+  const text = String(value || "").trim();
+
+  return (
+    HEADING_COMPLETE_REGEX.test(text) &&
+    !isHeadingTokenOnly(text)
+  );
+}
+
+function isValidSceneHeadingText(value) {
+  const text = String(value || "").trim();
+
+  if (!text) {
+    return false;
+  }
+
+  return isHeadingPrefixText(text);
+}
+
+function isTransitionText(value) {
+  const text = String(value || "").trim();
+
+  return (
+    TRANSITION_IN_REGEX.test(text) ||
+    TRANSITION_OUT_REGEX.test(text)
+  );
 }
 
 function formatSeconds(total = 0) {
@@ -192,9 +251,7 @@ function inferLineType(text, previousType = null) {
       : "action";
   }
 
- if (
-  /^(INT\.|EXT\.|INT\/EXT\.|EXT\/INT\.|I\/E\.|E\/I\.)\s*/i.test(value)
-) {
+ if (isHeadingPrefixText(value)) {
     return "heading";
 }
 
@@ -205,12 +262,7 @@ function inferLineType(text, previousType = null) {
     return "parenthetical";
   }
 
-  if (
-    /:$/.test(value) &&
-    /^(CORTE|FUNDIDO|DISOLVENCIA|MATCH CUT|SALTO|IRIS|WIPE|FADE)/i.test(
-      value
-    )
-  ) {
+  if (isTransitionText(value)) {
     return "transition";
   }
 
@@ -264,16 +316,19 @@ function sceneToSemanticLines(scene) {
   const heading =
     String(scene.heading || "").trim();
 
-  result.push({
-    type: "heading",
-    text: heading || "INT. LOCACIÓN - DÍA",
-  });
+  if (heading) {
+    result.push({
+      type: "heading",
+      text: heading,
+    });
+  }
 
   const bodyLines =
     String(scene.body || "")
       .split(/\r?\n/);
 
-  let previousType = "heading";
+  let previousType =
+    heading ? "heading" : "action";
 
   for (const text of bodyLines) {
     const type = inferLineType(
@@ -289,18 +344,21 @@ function sceneToSemanticLines(scene) {
     previousType = type;
   }
 
-  if (result.length === 1) {
+  if (!result.length) {
     result.push({
       type: "action",
       text: "",
     });
   }
 
-  if (!heading && !bodyLines.some(Boolean)) {
-    return [{
-      type: "transition",
-      text: "FADE IN:",
-    }];
+  if (
+    result.length === 1 &&
+    result[0].type === "heading"
+  ) {
+    result.push({
+      type: "action",
+      text: "",
+    });
   }
 
   scene.semantic_lines = result;
@@ -313,6 +371,7 @@ function createLine(type = "action", text = "") {
   line.className = `script-line ${type}`;
   line.dataset.type = type;
   line.contentEditable = "true";
+  line.lang = "es";
 
   setLineSpellcheck(line);
 
@@ -326,7 +385,13 @@ function createLine(type = "action", text = "") {
     LINE_LABELS[type] || "Línea"
   );
 
+  line.setAttribute("lang", "es");
+  line.setAttribute("autocorrect", "on");
+
   line.textContent = text;
+
+  applyTransitionVariant(line);
+  syncLineDelimiterState(line);
 
   line.addEventListener(
     "focus",
@@ -346,6 +411,11 @@ function createLine(type = "action", text = "") {
   line.addEventListener(
     "input",
     handleLineInput
+  );
+
+  line.addEventListener(
+    "blur",
+    handleLineBlur
   );
 
   line.addEventListener(
@@ -392,32 +462,13 @@ function ensureSceneStructure(sceneNode) {
   if (!lines.length) {
     sceneNode.append(
       createLine(
-        "transition",
-        "FADE IN:"
+        "action",
+        ""
       )
     );
 
     return;
   }
-
-  let heading = lines.find(
-    line => getLineType(line) === "heading"
-  );
-
-  if (!heading) {
-    heading = createLine(
-      "heading",
-      "INT. LOCACIÓN - DÍA"
-    );
-
-    sceneNode.prepend(heading);
-  } else if (
-    heading !== sceneNode.firstElementChild
-  ) {
-    sceneNode.prepend(heading);
-  }
-
-  lines = lineElements(sceneNode);
 
   if (lines.length === 1) {
     sceneNode.appendChild(
@@ -427,27 +478,26 @@ function ensureSceneStructure(sceneNode) {
       )
     );
   }
-
-  const extraHeadings =
-    lineElements(sceneNode).filter(
-      (line, index) =>
-        index > 0 &&
-        getLineType(line) === "heading"
-    );
-
-  extraHeadings.forEach(
-    splitSceneAtHeading
-  );
 }
 
 function renderScreenplay() {
   const editor = $("#screenplayEditor");
 
+  editor.lang = "es";
+  editor.spellcheck = true;
+  editor.setAttribute("lang", "es");
+  editor.setAttribute("spellcheck", "true");
+  editor.setAttribute("autocorrect", "on");
+
   state.isRendering = true;
   editor.innerHTML = "";
 
   if (!state.scenes.length) {
-    editor.appendChild(
+    editor.append(
+      createLine(
+        "transition",
+        "FADE IN:"
+      ),
       createLine(
         "action",
         ""
@@ -640,19 +690,99 @@ function setLineSpellcheck(line) {
     type !== "heading";
 
   line.spellcheck = enabled;
+  line.lang = "es";
   line.setAttribute(
     "spellcheck",
     String(enabled)
   );
+  line.setAttribute("lang", "es");
+  line.setAttribute("autocorrect", enabled ? "on" : "off");
 }
 
-function setLineType(line, type) {
+function isSceneDelimiterLine(line) {
+  if (!line) {
+    return false;
+  }
+
+  if (getLineType(line) !== "heading") {
+    return false;
+  }
+
+  return isCompleteHeadingText(
+    line.textContent || ""
+  );
+}
+
+function syncLineDelimiterState(line) {
+  if (!line) {
+    return false;
+  }
+
+  const previous =
+    line.dataset.sceneDelimiter === "1";
+
+  const current =
+    isSceneDelimiterLine(line);
+
+  line.dataset.sceneDelimiter =
+    current ? "1" : "0";
+
+  return previous !== current;
+}
+
+function applyTransitionVariant(line) {
+  if (!line) {
+    return;
+  }
+
+  delete line.dataset.transitionVariant;
+
+  if (getLineType(line) !== "transition") {
+    return;
+  }
+
+  const text =
+    (line.textContent || "").trim();
+
+  if (TRANSITION_IN_REGEX.test(text)) {
+    line.dataset.transitionVariant = "in";
+    return;
+  }
+
+  if (isTransitionText(text)) {
+    line.dataset.transitionVariant = "out";
+  }
+}
+
+function setLineType(
+  line,
+  type,
+  options = {}
+) {
   if (
     !line ||
     !LINE_TYPES.includes(type)
   ) {
     return;
   }
+
+  const {
+    preserveCaret = false,
+    skipSceneSplit = false,
+  } = options;
+
+  const selection =
+    preserveCaret
+      ? window.getSelection()
+      : null;
+
+  const offset =
+    preserveCaret &&
+    selection?.rangeCount
+      ? selection
+          .getRangeAt(0)
+          .startOffset
+      : null;
 
   LINE_TYPES.forEach(item => {
     line.classList.remove(item);
@@ -680,14 +810,53 @@ function setLineType(line, type) {
       line.textContent !== uppercaseText
     ) {
       line.textContent = uppercaseText;
-      placeCaretAtEnd(line);
+
+      if (
+        preserveCaret &&
+        offset !== null &&
+        line.firstChild
+      ) {
+        const range =
+          document.createRange();
+
+        const safeOffset =
+          Math.min(
+            offset,
+            line.firstChild
+              .textContent.length
+          );
+
+        range.setStart(
+          line.firstChild,
+          safeOffset
+        );
+
+        range.collapse(true);
+
+        selection.removeAllRanges();
+        selection.addRange(range);
+      } else {
+        placeCaretAtEnd(line);
+      }
     }
   }
 
-  updateModeLabel(type);
+  applyTransitionVariant(line);
+  syncLineDelimiterState(line);
 
-  if (type === "heading") {
-    splitSceneAtHeading(line);
+  const lineIsActive =
+    state.activeLine === line ||
+    document.activeElement === line;
+
+  if (lineIsActive) {
+    updateModeLabel(type);
+  }
+
+  if (
+    type === "heading" &&
+    !skipSceneSplit
+  ) {
+    scheduleDocumentSceneReconciliation(0);
     return;
   }
 
@@ -747,6 +916,39 @@ function placeCaretAtStart(element) {
 
   range.selectNodeContents(element);
   range.collapse(true);
+
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function selectAllInCurrentScene(line) {
+  const selection =
+    window.getSelection();
+
+  if (!selection) {
+    return;
+  }
+
+  const sceneNode =
+    line?.closest(".script-scene");
+
+  const lines = sceneNode
+    ? lineElements(sceneNode)
+    : [...document.querySelectorAll("#screenplayEditor > .script-line")];
+
+  if (!lines.length) {
+    return;
+  }
+
+  const first = lines[0];
+  const last =
+    lines[lines.length - 1];
+
+  const range =
+    document.createRange();
+
+  range.setStartBefore(first);
+  range.setEndAfter(last);
 
   selection.removeAllRanges();
   selection.addRange(range);
@@ -1008,6 +1210,63 @@ function mergeWithPreviousLine(line) {
   return true;
 }
 
+function autocapitalizeLineStart(line) {
+  if (!line) {
+    return;
+  }
+
+  const original =
+    line.textContent || "";
+
+  const updated =
+    original.replace(
+      /^(\s*)([a-záéíóúñü])/,
+      (match, spaces, first) =>
+        `${spaces}${first.toUpperCase()}`
+    );
+
+  if (updated === original) {
+    return;
+  }
+
+  const selection =
+    window.getSelection();
+
+  const offset =
+    selection?.rangeCount
+      ? selection
+          .getRangeAt(0)
+          .startOffset
+      : null;
+
+  line.textContent = updated;
+
+  if (
+    offset !== null &&
+    line.firstChild
+  ) {
+    const range =
+      document.createRange();
+
+    const safeOffset =
+      Math.min(
+        offset,
+        line.firstChild
+          .textContent.length
+      );
+
+    range.setStart(
+      line.firstChild,
+      safeOffset
+    );
+
+    range.collapse(true);
+
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+}
+
 function handleLineFocus(event) {
   const line =
     event.currentTarget;
@@ -1048,6 +1307,94 @@ function handleLineFocus(event) {
   }
 }
 
+function markPendingStructuralReconcile(line) {
+  if (!line) {
+    return;
+  }
+
+  line.dataset.pendingStructuralReconcile =
+    "1";
+}
+
+function handleLineBlur(event) {
+  const line =
+    event.currentTarget;
+
+  const nextTarget =
+    event.relatedTarget;
+
+  if (
+    nextTarget?.classList?.contains(
+      "script-line"
+    )
+  ) {
+    if (
+      line?.dataset
+        ?.pendingStructuralReconcile ===
+      "1"
+    ) {
+      markPendingStructuralReconcile(
+        nextTarget
+      );
+
+      line.dataset.pendingStructuralReconcile =
+        "0";
+    }
+
+    return;
+  }
+
+  if (state.activeLine === line) {
+    state.activeLine = null;
+
+    line.classList.remove(
+      "selected-line"
+    );
+
+    updateModeLabel("action");
+  }
+
+  if (
+    line?.dataset
+      ?.pendingStructuralReconcile !==
+    "1"
+  ) {
+    return;
+  }
+
+  line.dataset.pendingStructuralReconcile =
+    "0";
+
+  scheduleDocumentSceneReconciliation();
+}
+
+function normalizeLineForReconciliation(
+  line,
+  isFirstLineInChunk = false
+) {
+  if (!line) {
+    return;
+  }
+
+  const type = getLineType(line);
+  const text =
+    String(line.textContent || "").trim();
+
+  // Evita que queden headings vacíos
+  // dentro de una escena tras ediciones
+  // o selecciones amplias de texto.
+  if (
+    type === "heading" &&
+    !text &&
+    !isFirstLineInChunk
+  ) {
+    setLineType(line, "action", {
+      preserveCaret: false,
+      skipSceneSplit: true,
+    });
+  }
+}
+
 function placeCaretAtEnd(element) {
   const selection =
     window.getSelection();
@@ -1074,7 +1421,7 @@ function handleHeadingTab(line) {
   // Después de INT., EXT., INT/EXT., etc.,
   // TAB agrega un espacio y deja el cursor al final.
   if (
-    /^(INT\.|EXT\.|INT\/EXT\.|EXT\/INT\.|I\/E\.|E\/I\.)$/i.test(
+    /^(INT\.|EXT\.)$/i.test(
       text
     )
   ) {
@@ -1105,6 +1452,311 @@ function handleHeadingTab(line) {
   placeCaretAtEnd(line);
 }
 
+function allDocumentLines(editor) {
+  return [
+    ...editor.querySelectorAll(
+      ".script-line"
+    ),
+  ];
+}
+
+function deriveSceneChunksFromDocument(lines) {
+  const chunks = [];
+  const prefaceLines = [];
+  let currentChunk = null;
+
+  lines.forEach(line => {
+    const text =
+      String(line.textContent || "").trim();
+
+    if (isCompleteHeadingText(text)) {
+      setLineType(line, "heading", {
+        preserveCaret: false,
+        skipSceneSplit: true,
+      });
+
+      if (currentChunk) {
+        chunks.push(currentChunk);
+      }
+
+      currentChunk = {
+        heading: text,
+        lines: [line],
+      };
+
+      return;
+    }
+
+    if (!currentChunk) {
+      prefaceLines.push(line);
+      return;
+    }
+
+    currentChunk.lines.push(line);
+  });
+
+  if (currentChunk) {
+    chunks.push(currentChunk);
+  }
+
+  return {
+    prefaceLines,
+    chunks,
+  };
+}
+
+function renderNoActiveScene() {
+  $("#sceneIdentity")
+    .textContent =
+      "SIN ESCENA";
+
+  $("#sceneSynopsis")
+    .value = "";
+
+  $("#sceneRuntime")
+    .textContent =
+      "00:00";
+
+  renderNotes(null);
+  renderBreakdown(null);
+
+  $("#scriptAnalysis")
+    .innerHTML = `
+      <div class="empty">
+        No hay una escena activa.
+      </div>
+    `;
+
+  const spellList =
+    $("#spellcheckList");
+
+  if (spellList) {
+    spellList.innerHTML = `
+      <div class="empty">
+        No hay una escena activa.
+      </div>
+    `;
+  }
+}
+
+async function syncSceneRecordsToChunkCount(chunkCount) {
+  if (!state.project) {
+    return;
+  }
+
+  while (state.scenes.length < chunkCount) {
+    const created =
+      await request(
+        `/api/projects/${state.project.id}/scenes`,
+        {
+          method: "POST",
+          body: JSON.stringify({}),
+        }
+      );
+
+    created.notes =
+      created.notes || [];
+
+    created.breakdown_items =
+      created.breakdown_items || [];
+
+    state.scenes.push(created);
+  }
+
+  while (state.scenes.length > chunkCount) {
+    const removed = state.scenes.pop();
+
+    try {
+      await request(
+        `/api/scenes/${removed.id}`,
+        {
+          method: "DELETE",
+        }
+      );
+    } catch (error) {
+      console.error(
+        "No fue posible eliminar escena durante reconciliación.",
+        error
+      );
+    }
+  }
+}
+
+async function reconcileScenesFromDocument() {
+  if (!state.project) {
+    return false;
+  }
+
+  const editor =
+    $("#screenplayEditor");
+
+  if (!editor) {
+    return false;
+  }
+
+  if (state.isReconcilingScenes) {
+    state.pendingReconcile = true;
+    return false;
+  }
+
+  state.isReconcilingScenes = true;
+
+  try {
+    const sourceLines =
+      allDocumentLines(editor);
+
+    const {
+      prefaceLines,
+      chunks,
+    } = deriveSceneChunksFromDocument(
+      sourceLines
+    );
+
+    setSaveState(
+      "Sincronizando escenas…",
+      "saving"
+    );
+
+    await syncSceneRecordsToChunkCount(
+      chunks.length
+    );
+
+    renumberScenesLocally();
+
+    const sceneNodes = [];
+
+    chunks.forEach(
+      (chunk, index) => {
+        const scene =
+          state.scenes[index];
+
+        if (!scene) {
+          return;
+        }
+
+        const section =
+          document.createElement(
+            "section"
+          );
+
+        section.className =
+          "script-scene";
+
+        section.dataset.sceneId =
+          String(scene.id);
+
+        section.dataset.sceneNumber =
+          String(
+            scene.scene_number
+          );
+
+        chunk.lines.forEach((line, lineIndex) => {
+          normalizeLineForReconciliation(
+            line,
+            lineIndex === 0
+          );
+
+          section.appendChild(line);
+        });
+
+        ensureSceneStructure(section);
+
+        scene.heading =
+          chunk.heading;
+
+        sceneNodes.push(section);
+      }
+    );
+
+    editor.innerHTML = "";
+
+    prefaceLines.forEach(line => {
+      editor.appendChild(line);
+    });
+
+    sceneNodes.forEach(node => {
+      editor.appendChild(node);
+    });
+
+    if (state.scenes.length) {
+      const stillActive =
+        state.scenes.some(
+          scene =>
+            scene.id ===
+            state.activeSceneId
+        );
+
+      if (!stillActive) {
+        state.activeSceneId =
+          state.scenes[0].id;
+      }
+    } else {
+      state.activeSceneId = null;
+    }
+
+    renderSceneList();
+
+    if (state.activeSceneId) {
+      setActiveScene(
+        state.activeSceneId,
+        {
+          scroll: false,
+          focus: false,
+        }
+      );
+    } else {
+      renderNoActiveScene();
+    }
+
+    for (const sceneNode of sceneNodes) {
+      await saveSceneNode(sceneNode);
+    }
+
+    setSaveState(
+      "Guardado",
+      "saved"
+    );
+
+    return true;
+  } catch (error) {
+    console.error(error);
+
+    setSaveState(
+      "Error de sincronización",
+      "error"
+    );
+
+    return false;
+  } finally {
+    state.isReconcilingScenes = false;
+
+    if (state.pendingReconcile) {
+      state.pendingReconcile = false;
+      scheduleDocumentSceneReconciliation(120);
+    }
+  }
+}
+
+function scheduleDocumentSceneReconciliation(
+  delay = 180
+) {
+  if (state.reconcileTimer) {
+    clearTimeout(
+      state.reconcileTimer
+    );
+  }
+
+  state.reconcileTimer =
+    setTimeout(() => {
+      state.reconcileTimer = null;
+      reconcileScenesFromDocument();
+    }, delay);
+}
+
+async function materializeScenesFromDraftDocument() {
+  return reconcileScenesFromDocument();
+}
+
 function handleLineKeydown(event) {
   const line =
     event.currentTarget;
@@ -1112,8 +1764,43 @@ function handleLineKeydown(event) {
   const type =
     getLineType(line);
 
+  if (
+    (event.ctrlKey || event.metaKey) &&
+    !event.shiftKey &&
+    !event.altKey &&
+    event.key.toLowerCase() === "a"
+  ) {
+    event.preventDefault();
+    selectAllInCurrentScene(line);
+    return;
+  }
+
  if (event.key === "Tab") {
   event.preventDefault();
+
+  if (
+    type === "action" &&
+    !event.shiftKey &&
+    (line.textContent || "").trim()
+  ) {
+    const cueLine =
+      insertLineAfter(
+        line,
+        "character",
+        ""
+      );
+
+    focusLine(
+      cueLine,
+      true
+    );
+
+    scheduleSceneSave(
+      line.closest(".script-scene")
+    );
+
+    return;
+  }
 
   // En un encabezado, TAB construye la ruta:
   // INT. LOCACIÓN - SUBLOCACIÓN - DÍA
@@ -1170,10 +1857,6 @@ function handleLineKeydown(event) {
 
     if (nextType === "heading") {
       nextLine.textContent = "INT. ";
-
-      splitSceneAtHeading(
-        nextLine
-      );
     }
 
     focusLine(
@@ -1187,6 +1870,10 @@ function handleLineKeydown(event) {
       )
     );
 
+    markPendingStructuralReconcile(
+      nextLine
+    );
+
     return;
   }
 
@@ -1194,8 +1881,16 @@ function handleLineKeydown(event) {
     event.key === "Delete" ||
     event.key === "Del"
   ) {
+    const sceneNode =
+      line.closest(".script-scene");
+
     if (removeCurrentLineIfEmpty(line)) {
       event.preventDefault();
+
+      updateSceneHeadingFromDom(
+        sceneNode
+      );
+
       return;
     }
 
@@ -1223,6 +1918,10 @@ function handleLineKeydown(event) {
     if (
       mergeWithPreviousLine(line)
     ) {
+      updateSceneHeadingFromDom(
+        sceneNode
+      );
+
       scheduleSceneSave(
         sceneNode
       );
@@ -1292,6 +1991,14 @@ function handleLineInput(event) {
     getLineType(line);
 
   if (
+    type === "action" ||
+    type === "dialogue" ||
+    type === "parenthetical"
+  ) {
+    autocapitalizeLineStart(line);
+  }
+
+  if (
     type === "character" ||
     type === "heading" ||
     type === "transition"
@@ -1350,32 +2057,54 @@ function handleLineInput(event) {
 
   if (
     type !== "heading" &&
-    /^(INT\.|EXT\.|INT\/EXT\.|EXT\/INT\.|I\/E\.|E\/I\.)\s*/i.test(
-      lineText
-    )
+    isHeadingPrefixText(lineText)
   ) {
     setLineType(
       line,
-      "heading"
+      "heading",
+      {
+        preserveCaret: true,
+        // Durante escritura no reconciliamos
+        // estructura de escenas en caliente.
+        skipSceneSplit: true,
+      }
     );
+  }
 
-    return;
+  if (
+    getLineType(line) !== "transition" &&
+    isTransitionText(lineText)
+  ) {
+    setLineType(
+      line,
+      "transition",
+      {
+        preserveCaret: true,
+      }
+    );
   }
 
   const sceneNode =
     line.closest(".script-scene");
 
-  if (
-    getLineType(line) === "heading"
-  ) {
-    updateSceneHeadingFromDom(
-      sceneNode
-    );
-  }
+  updateSceneHeadingFromDom(
+    sceneNode
+  );
 
   scheduleSceneSave(
     sceneNode
   );
+
+  const delimiterChanged =
+    syncLineDelimiterState(line);
+
+  if (delimiterChanged) {
+    // Se difiere a blur para no destruir
+    // el nodo contenteditable activo.
+    markPendingStructuralReconcile(
+      line
+    );
+  }
 }
 function handleLinePaste(event) {
   event.preventDefault();
@@ -1401,6 +2130,8 @@ function handleLinePaste(event) {
       false,
       parts[0]
     );
+
+    scheduleDocumentSceneReconciliation();
 
     return;
   }
@@ -1433,9 +2164,6 @@ function handleLinePaste(event) {
     reference = next;
     previousType = type;
 
-    if (type === "heading") {
-      splitSceneAtHeading(next);
-    }
   });
 
   focusLine(
@@ -1448,6 +2176,8 @@ function handleLinePaste(event) {
       ".script-scene"
     )
   );
+
+  scheduleDocumentSceneReconciliation();
 }
 
 function updateSceneHeadingFromDom(
@@ -1473,165 +2203,33 @@ function updateSceneHeadingFromDom(
       ":scope > .script-line.heading"
     );
 
-  if (
-    !scene ||
-    !headingLine
-  ) {
+  if (!scene) {
     return;
   }
 
   scene.heading =
     (
-      headingLine.textContent ||
+      headingLine?.textContent ||
       ""
     ).trim();
 
   renderSceneList();
 }
 
-async function splitSceneAtHeading(line) {
-  const currentScene =
-    line.closest(".script-scene");
+function maybeCollapseSceneWithoutHeading(sceneNode) {
+  scheduleDocumentSceneReconciliation(0);
+  return false;
+}
 
-  if (!currentScene) {
-    return;
-  }
+async function collapseLeadingHeadinglessScene() {
+  return reconcileScenesFromDocument();
+}
 
-  const isFirstLine =
-    currentScene.firstElementChild ===
-    line;
-
-  if (isFirstLine) {
-    scheduleSceneSave(
-      currentScene
-    );
-
-    return;
-  }
-
-  if (!state.project) {
-    return;
-  }
-
-  setSaveState(
-    "Creando escena…",
-    "saving"
-  );
-
-  try {
-    const created =
-      await request(
-        `/api/projects/${state.project.id}/scenes`,
-        {
-          method: "POST",
-          body: JSON.stringify({}),
-        }
-      );
-
-    created.notes =
-      created.notes || [];
-
-    created.breakdown_items =
-      created.breakdown_items || [];
-
-    const newSceneNode =
-      document.createElement(
-        "section"
-      );
-
-    newSceneNode.className =
-      "script-scene";
-
-    newSceneNode.dataset.sceneId =
-      String(created.id);
-
-    newSceneNode.dataset.sceneNumber =
-      String(
-        created.scene_number
-      );
-
-    let moving = line;
-
-    while (moving) {
-      const next =
-        moving.nextElementSibling;
-
-      newSceneNode.appendChild(
-        moving
-      );
-
-      moving = next;
-    }
-
-    if (
-      newSceneNode.children.length === 1
-    ) {
-      newSceneNode.appendChild(
-        createLine(
-          "action",
-          ""
-        )
-      );
-    }
-
-    currentScene.after(
-      newSceneNode
-    );
-
-    const currentIndex =
-      state.scenes.findIndex(
-        scene =>
-          scene.id ===
-          Number(
-            currentScene.dataset.sceneId
-          )
-      );
-
-    state.scenes.splice(
-      currentIndex + 1,
-      0,
-      created
-    );
-
-    renumberScenesLocally();
-
-    updateSceneHeadingFromDom(
-      newSceneNode
-    );
-
-    await saveSceneNode(
-      currentScene
-    );
-
-    await saveSceneNode(
-      newSceneNode
-    );
-
-    state.activeSceneId =
-      created.id;
-
-    renderSceneList();
-
-    setActiveScene(
-      created.id,
-      {
-        scroll: false,
-        focus: false,
-      }
-    );
-
-    setSaveState(
-      "Guardado",
-      "saved"
-    );
-  } catch (error) {
-    console.error(error);
-
-    setSaveState(
-      "Error al crear escena",
-      "error"
-    );
-  }
+async function splitSceneAtHeading(
+  line,
+  options = {}
+) {
+  scheduleDocumentSceneReconciliation(0);
 }
 
 function renumberScenesLocally() {
@@ -1663,16 +2261,21 @@ function serializeSceneNode(sceneNode) {
   const headingLine =
     lines.find(
       line => getLineType(line) === "heading"
-    ) ||
-    lines[0];
+    );
 
   const heading =
-    (headingLine?.textContent || "")
-      .trim();
+    headingLine
+      ? (headingLine.textContent || "")
+          .trim()
+      : "";
 
-  const bodyLines = lines
-    .filter(line => line !== headingLine)
-    .map(line => line.textContent || "");
+  const bodyLines = headingLine
+    ? lines
+        .filter(line => line !== headingLine)
+        .map(line => line.textContent || "")
+    : lines.map(
+        line => line.textContent || ""
+      );
 
   return {
     heading,
@@ -2205,14 +2808,33 @@ function renderBreakdown(scene) {
   const container =
     $("#breakdownList");
 
+  const categoryFilter =
+    $("#breakdownFilterCategory")
+      ?.value || "all";
+
+  const stateFilter =
+    $("#breakdownFilterState")
+      ?.value || "all";
+
+  const items =
+    scene?.breakdown_items?.filter(item => {
+      const byCategory =
+        categoryFilter === "all" ||
+        item.category === categoryFilter;
+
+      const byState =
+        stateFilter === "all" ||
+        item.state === stateFilter;
+
+      return byCategory && byState;
+    }) || [];
+
   if (
-    !scene
-      ?.breakdown_items
-      ?.length
+    !items.length
   ) {
     container.innerHTML = `
       <div class="empty">
-        No hay elementos confirmados.
+        No hay elementos para el filtro actual.
       </div>
     `;
 
@@ -2220,7 +2842,7 @@ function renderBreakdown(scene) {
   }
 
   container.innerHTML =
-    scene.breakdown_items
+    items
       .map(
         item => `
           <div class="item">
@@ -2245,10 +2867,156 @@ function renderBreakdown(scene) {
                 )
               }
             </div>
+
+            <div class="inline-form">
+              <button
+                type="button"
+                class="secondary"
+                data-breakdown-id="${item.id}"
+                data-breakdown-state="confirmed"
+              >
+                Confirmar
+              </button>
+
+              <button
+                type="button"
+                class="secondary"
+                data-breakdown-id="${item.id}"
+                data-breakdown-state="rejected"
+              >
+                Rechazar
+              </button>
+            </div>
           </div>
         `
       )
       .join("");
+}
+
+function renderSpellingReview(
+  payload,
+  errorMessage = ""
+) {
+  const container =
+    $("#spellcheckList");
+
+  if (!container) {
+    return;
+  }
+
+  if (errorMessage) {
+    container.innerHTML = `
+      <div class="empty">
+        ${escapeHtml(errorMessage)}
+      </div>
+    `;
+    return;
+  }
+
+  const misspellings =
+    payload?.misspellings || [];
+
+  if (!misspellings.length) {
+    container.innerHTML = `
+      <div class="empty">
+        No se detectaron palabras dudosas.
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = misspellings
+    .map(item => `
+      <div class="item">
+        <div class="item-meta">
+          ${escapeHtml(item.word)} · ${escapeHtml(item.count)}
+        </div>
+        <div>
+          Sugerencias: ${escapeHtml((item.suggestions || []).join(", ") || "(sin sugerencias)")}
+        </div>
+      </div>
+    `)
+    .join("");
+}
+
+async function reviewSpelling() {
+  const scene =
+    activeScene();
+
+  if (!scene) {
+    renderSpellingReview(
+      null,
+      "No hay escena activa para revisar."
+    );
+    return;
+  }
+
+  try {
+    const payload = await request(
+      `/api/scenes/${scene.id}/spelling`
+    );
+
+    renderSpellingReview(payload);
+  } catch (error) {
+    console.error(error);
+    renderSpellingReview(
+      null,
+      "No fue posible ejecutar la revisión ortográfica."
+    );
+  }
+}
+
+function exportProjectPdf() {
+  if (!state.project) {
+    return;
+  }
+
+  window.open(
+    `/api/projects/${state.project.id}/export/pdf`,
+    "_blank"
+  );
+}
+
+async function updateBreakdownItemState(
+  itemId,
+  nextState
+) {
+  const scene =
+    activeScene();
+
+  if (!scene) {
+    return;
+  }
+
+  try {
+    const updated = await request(
+      `/api/breakdown/${itemId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          state: nextState,
+        }),
+      }
+    );
+
+    scene.breakdown_items =
+      (scene.breakdown_items || []).map(item =>
+        item.id === updated.id
+          ? {
+              ...item,
+              ...updated,
+            }
+          : item
+      );
+
+    renderBreakdown(scene);
+  } catch (error) {
+    console.error(error);
+
+    alert(
+      "No fue posible actualizar el estado del elemento."
+    );
+  }
 }
 
 function proposeSynopsis() {
@@ -2370,6 +3138,10 @@ async function addBreakdownItem() {
     $("#breakdownCategory")
       .value;
 
+  const stateValue =
+    $("#breakdownState")
+      ?.value || "confirmed";
+
   if (
     !scene ||
     !name
@@ -2389,7 +3161,7 @@ async function addBreakdownItem() {
             source:
               "manual",
             state:
-              "confirmed",
+              stateValue,
           }),
         }
       );
@@ -2616,27 +3388,10 @@ async function loadProject(
       }
     );
   } else {
-    $("#sceneIdentity")
-      .textContent =
-        "SIN ESCENA";
-
-    $("#sceneSynopsis")
-      .value = "";
-
-    $("#sceneRuntime")
-      .textContent =
-        "00:00";
-
-    renderNotes(null);
-    renderBreakdown(null);
-
-    $("#scriptAnalysis")
-      .innerHTML = `
-        <div class="empty">
-          No hay una escena activa.
-        </div>
-      `;
+    renderNoActiveScene();
   }
+
+  await collapseLeadingHeadinglessScene();
 
   await updateProjectRuntime();
 }
@@ -2701,6 +3456,30 @@ function setupTabs() {
     });
 }
 
+function toggleInspector() {
+  const collapsed =
+    document.body.classList.toggle(
+      "inspector-collapsed"
+    );
+
+  const button =
+    $("#toggleInspectorButton");
+
+  if (!button) {
+    return;
+  }
+
+  button.textContent =
+    collapsed
+      ? "Inspector ▸"
+      : "Inspector ◂";
+
+  button.setAttribute(
+    "aria-pressed",
+    String(collapsed)
+  );
+}
+
 function setupEvents() {
   $("#projectSelect")
     .addEventListener(
@@ -2752,6 +3531,65 @@ function setupEvents() {
     .addEventListener(
       "click",
       addBreakdownItem
+    );
+
+  $("#exportPdfButton")
+    .addEventListener(
+      "click",
+      exportProjectPdf
+    );
+
+  $("#spellcheckButton")
+    .addEventListener(
+      "click",
+      reviewSpelling
+    );
+
+  $("#breakdownFilterCategory")
+    .addEventListener(
+      "change",
+      () => {
+        renderBreakdown(activeScene());
+      }
+    );
+
+  $("#breakdownFilterState")
+    .addEventListener(
+      "change",
+      () => {
+        renderBreakdown(activeScene());
+      }
+    );
+
+  $("#breakdownList")
+    .addEventListener(
+      "click",
+      event => {
+        const target =
+          event.target.closest(
+            "[data-breakdown-id][data-breakdown-state]"
+          );
+
+        if (!target) {
+          return;
+        }
+
+        const itemId = Number(
+          target.dataset.breakdownId
+        );
+
+        const nextState =
+          target.dataset.breakdownState;
+
+        if (!itemId || !nextState) {
+          return;
+        }
+
+        updateBreakdownItemState(
+          itemId,
+          nextState
+        );
+      }
     );
 
   $("#noteInput")
@@ -2833,6 +3671,16 @@ function setupEvents() {
         }
       }
     );
+
+  const inspectorButton =
+    $("#toggleInspectorButton");
+
+  if (inspectorButton) {
+    inspectorButton.addEventListener(
+      "click",
+      toggleInspector
+    );
+  }
 
   window.addEventListener(
   "beforeunload",

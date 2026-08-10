@@ -1,0 +1,470 @@
+106	Dual dialogue, left column
+107	Dual dialogue, right column
+108	Select unit to display
+109	Customize Structural Checklist
+111	Change the type of the current paragraph
+112	Assign a thread to the current step
+113	Single column dialogue
+114	Determine start of production for current unit
+115	Select chart
+120	Sophocles Beta
+4533	Software\%s\%s\Settings
+4534	%u,%u,%d,%d,%d,%d,%d,%d,%d,%d
+4535	BarID
+4536	Settings
+4537	Bar Position
+4538	Window Position
+4539	Recent Item List
+4540	Item%d
+4541	%s-Bar%d
+4542	Column Info
+4543	Name
+4544	Size
+4545	Contract docked window
+4546	Type
+4547	Modified
+4548	Warning: This program requires comctl32.dll version 4.71 or greater.
+4549	Automatic
+4550	Customize...
+4555	Select Directory:
+4556	Dock Window
+4557	ERROR: Not all of the resources needed by Xtreme Toolkit have been correctly initialized.
+4558	Toolbar
+4559	The toolbar name cannot be blank. Type a name.
+4560	Status Bar
+4561	A toolbar named '%s' already exists. Type another name.
+4562	Sorry you have reached your limit.
+4563	Custom %d
+4564	Are you sure you want to delete the '%s' toolbar?
+4565	...
+4566	No help topic is associated with this item.
+4567	*.*
+4568	All Files (*.*)|*.*||
+4569	Choose Directory Name:
+4570	Click push pin to keep open
+4571	The operating system is out of memory or resources.
+4572	The specified file was not found.
+4573	The specified path was not found.
+4574	The operating system denied access to the specified file.
+4575	There was not enough memory to complete the operation.
+4576	The .exe file is invalid (non-Win32® .exe or error in .exe image).
+4577	A sharing violation occurred.
+4578	The file name association is incomplete or invalid.
+4579	The DDE transaction could not be completed because the request timed out.
+4580	The DDE transaction failed.
+4581	The DDE transaction could not be completed because other DDE transactions were being processed.
+4582	There is no application associated with the given file name extension.
+4583	The specified dynamic-link library was not found.
+4584	An unknown error number %d occured.
+4585	Close
+4586	Black
+4587	Brown
+4588	Olive Green
+4589	Dark Green
+4590	Dark Teal
+4591	Dark Blue
+4592	Indigo
+4593	Gray-80%
+4594	Dark Red
+4595	Orange
+4596	Dark Yellow
+4597	Green
+4598	Teal
+4599	Blue
+4600	Blue Gray
+4601	Gray-50%
+4602	Red
+4603	Light Orange
+4604	Lime
+4605	Sea Green
+4606	Aqua
+4607	Light Blue
+4608	Violet
+4609	Gray-40%
+4610	Pink
+4611	Gold
+4612	Yellow
+4613	Bright Green
+4614	Turquiose
+4615	Sky Blue
+4616	Plum
+4617	Gray-25%
+4618	Rose
+4619	Tan
+4620	Light Yellow
+4621	Light Green
+4622	Light Turquoise
+4623	Pale Blue
+4624	Lavender
+4625	White
+4626	Gray
+4627	Maroon
+4628	Olive
+4629	Navy
+4630	Purple
+4631	Silver
+4632	Fuchsia
+4633	No Fill
+4634	No Color
+4635	Automatic
+4636	Automatic Color
+4637	More Colors...
+4638	More Colors
+4639	Standard Colors
+4640	Tip Text
+4641	Did you know...
+4642	Tips file does not exist in the prescribed directory
+4643	Trouble reading the tips file
+4644	Menu Bar
+4645	Control Bar
+4646	Customize
+4647	Colors
+4648	New
+4649	Current
+4650	 Directories:
+4651	 Files:
+4652	This will restore the toolbar to it's original state, do you wish to continue?
+4653	More Windows...
+4654	Manage Keyboard Shortcuts
+4655	Command
+4656	Keys
+4657	Description
+4658	[All Commands]
+4659	This shortcut is currently assigned to the command: %s
+4660	Minimize Window
+4661	Restore Window
+4662	Close Window
+4663	Toolbar Options
+4664	&Tools
+4665	The path is invalid.
+4666	Are you sure you want to reset the key assignments?  This action will remove all custom key assignments at the text level.
+4667	This will delete the record of the commands you've used in this application and restore the default set of visible commands to the menus and toolbars.  It will not undo any explicit customizations.  Are you sure you want to do this?
+4668	Browse
+4669	Executable (*.exe)|*.exe|Command (*.com)|*.com|Information (*.pif)|*.pif|Batch (*.bat;*.cmd)|*.bat; *.cmd|All Files (*.*)|*.*||
+4670	 &Menu contents:
+4672	(System default)
+4673	Random
+4674	Unfold
+4675	Slide
+4676	Fade
+5511	Hide docked window
+5512	Expand docked window
+5517	New (Insert)
+5518	Delete (Delete)
+5519	Move Item Up (Alt+Up Arrow)
+5520	Move Item Down (Alt+Down Arrow)
+32775	Compressed Script-View layout
+32777	Turn bookmark on or off for current paragraph
+32778	Go to the next bookmark
+32779	Go to the prior bookmark
+32780	Change the font for the active window
+32785	Clear all outstanding bookmarks
+32787	Insert an empty sequence header paragraph
+32789	Insert an empty act header paragraph
+32793	Insert interior scene header paragraph
+32794	Insert exterior scene header paragraph
+32795	Underline the selected text
+32796	Center the current paragraph
+32797	Insert empty transition-in paragraph
+32798	Insert CUT TO paragraph
+32800	Insert FADE OUT paragraph
+32801	Insert DISSOLVE TO paragraph
+32802	Insert empty transition-out paragraph
+32803	Return to previous position in document
+32804	Undo prior 'Back' command
+32811	Insert FADE TO paragraph
+32819	Check document for spelling errors
+32823	Import a script file
+32826	Insert FADE IN paragraph
+32844	Insert empty scene header
+32845	Make selected text bold
+32855	Convert current paragraph to action
+32856	Convert current paragraph to scene header
+32857	Convert current paragraph to transition-in
+32858	Convert current paragraph to transition-out
+32859	Convert current paragraph to sequence header
+32861	Convert current paragraph to act header
+32862	Convert current paragraph to dialogue
+32863	Convert current paragraph to dialog cue
+32865	Make selected text uppercase
+32866	Make selected text lowercase
+32869	Insert empty custom paragraph
+32870	Convert current paragraph to custom
+32871	Toggle revision tracking mode on or off
+32876	Split the view
+32878	Toggle current paragraph as numbered
+32887	Clear all bookmarks within selected header
+32888	Omit or restore numbered scene
+32893	Edit the title page
+32895	Isolate first word of paragraph
+32907	Go to prior header
+32908	Go to next header
+32934	Activate the thesaurus
+32942	Load or store bookmark collections
+32949	Change application settings
+32950	Jump to a specified location
+32954	Synchronize Explorer Window to current position
+32964	Find next
+32965	Find Prior	Find Prior (Shift+F3)
+32968	Edit scene number extension
+32969	Toggle automatic scene numbering
+32971	Go to next revised scene
+32972	Go to prior revised scene
+32973	Go to prior revised paragraph
+32974	Go to next revised paragraph
+32975	Undo any revisions to current scene
+32976	Undo any revisions to current paragraph
+32985	Edit the revision slug
+32997	Insert special character
+33009	Make selected text italic
+33013	Toggle full-screen mode
+33014	Activate the breakdown view
+33015	Activate the detail view
+33016	Split the explorer view
+33018	Show or hide the explorer window
+33022	Create a new character
+33027	Update the view to account for any changes
+33029	Create a new thread
+33033	Delete the selected item
+33034	Create a new location
+33035	Create a new production resource
+33036	Create a new resource category
+33055	Insert a step
+33066	Toggle step as off-screen
+33068	Revert list to script order
+33069	Insert end-of-day divider
+33070	Remove all dividers
+33073	Show or hide the bookmark toolbar
+33075	Show or hide the primary toolbar
+33077	Show or hide the view toolbar
+33078	Manually create view presets
+33085	Close window
+33094	Assign a password to the current script file
+33095	Remove password protection from the current script
+33099	Collapse explorer nodes
+33100	Expand to first level of explorer nodes
+33101	Expand to second level of explorer nodes
+33115	Hide empty resource categories
+33117	Sort explorer items
+33123	Rename item
+33125	Delete the selected header
+33127	Insert a new header
+33128	Edit properties for current resource
+33135	Edit report header strings
+33136	Add/remove production units
+33137	Edit properties for current thread
+33138	Add/remove character aliases
+33145	Specify no-shoot days
+33147	Insert travel day divider
+33148	Insert sequence divider
+33159	Run the auto-schedule tool
+33160	View production checklist
+33170	Ignore This Session
+33171	Add to Custom Dictionary
+33173	Store current schedule
+33174	Load a previously stored schedule
+33176	Bookmark all scenes containing the current resource
+33178	Display any availability violations for resources contained in the current breakdown page
+33182	Customize toolbars
+33185	Change the view options
+33186	Insert copyright symbol
+33187	Print/Preview the script
+33189	Print/Preview the most recently viewed report
+33191	Print/preview the sides for a given day
+33203	Preview and print the budget
+33209	Edit the budget
+33211	Create a file containing production data
+33212	Revert list to chronological order
+33213	Toggle header between Act and Sequence
+33214	Diagram Settings
+33215	Add resource to scene
+33217	Opens the Help window
+33218	Help with this view
+33220	Search Help
+33226	Word statistics by character
+33228	Word statistics by set
+33229	Add or remove words from the custom spell-check dictionary
+33230	Normal Script-View layout
+33231	&Page-style Script-View layout
+33234	&Page-style Script-View layout
+33237	Delete all locations
+33238	Auto-generate locations
+33239	Delete all locations
+33242	Toggle revision mark
+33243	Toggle gap revision mark
+33245	Restore paragraph marks
+33246	Edit locked paragraph
+33251	Revision page generation
+33252	Force page break
+33253	Edit manual revision marks
+33254	Edit forced page-breaks
+33279	Enalarge font for current view
+33280	Reduce font size for current view
+50027	Zoom x1
+50028	Zoom x2
+50029	Zoom x4
+50030	Zoom x8
+50043	no cur scn
+50044	rev trk off
+50045	OVR
+50046	Total time
+53773	Sorts the selected column in ascending order
+53774	Sorts the selected column in descending order
+53775	Left alligns the contents of the selected column
+53776	Center alligns the contents of the selected column
+53777	Right alligns the contents of the selected column
+53778	Display large icons
+53779	Display small icons
+53780	Remove from Outlook Bar
+53781	Rename Shortcut
+53782	Allows for customization of the toolbar
+53783	Display full menus
+53784	Remove Group
+53785	Rename Group
+53787	Categorized
+53788	Alphabetic
+57344	Sophocles
+57345	Ready
+57346	Select an object on which to get Help
+57600	Create a new script
+57601	Open an existing script
+57602	Close the active document
+57603	Save the current script
+57604	Save the current script with a new name
+57609	Print/Preview the contents of the current view
+57612	Send the current script as e-mail
+57616	Open this document
+57617	Open this document
+57618	Open this document
+57619	Open this document
+57620	Open this document
+57621	Open this document
+57622	Open this document
+57623	Open this document
+57624	Open this document
+57625	Open this document
+57626	Open this document
+57627	Open this document
+57628	Open this document
+57629	Open this document
+57630	Open this document
+57631	Open this document
+57634	Place a copy of the selection in the clipboard
+57635	Cut the selection and put it in the clipboard
+57636	Find the specified text
+57637	Insert clipboard contents
+57641	Find and replace specified text with other text
+57643	Undo the last action
+57644	Redo the previously undone action
+57664	Display program information, version number and copyright
+57665	Quit the application (prompts to save the script)
+57666	Opens the Help index
+57667	List Help topics
+57668	Display instructions about how to use help
+57669	Display help for clicked on buttons, menus and windows
+57670	Display help for current task or command
+58112	Close the preview
+58113	Display single page or double page view
+58114	Go to the next page
+58115	Go to the previous page
+58116	Print the previewed item
+58117	Increase magnification of preview page
+58118	Decrease magnification of preview page
+59137	CAP
+59138	NUM
+59139	SCRL
+59140	OVR
+59142	Kana
+59393	Show or hide the status bar
+61440	Open
+61441	Save As
+61442	All Files (*.*)
+61443	Untitled
+61445	Close print preview mode
+61446	an unnamed file
+61457	&Hide
+61472	No error message is available.
+61473	An unsupported operation was attempted.
+61474	A required resource was unavailable.
+61475	Out of memory.
+61476	An unknown error has occurred.
+61477	An invalid argument was encountered.
+61504	on %1
+61505	&One Page
+61506	&Two Page
+61507	Page %u
+61508	Page %u
+61509	prn
+61510	Output.prn
+61511	Printer Files (*.prn)|*.prn|All Files (*.*)|*.*||
+61512	Print to File
+61513	to %1
+61696	Invalid filename.
+61697	Failed to open document.
+61698	Failed to save document.
+61699	Save changes to %1?
+61700	Failed to create empty document.
+61701	The file is too large to open.
+61702	Could not start print job.
+61703	Failed to launch help.
+61704	Internal application error.
+61705	Command failed.
+61706	Insufficient memory to perform operation.
+61707	System registry entries have been removed and the INI file (if any) was deleted.
+61708	Not all of the system registry entries (or INI file) were removed.
+61709	This program requires the file %s, which was not found on this system.
+61710	This program is linked to the missing export %s in the file %s. This machine may have an incompatible version of %s.
+61712	Please enter an integer.
+61713	Please enter a number.
+61714	Please enter an integer between %1 and %2.
+61715	Please enter a number between %1 and %2.
+61716	Please enter no more than %1 characters.
+61717	Please select a button.
+61718	Please enter an integer between 0 and 255.
+61719	Please enter a positive integer.
+61720	Please enter a date and/or time.
+61721	Please enter a currency.
+61722	Please enter a GUID.
+61723	Please enter a time.
+61724	Please enter a date.
+61728	Unexpected file format.
+61729	%1
+61730	Destination disk drive is full.
+61731	Unable to read from %1, it is opened by someone else.
+61732	Unable to write to %1, it is read-only or opened by someone else.
+61733	An unexpected error occurred while reading %1.
+61734	An unexpected error occurred while writing %1.
+61744	%1: %2
+61745	Dispatch exception: %1
+61836	Unable to read write-only property.
+61837	Unable to write read-only property.
+61840	Unable to load mail system support.
+61841	Mail system DLL is invalid.
+61842	Send Mail failed to send message.
+61856	No error occurred.
+61857	An unknown error occurred while accessing %1.
+61858	%1 was not found.
+61859	%1 contains an invalid path.
+61860	%1 could not be opened because there are too many open files.
+61861	Access to %1 was denied.
+61862	An invalid file handle was associated with %1.
+61863	%1 could not be removed because it is the current directory.
+61864	%1 could not be created because the directory is full.
+61865	Seek failed on %1
+61866	A hardware I/O error was reported while accessing %1.
+61867	A sharing violation occurred while accessing %1.
+61868	A locking violation occurred while accessing %1.
+61869	Disk full while accessing %1.
+61870	An attempt was made to access %1 past its end.
+61872	No error occurred.
+61873	An unknown error occurred while accessing %1.
+61874	An attempt was made to write to the reading %1.
+61875	An attempt was made to access %1 past its end.
+61876	An attempt was made to read from the writing %1.
+61877	%1 has a bad format.
+61878	%1 contained an unexpected object.
+61879	%1 contains an incorrect schema.
+61888	pixels
+62177	Uncheck
+62178	Check
+62179	Mixed

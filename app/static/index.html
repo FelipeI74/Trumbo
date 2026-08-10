@@ -15,7 +15,7 @@
   >
 </head>
 
-<body>
+<body lang="es" spellcheck="true">
 
   <header class="topbar">
 
@@ -71,6 +71,13 @@
           placeholder="Título del proyecto"
         >
 
+        <button
+          id="exportPdfButton"
+          title="Exportar proyecto a PDF"
+        >
+          PDF
+        </button>
+
       </div>
 
 
@@ -122,6 +129,16 @@
 
         <div class="editor-toolbar-right">
 
+          <button
+            id="toggleInspectorButton"
+            class="toolbar-toggle"
+            type="button"
+            aria-pressed="false"
+            title="Mostrar u ocultar inspector"
+          >
+            Inspector ◂
+          </button>
+
           <span id="saveState">
             Guardado
           </span>
@@ -140,6 +157,9 @@
           id="screenplayEditor"
           class="screenplay-editor"
           aria-label="Editor de guion"
+          lang="es"
+          spellcheck="true"
+          autocorrect="on"
         ></article>
 
       </div>
@@ -288,10 +308,103 @@
             placeholder="Elemento"
           >
 
+          <select id="breakdownState">
+
+            <option value="confirmed">
+              Confirmado
+            </option>
+
+            <option value="detected">
+              Detectado
+            </option>
+
+            <option value="rejected">
+              Rechazado
+            </option>
+
+          </select>
+
 
           <button id="addBreakdownButton">
             Agregar
           </button>
+
+        </div>
+
+        <div class="breakdown-form">
+
+          <select id="breakdownFilterCategory">
+
+            <option value="all">
+              Todas las categorías
+            </option>
+
+            <option value="prop">
+              Prop
+            </option>
+
+            <option value="character">
+              Personaje
+            </option>
+
+            <option value="location">
+              Locación
+            </option>
+
+            <option value="vehicle">
+              Vehículo
+            </option>
+
+            <option value="wardrobe">
+              Vestuario
+            </option>
+
+            <option value="fx">
+              FX
+            </option>
+
+          </select>
+
+          <select id="breakdownFilterState">
+
+            <option value="all">
+              Todos los estados
+            </option>
+
+            <option value="confirmed">
+              Confirmado
+            </option>
+
+            <option value="detected">
+              Detectado
+            </option>
+
+            <option value="rejected">
+              Rechazado
+            </option>
+
+          </select>
+
+        </div>
+
+        <div class="analysis-block">
+
+          <div class="analysis-title">
+            Revisión ortográfica
+          </div>
+
+          <button id="spellcheckButton" class="secondary">
+            Revisar ortografía de escena
+          </button>
+
+          <div
+            id="spellcheckList"
+            class="analysis-summary"
+          >
+            <div class="empty">
+              Aún no se ha ejecutado la revisión ortográfica.
+            </div>
+          </div>
 
         </div>
 

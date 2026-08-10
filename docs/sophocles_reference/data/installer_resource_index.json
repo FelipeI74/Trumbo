@@ -1,0 +1,1380 @@
+[
+  {
+    "path": [
+      "FILE",
+      131,
+      1033
+    ],
+    "rva": 238828,
+    "file_offset": 226540,
+    "size": 946,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/000_FILE_131_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      132,
+      1033
+    ],
+    "rva": 239776,
+    "file_offset": 227488,
+    "size": 949,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/001_FILE_132_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      133,
+      1033
+    ],
+    "rva": 240728,
+    "file_offset": 228440,
+    "size": 908,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/002_FILE_133_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      134,
+      1033
+    ],
+    "rva": 241636,
+    "file_offset": 229348,
+    "size": 939,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/003_FILE_134_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      135,
+      1033
+    ],
+    "rva": 242576,
+    "file_offset": 230288,
+    "size": 942,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/004_FILE_135_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      136,
+      1033
+    ],
+    "rva": 243520,
+    "file_offset": 231232,
+    "size": 939,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/005_FILE_136_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      138,
+      1033
+    ],
+    "rva": 244460,
+    "file_offset": 232172,
+    "size": 171129,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/006_FILE_138_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      144,
+      1033
+    ],
+    "rva": 415592,
+    "file_offset": 403304,
+    "size": 2148114,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/007_FILE_144_1033.chm",
+    "sig": "chm"
+  },
+  {
+    "path": [
+      "FILE",
+      145,
+      1033
+    ],
+    "rva": 2563708,
+    "file_offset": 2551420,
+    "size": 262036,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/008_FILE_145_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      146,
+      1033
+    ],
+    "rva": 2825744,
+    "file_offset": 2813456,
+    "size": 168908,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/009_FILE_146_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      147,
+      1033
+    ],
+    "rva": 2994652,
+    "file_offset": 2982364,
+    "size": 95578,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/010_FILE_147_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      148,
+      1033
+    ],
+    "rva": 3090232,
+    "file_offset": 3077944,
+    "size": 2799134,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/011_FILE_148_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      149,
+      1033
+    ],
+    "rva": 5889368,
+    "file_offset": 5877080,
+    "size": 185283,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/012_FILE_149_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      150,
+      1033
+    ],
+    "rva": 6074652,
+    "file_offset": 6062364,
+    "size": 26281,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/013_FILE_150_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      151,
+      1033
+    ],
+    "rva": 6100936,
+    "file_offset": 6088648,
+    "size": 25699,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/014_FILE_151_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      152,
+      1033
+    ],
+    "rva": 6126636,
+    "file_offset": 6114348,
+    "size": 34643,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/015_FILE_152_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      153,
+      1033
+    ],
+    "rva": 6161280,
+    "file_offset": 6148992,
+    "size": 6065,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/016_FILE_153_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      154,
+      1033
+    ],
+    "rva": 6167348,
+    "file_offset": 6155060,
+    "size": 64,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/017_FILE_154_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      155,
+      1033
+    ],
+    "rva": 6167412,
+    "file_offset": 6155124,
+    "size": 64,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/018_FILE_155_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      156,
+      1033
+    ],
+    "rva": 6167476,
+    "file_offset": 6155188,
+    "size": 64,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/019_FILE_156_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      157,
+      1033
+    ],
+    "rva": 6167540,
+    "file_offset": 6155252,
+    "size": 64,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/020_FILE_157_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      159,
+      1033
+    ],
+    "rva": 6167604,
+    "file_offset": 6155316,
+    "size": 64,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/021_FILE_159_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      160,
+      1033
+    ],
+    "rva": 6167668,
+    "file_offset": 6155380,
+    "size": 64,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/022_FILE_160_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      161,
+      1033
+    ],
+    "rva": 6167732,
+    "file_offset": 6155444,
+    "size": 64,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/023_FILE_161_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      162,
+      1033
+    ],
+    "rva": 6167796,
+    "file_offset": 6155508,
+    "size": 954,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/024_FILE_162_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      163,
+      1033
+    ],
+    "rva": 6168752,
+    "file_offset": 6156464,
+    "size": 954,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/025_FILE_163_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      164,
+      1033
+    ],
+    "rva": 6169708,
+    "file_offset": 6157420,
+    "size": 919,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/026_FILE_164_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      165,
+      1033
+    ],
+    "rva": 6170628,
+    "file_offset": 6158340,
+    "size": 939,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/027_FILE_165_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      166,
+      1033
+    ],
+    "rva": 6171568,
+    "file_offset": 6159280,
+    "size": 966,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/028_FILE_166_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      167,
+      1033
+    ],
+    "rva": 6172536,
+    "file_offset": 6160248,
+    "size": 935,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/029_FILE_167_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      168,
+      1033
+    ],
+    "rva": 6173472,
+    "file_offset": 6161184,
+    "size": 939,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/030_FILE_168_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      169,
+      1033
+    ],
+    "rva": 6174412,
+    "file_offset": 6162124,
+    "size": 939,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/031_FILE_169_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      170,
+      1033
+    ],
+    "rva": 6175352,
+    "file_offset": 6163064,
+    "size": 1206,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/032_FILE_170_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      171,
+      1033
+    ],
+    "rva": 6176560,
+    "file_offset": 6164272,
+    "size": 944,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/033_FILE_171_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      172,
+      1033
+    ],
+    "rva": 6177504,
+    "file_offset": 6165216,
+    "size": 951,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/034_FILE_172_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      175,
+      1033
+    ],
+    "rva": 6178456,
+    "file_offset": 6166168,
+    "size": 48875,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/035_FILE_175_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      181,
+      1033
+    ],
+    "rva": 6227332,
+    "file_offset": 6215044,
+    "size": 163854,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/036_FILE_181_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      182,
+      1033
+    ],
+    "rva": 6391188,
+    "file_offset": 6378900,
+    "size": 182700,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/037_FILE_182_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      183,
+      1033
+    ],
+    "rva": 6573888,
+    "file_offset": 6561600,
+    "size": 943,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/038_FILE_183_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      184,
+      1033
+    ],
+    "rva": 6574832,
+    "file_offset": 6562544,
+    "size": 57308,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/039_FILE_184_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      185,
+      1033
+    ],
+    "rva": 6632140,
+    "file_offset": 6619852,
+    "size": 54958,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/040_FILE_185_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      186,
+      1033
+    ],
+    "rva": 6687100,
+    "file_offset": 6674812,
+    "size": 57331,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/041_FILE_186_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      "FILE",
+      187,
+      1033
+    ],
+    "rva": 6744432,
+    "file_offset": 6732144,
+    "size": 55035,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/042_FILE_187_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      1,
+      7,
+      1033
+    ],
+    "rva": 6799468,
+    "file_offset": 6787180,
+    "size": 308,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/043_1_7_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      1,
+      8,
+      1033
+    ],
+    "rva": 6799776,
+    "file_offset": 6787488,
+    "size": 180,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/044_1_8_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      1,
+      9,
+      1033
+    ],
+    "rva": 6799956,
+    "file_offset": 6787668,
+    "size": 308,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/045_1_9_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      1,
+      10,
+      1033
+    ],
+    "rva": 6800264,
+    "file_offset": 6787976,
+    "size": 308,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/046_1_10_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      1,
+      11,
+      1033
+    ],
+    "rva": 6800572,
+    "file_offset": 6788284,
+    "size": 308,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/047_1_11_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      1,
+      12,
+      1033
+    ],
+    "rva": 6800880,
+    "file_offset": 6788592,
+    "size": 308,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/048_1_12_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      1,
+      13,
+      1033
+    ],
+    "rva": 6801188,
+    "file_offset": 6788900,
+    "size": 308,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/049_1_13_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      1,
+      14,
+      1033
+    ],
+    "rva": 6801496,
+    "file_offset": 6789208,
+    "size": 308,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/050_1_14_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      1,
+      15,
+      1033
+    ],
+    "rva": 6801804,
+    "file_offset": 6789516,
+    "size": 308,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/051_1_15_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      1,
+      16,
+      1033
+    ],
+    "rva": 6802112,
+    "file_offset": 6789824,
+    "size": 308,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/052_1_16_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      1,
+      17,
+      1033
+    ],
+    "rva": 6802420,
+    "file_offset": 6790132,
+    "size": 308,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/053_1_17_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      1,
+      18,
+      1033
+    ],
+    "rva": 6802728,
+    "file_offset": 6790440,
+    "size": 308,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/054_1_18_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      1,
+      19,
+      1033
+    ],
+    "rva": 6803036,
+    "file_offset": 6790748,
+    "size": 308,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/055_1_19_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      1,
+      20,
+      1033
+    ],
+    "rva": 6803344,
+    "file_offset": 6791056,
+    "size": 308,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/056_1_20_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      1,
+      21,
+      1033
+    ],
+    "rva": 6803652,
+    "file_offset": 6791364,
+    "size": 308,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/057_1_21_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      1,
+      22,
+      1033
+    ],
+    "rva": 6803960,
+    "file_offset": 6791672,
+    "size": 308,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/058_1_22_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      2,
+      30994,
+      1033
+    ],
+    "rva": 6804268,
+    "file_offset": 6791980,
+    "size": 184,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/059_2_30994_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      2,
+      30996,
+      1033
+    ],
+    "rva": 6804452,
+    "file_offset": 6792164,
+    "size": 324,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/060_2_30996_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      3,
+      1,
+      1033
+    ],
+    "rva": 6804776,
+    "file_offset": 6792488,
+    "size": 67624,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/061_3_1_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      3,
+      2,
+      1033
+    ],
+    "rva": 6872400,
+    "file_offset": 6860112,
+    "size": 16936,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/062_3_2_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      3,
+      3,
+      1033
+    ],
+    "rva": 6889336,
+    "file_offset": 6877048,
+    "size": 9640,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/063_3_3_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      3,
+      4,
+      1033
+    ],
+    "rva": 6898976,
+    "file_offset": 6886688,
+    "size": 4264,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/064_3_4_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      3,
+      5,
+      1033
+    ],
+    "rva": 6903240,
+    "file_offset": 6890952,
+    "size": 2440,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/065_3_5_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      3,
+      6,
+      1033
+    ],
+    "rva": 6905680,
+    "file_offset": 6893392,
+    "size": 1128,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/066_3_6_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      5,
+      102,
+      1033
+    ],
+    "rva": 6906808,
+    "file_offset": 6894520,
+    "size": 628,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/067_5_102_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      5,
+      130,
+      1033
+    ],
+    "rva": 6907436,
+    "file_offset": 6895148,
+    "size": 1164,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/068_5_130_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      5,
+      173,
+      1033
+    ],
+    "rva": 6908600,
+    "file_offset": 6896312,
+    "size": 262,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/069_5_173_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      5,
+      180,
+      1033
+    ],
+    "rva": 6908864,
+    "file_offset": 6896576,
+    "size": 440,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/070_5_180_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      5,
+      30721,
+      1033
+    ],
+    "rva": 6909304,
+    "file_offset": 6897016,
+    "size": 232,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/071_5_30721_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      5,
+      30734,
+      1033
+    ],
+    "rva": 6909536,
+    "file_offset": 6897248,
+    "size": 52,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/072_5_30734_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      6,
+      7,
+      1033
+    ],
+    "rva": 6909588,
+    "file_offset": 6897300,
+    "size": 74,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/073_6_7_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      6,
+      3841,
+      1033
+    ],
+    "rva": 6909664,
+    "file_offset": 6897376,
+    "size": 130,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/074_6_3841_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      6,
+      3842,
+      1033
+    ],
+    "rva": 6909796,
+    "file_offset": 6897508,
+    "size": 42,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/075_6_3842_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      6,
+      3843,
+      1033
+    ],
+    "rva": 6909840,
+    "file_offset": 6897552,
+    "size": 402,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/076_6_3843_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      6,
+      3857,
+      1033
+    ],
+    "rva": 6910244,
+    "file_offset": 6897956,
+    "size": 1250,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/077_6_3857_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      6,
+      3858,
+      1033
+    ],
+    "rva": 6911496,
+    "file_offset": 6899208,
+    "size": 794,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/078_6_3858_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      6,
+      3859,
+      1033
+    ],
+    "rva": 6912292,
+    "file_offset": 6900004,
+    "size": 732,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/079_6_3859_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      6,
+      3860,
+      1033
+    ],
+    "rva": 6913024,
+    "file_offset": 6900736,
+    "size": 138,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/080_6_3860_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      6,
+      3865,
+      1033
+    ],
+    "rva": 6913164,
+    "file_offset": 6900876,
+    "size": 172,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/081_6_3865_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      6,
+      3866,
+      1033
+    ],
+    "rva": 6913336,
+    "file_offset": 6901048,
+    "size": 222,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/082_6_3866_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      6,
+      3867,
+      1033
+    ],
+    "rva": 6913560,
+    "file_offset": 6901272,
+    "size": 1220,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/083_6_3867_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      6,
+      3868,
+      1033
+    ],
+    "rva": 6914780,
+    "file_offset": 6902492,
+    "size": 612,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/084_6_3868_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      6,
+      3869,
+      1033
+    ],
+    "rva": 6915392,
+    "file_offset": 6903104,
+    "size": 44,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/085_6_3869_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      6,
+      3887,
+      1033
+    ],
+    "rva": 6915436,
+    "file_offset": 6903148,
+    "size": 66,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/086_6_3887_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      12,
+      30977,
+      1033
+    ],
+    "rva": 6915504,
+    "file_offset": 6903216,
+    "size": 34,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/087_12_30977_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      12,
+      30998,
+      1033
+    ],
+    "rva": 6915540,
+    "file_offset": 6903252,
+    "size": 20,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/088_12_30998_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      12,
+      30999,
+      1033
+    ],
+    "rva": 6915560,
+    "file_offset": 6903272,
+    "size": 20,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/089_12_30999_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      12,
+      31000,
+      1033
+    ],
+    "rva": 6915580,
+    "file_offset": 6903292,
+    "size": 20,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/090_12_31000_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      12,
+      31001,
+      1033
+    ],
+    "rva": 6915600,
+    "file_offset": 6903312,
+    "size": 20,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/091_12_31001_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      12,
+      31002,
+      1033
+    ],
+    "rva": 6915620,
+    "file_offset": 6903332,
+    "size": 20,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/092_12_31002_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      12,
+      31003,
+      1033
+    ],
+    "rva": 6915640,
+    "file_offset": 6903352,
+    "size": 20,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/093_12_31003_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      12,
+      31004,
+      1033
+    ],
+    "rva": 6915660,
+    "file_offset": 6903372,
+    "size": 20,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/094_12_31004_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      12,
+      31005,
+      1033
+    ],
+    "rva": 6915680,
+    "file_offset": 6903392,
+    "size": 20,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/095_12_31005_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      12,
+      31006,
+      1033
+    ],
+    "rva": 6915700,
+    "file_offset": 6903412,
+    "size": 20,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/096_12_31006_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      12,
+      31007,
+      1033
+    ],
+    "rva": 6915720,
+    "file_offset": 6903432,
+    "size": 20,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/097_12_31007_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      12,
+      31008,
+      1033
+    ],
+    "rva": 6915740,
+    "file_offset": 6903452,
+    "size": 20,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/098_12_31008_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      12,
+      31009,
+      1033
+    ],
+    "rva": 6915760,
+    "file_offset": 6903472,
+    "size": 20,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/099_12_31009_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      12,
+      31010,
+      1033
+    ],
+    "rva": 6915780,
+    "file_offset": 6903492,
+    "size": 20,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/100_12_31010_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      12,
+      31011,
+      1033
+    ],
+    "rva": 6915800,
+    "file_offset": 6903512,
+    "size": 20,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/101_12_31011_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      14,
+      128,
+      1033
+    ],
+    "rva": 6915820,
+    "file_offset": 6903532,
+    "size": 90,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/102_14_128_1033.ico",
+    "sig": "ico"
+  },
+  {
+    "path": [
+      16,
+      1,
+      1033
+    ],
+    "rva": 6915912,
+    "file_offset": 6903624,
+    "size": 872,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/103_16_1_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      24,
+      1,
+      1033
+    ],
+    "rva": 6916784,
+    "file_offset": 6904496,
+    "size": 759,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/104_24_1_1033.bin",
+    "sig": "bin"
+  },
+  {
+    "path": [
+      24,
+      129,
+      1033
+    ],
+    "rva": 6917544,
+    "file_offset": 6905256,
+    "size": 886,
+    "codepage": 1252,
+    "extracted": "/mnt/data/sophocles_reverse/resources/105_24_129_1033.bin",
+    "sig": "bin"
+  }
+]

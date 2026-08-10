@@ -1,0 +1,106 @@
+000_FILE_131_1033.bin                                   data
+001_FILE_132_1033.bin                                   data
+002_FILE_133_1033.bin                                   data
+003_FILE_134_1033.bin                                   data
+004_FILE_135_1033.bin                                   data
+005_FILE_136_1033.bin                                   data
+006_FILE_138_1033.bin                                   MS Compress archive data, SZDD variant, original size: 305038 bytes
+007_FILE_144_1033.chm                                   MS Windows HtmlHelp Data
+008_FILE_145_1033.bin                                   MS Compress archive data, SZDD variant, original size: 287378 bytes
+009_FILE_146_1033.bin                                   MS Compress archive data, SZDD variant, original size: 308936 bytes
+010_FILE_147_1033.bin                                   MS Compress archive data, SZDD variant, original size: 157384 bytes
+011_FILE_148_1033.bin                                   MS Compress archive data, SZDD variant, original size: 5519048 bytes
+012_FILE_149_1033.bin                                   MS Compress archive data, SZDD variant, original size: 366152 bytes
+013_FILE_150_1033.bin                                   MS Compress archive data, SZDD variant, original size: 107516 bytes
+014_FILE_151_1033.bin                                   MS Compress archive data, SZDD variant, original size: 106888 bytes
+015_FILE_152_1033.bin                                   data
+016_FILE_153_1033.bin                                   data
+017_FILE_154_1033.bin                                   data
+018_FILE_155_1033.bin                                   data
+019_FILE_156_1033.bin                                   data
+020_FILE_157_1033.bin                                   data
+021_FILE_159_1033.bin                                   data
+022_FILE_160_1033.bin                                   data
+023_FILE_161_1033.bin                                   data
+024_FILE_162_1033.bin                                   data
+025_FILE_163_1033.bin                                   data
+026_FILE_164_1033.bin                                   data
+027_FILE_165_1033.bin                                   data
+028_FILE_166_1033.bin                                   data
+029_FILE_167_1033.bin                                   data
+030_FILE_168_1033.bin                                   data
+031_FILE_169_1033.bin                                   data
+032_FILE_170_1033.bin                                   data
+033_FILE_171_1033.bin                                   data
+034_FILE_172_1033.bin                                   data
+035_FILE_175_1033.bin                                   Rich Text Format data, version 1, ANSI, code page 1252, default middle east language ID 1025
+036_FILE_181_1033.bin                                   OpenPGP Public Key
+037_FILE_182_1033.bin                                   data
+038_FILE_183_1033.bin                                   data
+039_FILE_184_1033.bin                                   MS Compress archive data, SZDD variant, original size: 88408 bytes
+040_FILE_185_1033.bin                                   MS Compress archive data, SZDD variant, original size: 80676 bytes
+041_FILE_186_1033.bin                                   MS Compress archive data, SZDD variant, original size: 88504 bytes
+042_FILE_187_1033.bin                                   MS Compress archive data, SZDD variant, original size: 80712 bytes
+043_1_7_1033.bin                                        Targa image data - RGB 64 x 65536 x 1 +32 "\001"
+044_1_8_1033.bin                                        Targa image data - Map 32 x 65536 x 1 +16 "\001"
+045_1_9_1033.bin                                        AmigaOS bitmap font "(", fc_YSize 4294967264, 5120 elements, 2nd "\377\360?\377\377\370\177\377\377\374\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377", 3rd
+046_1_10_1033.bin                                       Targa image data - RLE 64 x 65536 x 1 +32 "\001"
+047_1_11_1033.bin                                       data
+048_1_12_1033.bin                                       data
+049_1_13_1033.bin                                       Targa image data 64 x 65536 x 1 +32 "\001"
+050_1_14_1033.bin                                       Targa image data 64 x 65536 x 1 +32 "\001"
+051_1_15_1033.bin                                       Targa image data - Mono - RLE 64 x 65536 x 1 +32 "\001"
+052_1_16_1033.bin                                       Targa image data - RGB - RLE 64 x 65536 x 1 +32 "\001"
+053_1_17_1033.bin                                       data
+054_1_18_1033.bin                                       data
+055_1_19_1033.bin                                       AmigaOS bitmap font "(", fc_YSize 4294966847, 3840 elements, 2nd "\377?\374\377\377\300\003\377\377\300\003\377\377\340\007\377\377\360\017\377\377\370\037\377\377\374?\377\377\376\177\377\377\377\377\377\377\377\377\377\377\377\377\377", 3rd
+056_1_20_1033.bin                                       data
+057_1_21_1033.bin                                       data
+058_1_22_1033.bin                                       data
+059_2_30994_1033.bin                                    Device independent bitmap graphic, 12 x 10 x 4, image size 80
+060_2_30996_1033.bin                                    Device independent bitmap graphic, 33 x 11 x 4, image size 220
+061_3_1_1033.bin                                        Device independent bitmap graphic, 128 x 256 x 32, image size 67584
+062_3_2_1033.bin                                        Device independent bitmap graphic, 64 x 128 x 32, image size 16896
+063_3_3_1033.bin                                        Device independent bitmap graphic, 48 x 96 x 32, image size 9600
+064_3_4_1033.bin                                        Device independent bitmap graphic, 32 x 64 x 32, image size 4224
+065_3_5_1033.bin                                        Device independent bitmap graphic, 24 x 48 x 32, image size 2400
+066_3_6_1033.bin                                        Device independent bitmap graphic, 16 x 32 x 32, image size 1088
+067_5_102_1033.bin                                      data
+068_5_130_1033.bin                                      data
+069_5_173_1033.bin                                      data
+070_5_180_1033.bin                                      data
+071_5_30721_1033.bin                                    data
+072_5_30734_1033.bin                                    data
+073_6_7_1033.bin                                        data
+074_6_3841_1033.bin                                     StarOffice Gallery theme p, 536899072 objects, 1st n
+075_6_3842_1033.bin                                     data
+076_6_3843_1033.bin                                     data
+077_6_3857_1033.bin                                     data
+078_6_3858_1033.bin                                     data
+079_6_3859_1033.bin                                     data
+080_6_3860_1033.bin                                     data
+081_6_3865_1033.bin                                     data
+082_6_3866_1033.bin                                     data
+083_6_3867_1033.bin                                     data
+084_6_3868_1033.bin                                     data
+085_6_3869_1033.bin                                     data
+086_6_3887_1033.bin                                     data
+087_12_30977_1033.bin                                   Lotus unknown worksheet or configuration, revision 0x2
+088_12_30998_1033.bin                                   Lotus unknown worksheet or configuration, revision 0x1
+089_12_30999_1033.bin                                   Lotus unknown worksheet or configuration, revision 0x1
+090_12_31000_1033.bin                                   Lotus unknown worksheet or configuration, revision 0x1
+091_12_31001_1033.bin                                   Lotus unknown worksheet or configuration, revision 0x1
+092_12_31002_1033.bin                                   Lotus unknown worksheet or configuration, revision 0x1
+093_12_31003_1033.bin                                   Lotus unknown worksheet or configuration, revision 0x1
+094_12_31004_1033.bin                                   Lotus unknown worksheet or configuration, revision 0x1
+095_12_31005_1033.bin                                   Lotus unknown worksheet or configuration, revision 0x1
+096_12_31006_1033.bin                                   Lotus unknown worksheet or configuration, revision 0x1
+097_12_31007_1033.bin                                   Lotus unknown worksheet or configuration, revision 0x1
+098_12_31008_1033.bin                                   Lotus unknown worksheet or configuration, revision 0x1
+099_12_31009_1033.bin                                   Lotus unknown worksheet or configuration, revision 0x1
+100_12_31010_1033.bin                                   Lotus unknown worksheet or configuration, revision 0x1
+101_12_31011_1033.bin                                   Lotus unknown worksheet or configuration, revision 0x1
+102_14_128_1033.ico                                     data
+103_16_1_1033.bin                                       data
+104_24_1_1033.bin                                       ASCII text, with very long lines (586), with CRLF line terminators
+105_24_129_1033.bin                                     XML 1.0 document, ASCII text, with CRLF line terminators
