@@ -141,7 +141,7 @@ def initialize() -> None:
                 VALUES (?, ?)
                 """,
                 (
-                    "Mi primer proyecto en Trumbo",
+                    "Mi primer proyecto en ADÜMN",
                     "feature",
                 ),
             )

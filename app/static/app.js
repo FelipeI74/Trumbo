@@ -3707,6 +3707,6 @@ loadProjects()
     console.error(error);
 
     alert(
-      "No fue posible iniciar Trumbo."
+      "No fue posible iniciar ADÜMN."
     );
   });

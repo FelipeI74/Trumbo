@@ -27,7 +27,7 @@ from .schemas import (
 
 
 app = FastAPI(
-    title="Trumbo Alpha",
+    title="ADÜMN Alpha",
     version="0.3.1",
 )
 
@@ -1093,7 +1093,7 @@ def export_project_pdf(
     pdf.drawString(
         margin_x,
         y,
-        "Exportado desde Trumbo Alpha",
+        "Exportado desde ADÜMN Alpha",
     )
     y -= 24
 
@@ -1178,7 +1178,7 @@ def export_project_pdf(
         r"[^A-Za-z0-9_-]+",
         "_",
         title,
-    ).strip("_") or "trumbo_project"
+    ).strip("_") or "adumn_project"
 
     return StreamingResponse(
         buffer,
