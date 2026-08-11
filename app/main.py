@@ -13,6 +13,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from .database import connect, initialize, rows
+from .document_store import sync_project_document_from_scenes
 from .domain import estimate_runtime, screenplay_summary
 from .services.engine_analysis_adapter import analyze_scene_with_engine
 from .schemas import (
@@ -163,6 +164,23 @@ def scene_to_dict(
     )
 
     return data
+
+
+def project_scenes_for_projection(
+    connection: Any,
+    project_id: int,
+) -> list[dict]:
+    scene_rows = connection.execute(
+        """
+        SELECT *
+        FROM scenes
+        WHERE project_id = ?
+        ORDER BY scene_number, id
+        """,
+        (project_id,),
+    ).fetchall()
+
+    return [scene_to_dict(scene_row) for scene_row in scene_rows]
 
 
 def normalize_breakdown_state(
@@ -489,6 +507,17 @@ def create_scene(
             ),
         )
 
+        projected_scenes = project_scenes_for_projection(
+            connection,
+            project_id,
+        )
+
+        sync_project_document_from_scenes(
+            connection,
+            project_id=project_id,
+            scenes=projected_scenes,
+        )
+
         scene = connection.execute(
             """
             SELECT *
@@ -639,6 +668,17 @@ def update_scene(
             (scene_id,),
         )
 
+        projected_scenes = project_scenes_for_projection(
+            connection,
+            current["project_id"],
+        )
+
+        sync_project_document_from_scenes(
+            connection,
+            project_id=current["project_id"],
+            scenes=projected_scenes,
+        )
+
         updated = connection.execute(
             """
             SELECT *
@@ -716,6 +756,17 @@ def delete_scene(
             WHERE id = ?
             """,
             (project_id,),
+        )
+
+        projected_scenes = project_scenes_for_projection(
+            connection,
+            project_id,
+        )
+
+        sync_project_document_from_scenes(
+            connection,
+            project_id=project_id,
+            scenes=projected_scenes,
         )
 
         return {

@@ -123,6 +123,36 @@ def initialize() -> None:
         changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(scene_id) REFERENCES scenes(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS documents (
+        id TEXT PRIMARY KEY,
+        project_id INTEGER NOT NULL UNIQUE,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS document_lines (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        uuid TEXT NOT NULL UNIQUE,
+        document_id TEXT NOT NULL,
+        position INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        text TEXT NOT NULL DEFAULT '',
+        source_scene_id INTEGER,
+        source_line_index INTEGER,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(document_id) REFERENCES documents(id) ON DELETE CASCADE,
+        FOREIGN KEY(source_scene_id) REFERENCES scenes(id) ON DELETE SET NULL,
+        UNIQUE(document_id, position)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_document_lines_document_position
+        ON document_lines(document_id, position);
+
+    CREATE INDEX IF NOT EXISTS idx_document_lines_origin
+        ON document_lines(document_id, source_scene_id, source_line_index);
     """
 
     with connect() as connection:
