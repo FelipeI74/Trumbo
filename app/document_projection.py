@@ -189,13 +189,17 @@ def derive_scenes_from_document_lines(lines: list[dict[str, Any]]) -> dict[str, 
     ordered_lines = sorted(lines, key=lambda item: int(item.get("position") or 0))
 
     preface_lines: list[dict[str, str]] = []
-    chunks: list[list[dict[str, str]]] = []
-    current_chunk: list[dict[str, str]] | None = None
+    chunks: list[list[dict[str, Any]]] = []
+    current_chunk: list[dict[str, Any]] | None = None
 
     for line in ordered_lines:
         line_type = str(line.get("type") or "action")
         text = str(line.get("text") or "")
-        normalized = {"type": line_type, "text": text}
+        normalized = {
+            "type": line_type,
+            "text": text,
+            "source_scene_id": line.get("source_scene_id"),
+        }
 
         if is_complete_scene_heading_text(text):
             if current_chunk is not None:
@@ -204,7 +208,12 @@ def derive_scenes_from_document_lines(lines: list[dict[str, Any]]) -> dict[str, 
             continue
 
         if current_chunk is None:
-            preface_lines.append(normalized)
+            preface_lines.append(
+                {
+                    "type": normalized["type"],
+                    "text": normalized["text"],
+                }
+            )
             continue
 
         current_chunk.append(normalized)
@@ -216,12 +225,23 @@ def derive_scenes_from_document_lines(lines: list[dict[str, Any]]) -> dict[str, 
     for index, chunk in enumerate(chunks, start=1):
         heading = chunk[0]["text"].strip()
         body = "\n".join(item["text"] for item in chunk[1:])
+        source_scene_ids = {
+            item.get("source_scene_id")
+            for item in chunk
+        }
         scenes.append(
             {
                 "scene_number": index,
                 "heading": heading,
                 "body": body,
-                "semantic_lines": chunk,
+                "semantic_lines": [
+                    {
+                        "type": item["type"],
+                        "text": item["text"],
+                    }
+                    for item in chunk
+                ],
+                "source_scene_ids": source_scene_ids,
             }
         )
 

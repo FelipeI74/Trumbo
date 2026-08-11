@@ -13,6 +13,9 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from .database import connect, initialize, rows
+from .document_projection import (
+    derive_scenes_from_document_lines,
+)
 from .document_store import sync_project_document_from_scenes
 from .domain import estimate_runtime, screenplay_summary
 from .services.engine_analysis_adapter import analyze_scene_with_engine
@@ -181,6 +184,60 @@ def project_scenes_for_projection(
     ).fetchall()
 
     return [scene_to_dict(scene_row) for scene_row in scene_rows]
+
+
+def scene_with_metadata(
+    connection: Any,
+    scene_row: Any,
+) -> dict:
+    scene = scene_to_dict(scene_row)
+
+    scene["notes"] = rows(
+        connection,
+        """
+        SELECT *
+        FROM notes
+        WHERE scene_id = ?
+        ORDER BY id DESC
+        """,
+        (scene["id"],),
+    )
+
+    scene["breakdown_items"] = rows(
+        connection,
+        """
+        SELECT *
+        FROM breakdown_items
+        WHERE scene_id = ?
+        ORDER BY category, name
+        """,
+        (scene["id"],),
+    )
+
+    return scene
+
+
+def _document_lines_with_position(
+    connection: Any,
+    document_id: str,
+) -> list[dict]:
+    line_rows = connection.execute(
+        """
+        SELECT
+            position,
+            uuid,
+            type,
+            text,
+            source_scene_id,
+            source_line_index
+        FROM document_lines
+        WHERE document_id = ?
+        ORDER BY position
+        """,
+        (document_id,),
+    ).fetchall()
+
+    return [dict(line_row) for line_row in line_rows]
 
 
 def normalize_breakdown_state(
@@ -405,37 +462,165 @@ def get_project(
         scenes: list[dict] = []
 
         for scene_row in scene_rows:
-            scene = scene_to_dict(
-                scene_row
+            scenes.append(
+                scene_with_metadata(
+                    connection,
+                    scene_row,
+                )
             )
-
-            scene["notes"] = rows(
-                connection,
-                """
-                SELECT *
-                FROM notes
-                WHERE scene_id = ?
-                ORDER BY id DESC
-                """,
-                (scene["id"],),
-            )
-
-            scene["breakdown_items"] = rows(
-                connection,
-                """
-                SELECT *
-                FROM breakdown_items
-                WHERE scene_id = ?
-                ORDER BY category, name
-                """,
-                (scene["id"],),
-            )
-
-            scenes.append(scene)
 
         return {
             "project": dict(project),
             "scenes": scenes,
+        }
+
+
+@app.get("/api/projects/{project_id}/document")
+def get_project_document(
+    project_id: int,
+) -> dict:
+    with connect() as connection:
+        project = connection.execute(
+            """
+            SELECT *
+            FROM projects
+            WHERE id = ?
+            """,
+            (project_id,),
+        ).fetchone()
+
+        if project is None:
+            raise HTTPException(
+                404,
+                "Proyecto no encontrado",
+            )
+
+        document = connection.execute(
+            """
+            SELECT
+                id,
+                project_id,
+                created_at,
+                updated_at
+            FROM documents
+            WHERE project_id = ?
+            """,
+            (project_id,),
+        ).fetchone()
+
+        if document is None:
+            raise HTTPException(
+                404,
+                "El proyecto aún no tiene un documento generado. Guarda una escena para crearlo.",
+            )
+
+        ordered_lines = _document_lines_with_position(
+            connection,
+            document["id"],
+        )
+
+        derived_projection = derive_scenes_from_document_lines(
+            ordered_lines
+        )
+
+        persisted_scene_rows = connection.execute(
+            """
+            SELECT *
+            FROM scenes
+            WHERE project_id = ?
+            ORDER BY scene_number, id
+            """,
+            (project_id,),
+        ).fetchall()
+
+        persisted_scenes_by_id = {
+            scene_row["id"]: scene_with_metadata(
+                connection,
+                scene_row,
+            )
+            for scene_row in persisted_scene_rows
+        }
+
+        derived_scenes: list[dict] = []
+        inconsistencies: list[dict] = []
+
+        for index, derived_scene in enumerate(
+            derived_projection["scenes"]
+        ):
+            chunk_index = index + 1
+            origin_ids = set(
+                derived_scene.get("source_scene_ids")
+                or []
+            )
+
+            has_single_non_null_origin = (
+                len(origin_ids) == 1
+                and next(iter(origin_ids), None) is not None
+            )
+
+            if has_single_non_null_origin:
+                source_scene_id = next(iter(origin_ids))
+                persisted_scene = persisted_scenes_by_id.get(
+                    source_scene_id
+                )
+
+                if persisted_scene is not None:
+                    derived_scenes.append(
+                        {
+                            **persisted_scene,
+                            "scene_number": derived_scene["scene_number"],
+                            "heading": derived_scene["heading"],
+                            "body": derived_scene["body"],
+                            "semantic_lines": derived_scene["semantic_lines"],
+                        }
+                    )
+                    continue
+
+            derived_scenes.append(
+                {
+                    "id": None,
+                    "scene_number": derived_scene["scene_number"],
+                    "heading": derived_scene["heading"],
+                    "body": derived_scene["body"],
+                    "semantic_lines": derived_scene["semantic_lines"],
+                    "synopsis": None,
+                    "runtime_seconds": None,
+                    "notes": [],
+                    "breakdown_items": [],
+                    "structural_conflict": True,
+                }
+            )
+
+            inconsistencies.append(
+                {
+                    "type": "mixed_or_missing_source_scene_id",
+                    "scene_number": chunk_index,
+                    "source_scene_ids": sorted(
+                        [
+                            source_scene_id
+                            for source_scene_id in origin_ids
+                            if source_scene_id is not None
+                        ]
+                    ),
+                    "has_null_source_scene_id": None in origin_ids,
+                }
+            )
+
+        return {
+            "project": dict(project),
+            "document": dict(document),
+            "lines": [
+                {
+                    "uuid": line["uuid"],
+                    "type": line["type"],
+                    "text": line["text"],
+                    "source_scene_id": line["source_scene_id"],
+                    "source_line_index": line["source_line_index"],
+                }
+                for line in ordered_lines
+            ],
+            "derived_scenes": derived_scenes,
+            "inconsistencies": inconsistencies,
         }
 
 
