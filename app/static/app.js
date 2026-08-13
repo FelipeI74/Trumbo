@@ -2,6 +2,8 @@
 const state = {
   projects: [],
   project: null,
+  document: null,
+  documentLines: [],
   scenes: [],
   activeSceneId: null,
 
@@ -3352,16 +3354,87 @@ async function loadProjects(
 async function loadProject(
   projectId
 ) {
-  const data =
-    await request(
-      `/api/projects/${projectId}`
+  let loadedFromDocument = false;
+  let mustUseLegacy = false;
+
+  try {
+    const response = await fetch(
+      `/api/projects/${projectId}/document`,
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
     );
 
-  state.project =
-    data.project;
+    if (!response.ok) {
+      if (response.status === 404) {
+        mustUseLegacy = true;
+      } else {
+        const detail = await response
+          .json()
+          .catch(() => ({
+            detail: "Error inesperado",
+          }));
 
-  state.scenes =
-    data.scenes || [];
+        throw new Error(
+          detail.detail ||
+          `Error ${response.status}`
+        );
+      }
+    } else {
+      const documentResponse =
+        await response.json();
+
+      const derivedScenes =
+        documentResponse.derived_scenes || [];
+
+      const hasUnsafeDerivedScenes =
+        derivedScenes.some(
+          scene =>
+            scene?.id == null ||
+            scene?.structural_conflict === true
+        );
+
+      if (hasUnsafeDerivedScenes) {
+        mustUseLegacy = true;
+      } else {
+        state.project =
+          documentResponse.project;
+
+        state.document =
+          documentResponse.document;
+
+        state.documentLines =
+          documentResponse.lines || [];
+
+        state.scenes =
+          derivedScenes;
+
+        loadedFromDocument = true;
+      }
+    }
+  } catch (error) {
+    if (!mustUseLegacy) {
+      throw error;
+    }
+  }
+
+  if (!loadedFromDocument) {
+    const legacy =
+      await request(
+        `/api/projects/${projectId}`
+      );
+
+    state.project =
+      legacy.project;
+
+    state.scenes =
+      legacy.scenes || [];
+
+    state.document = null;
+    state.documentLines = [];
+  }
 
   state.activeSceneId =
     state.scenes[0]?.id ??
