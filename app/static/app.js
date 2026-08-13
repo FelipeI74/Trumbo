@@ -20,6 +20,7 @@ const state = {
   isReconcilingScenes: false,
   reconcileTimer: null,
   pendingReconcile: false,
+  lineTypeSelectorPointerDown: false,
 };
 
 const LINE_TYPES = [
@@ -57,6 +58,35 @@ const TAB_BACKWARD = {
   dialogue: "parenthetical",
   transition: "dialogue",
 };
+
+const LINE_TYPE_SELECTOR = true;
+
+const LINE_TYPE_SELECTOR_OPTIONS = [
+  {
+    value: "heading",
+    label: "ENCABEZADO",
+  },
+  {
+    value: "action",
+    label: "ACCIÓN",
+  },
+  {
+    value: "character",
+    label: "PERSONAJE",
+  },
+  {
+    value: "dialogue",
+    label: "DIÁLOGO",
+  },
+  {
+    value: "parenthetical",
+    label: "PARÉNTESIS",
+  },
+  {
+    value: "transition",
+    label: "TRANSICIÓN",
+  },
+];
 
 const $ = selector => document.querySelector(selector);
 
@@ -874,6 +904,116 @@ function updateModeLabel(type) {
   $("#editorModeLabel").textContent =
     LINE_LABELS[type] ||
     String(type || "").toUpperCase();
+
+  syncLineTypeSelector();
+}
+
+function syncLineTypeSelector() {
+  const selector =
+    $("#lineTypeSelector");
+
+  if (!selector) {
+    return;
+  }
+
+  if (!LINE_TYPE_SELECTOR) {
+    selector.hidden = true;
+    selector.disabled = true;
+    return;
+  }
+
+  selector.hidden = false;
+
+  const line =
+    state.activeLine;
+
+  if (!line) {
+    selector.disabled = true;
+    return;
+  }
+
+  const type = getLineType(line);
+
+  selector.value =
+    LINE_TYPES.includes(type)
+      ? type
+      : "action";
+
+  selector.disabled = false;
+}
+
+function setupLineTypeSelector() {
+  const selector =
+    $("#lineTypeSelector");
+
+  if (!selector) {
+    return;
+  }
+
+  if (!LINE_TYPE_SELECTOR) {
+    selector.hidden = true;
+    selector.disabled = true;
+    return;
+  }
+
+  selector.hidden = false;
+
+  selector.addEventListener(
+    "pointerdown",
+    () => {
+      state.lineTypeSelectorPointerDown = true;
+    }
+  );
+
+  selector.addEventListener(
+    "blur",
+    () => {
+      state.lineTypeSelectorPointerDown = false;
+    }
+  );
+
+  selector.innerHTML =
+    LINE_TYPE_SELECTOR_OPTIONS.map(option => `
+      <option value="${option.value}">
+        ${escapeHtml(option.label)}
+      </option>
+    `).join("");
+
+  selector.addEventListener(
+    "change",
+    event => {
+      const activeLine =
+        state.activeLine;
+
+      if (!activeLine) {
+        syncLineTypeSelector();
+        return;
+      }
+
+      const nextType =
+        event.target.value;
+
+      if (!LINE_TYPES.includes(nextType)) {
+        syncLineTypeSelector();
+        return;
+      }
+
+      setLineType(
+        activeLine,
+        nextType,
+        {
+          preserveCaret: true,
+        }
+      );
+
+      focusLine(
+        activeLine,
+        false
+      );
+    }
+  );
+
+  syncLineTypeSelector();
 }
 
 function focusLine(
@@ -1289,6 +1429,8 @@ function handleLineFocus(event) {
     "selected-line"
   );
 
+  syncLineTypeSelector();
+
   updateModeLabel(
     getLineType(line)
   );
@@ -1326,6 +1468,14 @@ function handleLineBlur(event) {
     event.relatedTarget;
 
   if (
+    state.lineTypeSelectorPointerDown ||
+    nextTarget?.id ===
+    "lineTypeSelector"
+  ) {
+    return;
+  }
+
+  if (
     nextTarget?.classList?.contains(
       "script-line"
     )
@@ -1354,6 +1504,7 @@ function handleLineBlur(event) {
     );
 
     updateModeLabel("action");
+    syncLineTypeSelector();
   }
 
   if (
@@ -3773,6 +3924,7 @@ function setupEvents() {
 }
 
 setupTabs();
+setupLineTypeSelector();
 setupEvents();
 
 loadProjects()
