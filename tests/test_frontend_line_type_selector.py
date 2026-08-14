@@ -32,7 +32,7 @@ class FrontendLineTypeSelectorTests(unittest.TestCase):
         for line_type in ("heading", "action", "character", "dialogue", "parenthetical", "transition"):
             self.assertIn(f".script-line.{line_type}", self.styles_css)
 
-        for color in ("#000000", "#cc0000", "#0055cc", "#008800", "#1a1a6e", "#666666"):
+        for color in ("#000000", "#8f3a3a", "#355f8a", "#3f704d", "#1a1a6e", "#666666"):
             self.assertIn(color, self.styles_css)
 
         self.assertIn('"Courier Prime", "Courier New", Courier, monospace', self.styles_css)
