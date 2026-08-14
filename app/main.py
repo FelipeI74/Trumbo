@@ -1305,33 +1305,55 @@ def export_project_pdf(
     pdf = canvas.Canvas(
         buffer,
         pagesize=LETTER,
+        pageCompression=0,
     )
 
     width, height = LETTER
-    margin_x = 50
-    margin_y = 50
-    y = height - margin_y
+    margin_left = 1.5 * 72
+    margin_right = 1.0 * 72
+    margin_top = 1.0 * 72
+    margin_bottom = 1.0 * 72
+    line_height = 14
+    y = height - margin_top
+    page_number = 1
+
+    def finish_page() -> None:
+        nonlocal page_number
+        pdf.setFillColorRGB(0, 0, 0)
+        pdf.setFont("Courier", 12)
+        pdf.drawCentredString(width / 2, 36, str(page_number))
+        pdf.showPage()
+        page_number += 1
+
+    def wrapped_lines(text: str, indent: float) -> list[str]:
+        return simpleSplit(
+            text,
+            "Courier",
+            12,
+            width - margin_left - margin_right - indent,
+        ) or [""]
 
     def ensure_space(lines_needed: int = 1) -> None:
         nonlocal y
-        min_y = margin_y + (lines_needed * 14)
+        min_y = margin_bottom + (lines_needed * line_height)
 
         if y <= min_y:
-            pdf.showPage()
-            y = height - margin_y
+            finish_page()
+            y = height - margin_top
 
     title = str(project["title"])
-    pdf.setFont("Helvetica-Bold", 14)
-    pdf.drawString(margin_x, y, title)
-    y -= 24
+    pdf.setFillColorRGB(0, 0, 0)
+    pdf.setFont("Courier", 12)
+    pdf.drawString(margin_left, y, title)
+    y -= line_height * 2
 
-    pdf.setFont("Helvetica", 10)
+    pdf.setFont("Courier", 12)
     pdf.drawString(
-        margin_x,
+        margin_left,
         y,
         "Exportado desde ADÜMN Alpha",
     )
-    y -= 24
+    y -= line_height * 2
 
     for scene in scenes:
         scene_heading = (
@@ -1339,74 +1361,78 @@ def export_project_pdf(
             or "Sin encabezado"
         )
 
-        ensure_space(3)
+        ensure_space(4)
 
-        pdf.setFont("Helvetica-Bold", 11)
+        pdf.setFont("Courier", 12)
         pdf.drawString(
-            margin_x,
+            margin_left,
             y,
-            f"ESCENA {scene['scene_number']}: {scene_heading}",
+            f"ESCENA {scene['scene_number']}: {scene_heading}".upper(),
         )
-        y -= 18
+        y -= line_height * 2
 
         lines = scene_lines_for_export(scene)
 
-        for line in lines:
+        for line_index, line in enumerate(lines):
             line_type = line.get("type") or "action"
             text = str(line.get("text") or "")
 
             if not text.strip():
-                y -= 10
+                y -= line_height
                 continue
 
             if line_type == "heading":
-                font_name = "Helvetica-Bold"
                 indent = 0
                 rendered = text.upper()
             elif line_type == "character":
-                font_name = "Helvetica-Bold"
-                indent = 150
+                indent = 3.7 * 72 - margin_left
                 rendered = text.upper()
             elif line_type == "dialogue":
-                font_name = "Helvetica"
-                indent = 120
+                indent = 2.5 * 72 - margin_left
                 rendered = text
             elif line_type == "parenthetical":
-                font_name = "Helvetica-Oblique"
-                indent = 130
+                indent = 3.1 * 72 - margin_left
                 rendered = text
             elif line_type == "transition":
-                font_name = "Helvetica-Bold"
-                indent = 280
+                indent = 0
                 rendered = text.upper()
             else:
-                font_name = "Helvetica"
-                indent = 20
+                indent = 0
                 rendered = text
 
-            pdf.setFont(font_name, 11)
+            wrapped = wrapped_lines(rendered, indent)
 
-            wrapped = simpleSplit(
-                rendered,
-                font_name,
-                11,
-                width - margin_x - indent - 30,
-            )
+            if line_type == "character":
+                next_types = [
+                    next_line.get("type")
+                    for next_line in lines[line_index + 1 : line_index + 3]
+                ]
+                opening_lines = 1 + int("parenthetical" in next_types)
+                if "dialogue" in next_types:
+                    opening_lines += 1
+                ensure_space(opening_lines + 1)
 
             ensure_space(len(wrapped) + 1)
 
+            pdf.setFont("Courier", 12)
+            x = (
+                width - margin_right - pdf.stringWidth(rendered, "Courier", 12)
+                if line_type == "transition"
+                else margin_left + indent
+            )
             for chunk in wrapped:
                 pdf.drawString(
-                    margin_x + indent,
+                    x,
                     y,
                     chunk,
                 )
-                y -= 14
+                y -= line_height
 
             y -= 2
 
-        y -= 10
+        y -= line_height
 
+    finish_page()
     pdf.save()
     buffer.seek(0)
 

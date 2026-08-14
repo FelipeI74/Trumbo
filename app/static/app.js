@@ -400,12 +400,13 @@ function inferPastedLineType(
     return "dialogue";
   }
 
+  if (previousType === "dialogue" && previousLineWasBlank) {
+    return "action";
+  }
+
   if (
     previousType === "dialogue"
   ) {
-    if (previousLineWasBlank) {
-      return "action";
-    }
 
     const previousValue =
       String(

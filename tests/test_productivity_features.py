@@ -1,3 +1,4 @@
+import asyncio
 import tempfile
 import unittest
 from pathlib import Path
@@ -70,6 +71,42 @@ class ProductivityFeaturesTests(unittest.TestCase):
 
             self.assertEqual(response.media_type, "application/pdf")
             self.assertIn("Content-Disposition", response.headers)
+
+    def test_project_pdf_uses_screenplay_geometry_and_paginates_without_loss(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+
+            project = main.create_project(
+                ProjectCreate(title="Guion largo", format="feature")
+            )
+            long_action = "Accion esperada " * 900
+            main.create_scene(
+                project["id"],
+                SceneCreate(
+                    heading="INT. CASA - NOCHE",
+                    body=long_action,
+                    semantic_lines=[
+                        {"type": "heading", "text": "INT. CASA - NOCHE"},
+                        {"type": "character", "text": "MARTA"},
+                        {"type": "parenthetical", "text": "(susurra)"},
+                        {"type": "dialogue", "text": "No podemos quedarnos aqui."},
+                        {"type": "transition", "text": "CORTE A:"},
+                        {"type": "action", "text": long_action},
+                    ],
+                ),
+            )
+
+            response = main.export_project_pdf(project["id"])
+
+            async def read_stream():
+                return b"".join([chunk async for chunk in response.body_iterator])
+
+            pdf_bytes = asyncio.run(read_stream())
+            self.assertGreaterEqual(pdf_bytes.count(b"/Type /Page"), 2)
+            self.assertIn(b"MARTA", pdf_bytes)
+            self.assertIn(b"No podemos quedarnos aqui.", pdf_bytes)
+            self.assertIn(b"CORTE A:", pdf_bytes)
+            self.assertIn(b"Accion esperada", pdf_bytes)
 
     def test_breakdown_item_can_change_state(self):
         with tempfile.TemporaryDirectory() as tmpdir:
