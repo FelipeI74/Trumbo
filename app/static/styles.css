@@ -269,8 +269,7 @@ select:focus-visible,
 
 .screenplay-editor {
   width: min(816px, calc(100% - 24px));
-  min-height: 0;
-  aspect-ratio: 8.5 / 11;
+  min-height: 1056px;
   margin: 0 auto;
   padding: 96px 96px 96px;
   background: var(--paper);
@@ -347,33 +346,33 @@ select:focus-visible,
   margin: 0 0 1.1em;
   font-weight: 700;
   text-transform: uppercase;
-  color: #cc0000;
+  color: #8f3a3a !important;
 }
 
 .script-line.action {
   width: 100%;
   margin: 0 0 0.9em;
-  color: #000000;
+  color: #000000 !important;
 }
 
 .script-line.character {
   width: 34%;
-  margin: 1em 0 0.15em 38.235%;
+  margin: 1.45em 0 0.15em 38.235%;
   text-transform: uppercase;
   font-weight: 700;
-  color: #0055cc;
+  color: #355f8a !important;
 }
 
 .script-line.parenthetical {
   width: 34%;
   margin: 0 0 0.15em 31.373%;
-  color: #666666;
+  color: #666666 !important;
 }
 
 .script-line.dialogue {
   width: 52%;
-  margin: 0 0 1em 23.529%;
-  color: #008800;
+  margin: 0 0 1.25em 23.529%;
+  color: #3f704d !important;
 }
 
 .script-line.transition {
@@ -382,7 +381,7 @@ select:focus-visible,
   text-align: right;
   text-transform: uppercase;
   font-weight: 700;
-  color: #1a1a6e;
+  color: #1a1a6e !important;
 }
 
 .script-line.transition[data-transition-variant="in"] {
