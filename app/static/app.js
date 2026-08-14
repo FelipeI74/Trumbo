@@ -321,6 +321,147 @@ function inferLineType(text, previousType = null) {
   return "action";
 }
 
+function normalizeCharacterCue(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toUpperCase();
+}
+
+function collectSceneCharacterCues(referenceLine) {
+  const cues = new Set();
+
+  const sceneNode =
+    referenceLine?.closest(
+      ".script-scene"
+    );
+
+  if (!sceneNode) {
+    return cues;
+  }
+
+  lineElements(sceneNode)
+    .filter(
+      line =>
+        getLineType(line) === "character"
+    )
+    .forEach(line => {
+      const cue =
+        normalizeCharacterCue(
+          line.textContent
+        );
+
+      if (cue) {
+        cues.add(cue);
+      }
+    });
+
+  return cues;
+}
+
+function inferPastedLineType(
+  text,
+  previousType = null,
+  options = {}
+) {
+  const {
+    nextNonEmptyText = "",
+    previousLineWasBlank = false,
+    previousText = "",
+    knownCharacterCues = new Set(),
+  } = options;
+
+  const value =
+    String(text || "").trim();
+
+  if (!value) {
+    return "action";
+  }
+
+  if (isHeadingPrefixText(value)) {
+    return "heading";
+  }
+
+  if (isTransitionText(value)) {
+    return "transition";
+  }
+
+  if (
+    value.startsWith("(") &&
+    value.endsWith(")")
+  ) {
+    return "parenthetical";
+  }
+
+  if (
+    previousType === "character" ||
+    previousType === "parenthetical"
+  ) {
+    return "dialogue";
+  }
+
+  if (
+    previousType === "dialogue"
+  ) {
+    if (previousLineWasBlank) {
+      return "action";
+    }
+
+    const previousValue =
+      String(
+        previousText || ""
+      ).trim();
+
+    const previousDialogueClosed =
+      /[.!?]$/.test(
+        previousValue
+      );
+
+    if (!previousDialogueClosed) {
+      return "dialogue";
+    }
+
+    if (/^[a-záéíóúñü]/.test(value)) {
+      return "dialogue";
+    }
+
+    return "action";
+  }
+
+  const normalizedCue =
+    normalizeCharacterCue(value);
+
+  const looksUppercaseCue =
+    value === value.toUpperCase() &&
+    /[A-ZÁÉÍÓÚÜÑ]/.test(value) &&
+    value.length <= 45 &&
+    !/[.!?]$/.test(value);
+
+  const looksKnownCue =
+    knownCharacterCues.has(
+      normalizedCue
+    );
+
+  const nextText =
+    String(
+      nextNonEmptyText || ""
+    ).trim();
+
+  const nextCouldBeDialogue =
+    !!nextText &&
+    !isHeadingPrefixText(nextText) &&
+    !isTransitionText(nextText);
+
+  if (
+    (looksUppercaseCue || looksKnownCue) &&
+    nextCouldBeDialogue
+  ) {
+    return "character";
+  }
+
+  return "action";
+}
+
 function sceneToSemanticLines(scene) {
   const serverLines = normalizeSemanticLines(
     scene.semantic_lines
@@ -2277,6 +2418,12 @@ function handleLinePaste(event) {
   const parts =
     text.split("\n");
 
+  const previousTypeBeforePaste =
+    getLineType(line);
+
+  const knownCharacterCues =
+    collectSceneCharacterCues(line);
+
   if (parts.length === 1) {
     document.execCommand(
       "insertText",
@@ -2289,22 +2436,97 @@ function handleLinePaste(event) {
     return;
   }
 
+  const nextNonEmptyTextFrom = startIndex => {
+    for (
+      let index = startIndex;
+      index < parts.length;
+      index += 1
+    ) {
+      const candidate =
+        String(
+          parts[index] || ""
+        ).trim();
+
+      if (candidate) {
+        return candidate;
+      }
+    }
+
+    return "";
+  };
+
+  const firstPart =
+    parts[0] || "";
+
+  const firstType =
+    inferPastedLineType(
+      firstPart,
+      previousTypeBeforePaste,
+      {
+        nextNonEmptyText:
+          nextNonEmptyTextFrom(1),
+        previousLineWasBlank: false,
+        knownCharacterCues,
+      }
+    );
+
+  setLineType(
+    line,
+    firstType,
+    {
+      preserveCaret: true,
+      skipSceneSplit: true,
+    }
+  );
+
+  if (firstType === "character") {
+    const normalizedCue =
+      normalizeCharacterCue(firstPart);
+
+    if (normalizedCue) {
+      knownCharacterCues.add(
+        normalizedCue
+      );
+    }
+  }
+
   document.execCommand(
     "insertText",
     false,
-    parts.shift()
+    firstPart
   );
 
   let reference = line;
 
   let previousType =
-    getLineType(line);
+    firstType;
 
-  parts.forEach(part => {
+  let previousLineWasBlank =
+    String(firstPart).trim() === "";
+
+  let previousText =
+    firstPart;
+
+  for (
+    let index = 1;
+    index < parts.length;
+    index += 1
+  ) {
+    const part = parts[index];
+
     const type =
-      inferLineType(
+      inferPastedLineType(
         part,
-        previousType
+        previousType,
+        {
+          nextNonEmptyText:
+            nextNonEmptyTextFrom(
+              index + 1
+            ),
+          previousLineWasBlank,
+          previousText,
+          knownCharacterCues,
+        }
       );
 
     const next =
@@ -2317,7 +2539,22 @@ function handleLinePaste(event) {
     reference = next;
     previousType = type;
 
-  });
+    if (type === "character") {
+      const normalizedCue =
+        normalizeCharacterCue(part);
+
+      if (normalizedCue) {
+        knownCharacterCues.add(
+          normalizedCue
+        );
+      }
+    }
+
+    previousLineWasBlank =
+      String(part || "").trim() === "";
+
+    previousText = part;
+  }
 
   focusLine(
     reference,
