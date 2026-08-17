@@ -153,12 +153,65 @@ select:focus-visible,
 
 
 /* ======================================
+   COLUMNA IZQUIERDA
+====================================== */
+
+.col-left {
+  background: #0d0f10;
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+  font-size: 12px;
+}
+
+.col-left-section {
+  padding: 14px 0 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.col-left-heading {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  padding: 0 12px 6px;
+}
+
+.col-left-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.col-left-item {
+  padding: 6px 12px;
+  color: #c8cdd2;
+  cursor: default;
+}
+
+.col-left-item.active {
+  color: var(--accent);
+  background: rgba(216, 166, 79, 0.08);
+}
+
+.col-left-footer {
+  margin-top: auto;
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 10px;
+  border-top: 1px solid var(--line);
+}
+
+
+/* ======================================
    ESTRUCTURA GENERAL
 ====================================== */
 
 .workspace {
   display: grid;
-  grid-template-columns: 220px minmax(560px, 1fr) 300px;
+  grid-template-columns: 160px 220px minmax(560px, 1fr) 300px;
   height: calc(100vh - 92px);
   min-height: 0;
 }
@@ -730,7 +783,7 @@ select:focus-visible,
 }
 
 body.inspector-collapsed .workspace {
-  grid-template-columns: 220px minmax(560px, 1fr) 0;
+  grid-template-columns: 160px 220px minmax(560px, 1fr) 0;
 }
 
 body.inspector-collapsed .inspector {
@@ -747,7 +800,7 @@ body.inspector-collapsed .inspector {
 
 @media (max-width: 1180px) {
   .workspace {
-    grid-template-columns: 210px minmax(420px, 1fr) 260px;
+    grid-template-columns: 160px 210px minmax(420px, 1fr) 260px;
   }
 
   .screenplay-editor {
@@ -761,6 +814,7 @@ body.inspector-collapsed .inspector {
     grid-template-columns: 210px 1fr;
   }
 
+  .col-left,
   .inspector {
     display: none;
   }
