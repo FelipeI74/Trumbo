@@ -1197,7 +1197,7 @@ def scene_spelling_review(
     with connect() as connection:
         scene = connection.execute(
             """
-            SELECT id, heading, body
+            SELECT id, heading, body, semantic_lines
             FROM scenes
             WHERE id = ?
             """,
@@ -1218,7 +1218,8 @@ def scene_spelling_review(
             "No está disponible el corrector ortográfico",
         ) from error
 
-    candidates = spelling_candidates(dict(scene))
+    scene_data = dict(scene)
+    candidates = spelling_candidates(scene_data)
 
     if not candidates:
         return {
@@ -1232,7 +1233,56 @@ def scene_spelling_review(
     )
 
     checker = SpellChecker(language="es")
-    unknown = checker.unknown(counter.keys())
+    semantic_lines = deserialize_semantic_lines(
+        scene_data.get("semantic_lines")
+    )
+    cue_words = {
+        word.lower()
+        for line in semantic_lines
+        if line.get("type") == "character"
+        for word, _ in spelling_candidates({"body": line.get("text")})
+    }
+    unknown = {
+        word
+        for word in checker.unknown(counter.keys())
+        if word not in cue_words and not checker.known([word])
+    }
+
+    # The Spanish frequency list omits some regular inflections. Keep words
+    # whose candidate preserves the stem and supplies a normal ending.
+    inflection_endings = (
+        "a",
+        "e",
+        "o",
+        "as",
+        "es",
+        "os",
+        "an",
+        "en",
+        "amos",
+        "emos",
+        "imos",
+    )
+    filtered_unknown = set()
+
+    for word in unknown:
+        if not word.endswith(inflection_endings):
+            filtered_unknown.add(word)
+            continue
+
+        stem = word[:-1]
+        if word.endswith(("as", "es", "os", "an", "en")):
+            stem = word[:-2]
+
+        candidates_for_word = checker.candidates(word) or set()
+        if not any(
+            candidate.startswith(stem)
+            and len(candidate) <= len(word) + 3
+            for candidate in candidates_for_word
+        ):
+            filtered_unknown.add(word)
+
+    unknown = filtered_unknown
 
     misspellings: list[dict] = []
 
@@ -1241,7 +1291,7 @@ def scene_spelling_review(
         key=lambda item: (-counter[item], item),
     ):
         suggestions = list(
-            checker.candidates(word)
+            checker.candidates(word) or []
         )
 
         misspellings.append(

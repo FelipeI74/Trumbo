@@ -1822,16 +1822,6 @@ function renderNoActiveScene() {
       </div>
     `;
 
-  const spellList =
-    $("#spellcheckList");
-
-  if (spellList) {
-    spellList.innerHTML = `
-      <div class="empty">
-        No hay una escena activa.
-      </div>
-    `;
-  }
 }
 
 async function syncSceneRecordsToChunkCount(chunkCount) {
@@ -3284,79 +3274,6 @@ function renderBreakdown(scene) {
       .join("");
 }
 
-function renderSpellingReview(
-  payload,
-  errorMessage = ""
-) {
-  const container =
-    $("#spellcheckList");
-
-  if (!container) {
-    return;
-  }
-
-  if (errorMessage) {
-    container.innerHTML = `
-      <div class="empty">
-        ${escapeHtml(errorMessage)}
-      </div>
-    `;
-    return;
-  }
-
-  const misspellings =
-    payload?.misspellings || [];
-
-  if (!misspellings.length) {
-    container.innerHTML = `
-      <div class="empty">
-        No se detectaron palabras dudosas.
-      </div>
-    `;
-    return;
-  }
-
-  container.innerHTML = misspellings
-    .map(item => `
-      <div class="item">
-        <div class="item-meta">
-          ${escapeHtml(item.word)} · ${escapeHtml(item.count)}
-        </div>
-        <div>
-          Sugerencias: ${escapeHtml((item.suggestions || []).join(", ") || "(sin sugerencias)")}
-        </div>
-      </div>
-    `)
-    .join("");
-}
-
-async function reviewSpelling() {
-  const scene =
-    activeScene();
-
-  if (!scene) {
-    renderSpellingReview(
-      null,
-      "No hay escena activa para revisar."
-    );
-    return;
-  }
-
-  try {
-    const payload = await request(
-      `/api/scenes/${scene.id}/spelling`
-    );
-
-    renderSpellingReview(payload);
-  } catch (error) {
-    console.error(error);
-    renderSpellingReview(
-      null,
-      "No fue posible ejecutar la revisión ortográfica."
-    );
-  }
-}
-
 function exportProjectPdf() {
   if (!state.project) {
     return;
@@ -3999,12 +3916,6 @@ function setupEvents() {
     .addEventListener(
       "click",
       exportProjectPdf
-    );
-
-  $("#spellcheckButton")
-    .addEventListener(
-      "click",
-      reviewSpelling
     );
 
   $("#breakdownFilterCategory")

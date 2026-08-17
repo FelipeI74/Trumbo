@@ -36,7 +36,11 @@ class ProductivityFeaturesTests(unittest.TestCase):
                 project["id"],
                 SceneCreate(
                     heading="INT. CASA - DIA",
-                    body="El perssonaje camina y luego saluuda.",
+                    body=(
+                        "El comentario militar sube, avanza, parece y acomoda "
+                        "la cabeza junto al volante durante segundos y asiente. "
+                        "El perssonaje camina y luego saluuda."
+                    ),
                 ),
             )
 
@@ -50,6 +54,49 @@ class ProductivityFeaturesTests(unittest.TestCase):
                     for item in review["misspellings"]
                 )
             )
+            self.assertFalse(
+                {
+                    "comentario",
+                    "militar",
+                    "sube",
+                    "avanza",
+                    "parece",
+                    "acomoda",
+                    "cabeza",
+                    "volante",
+                    "segundos",
+                    "asiente",
+                }.intersection(
+                    item["word"] for item in review["misspellings"]
+                )
+            )
+
+    def test_scene_spelling_review_handles_missing_suggestions(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+
+            project = main.create_project(
+                ProjectCreate(title="Sin sugerencias", format="feature")
+            )
+            scene = main.create_scene(
+                project["id"],
+                SceneCreate(
+                    heading="INT. CASA - DIA",
+                    body="Palabra dudosa.",
+                ),
+            )
+
+            with patch("spellchecker.SpellChecker") as spell_checker:
+                checker = spell_checker.return_value
+                checker.unknown.return_value = {"palabra"}
+                checker.known.return_value = set()
+                checker.candidates.return_value = None
+                checker.correction.return_value = None
+
+                review = main.scene_spelling_review(scene["id"])
+
+            self.assertEqual(review["scene_id"], scene["id"])
+            self.assertEqual(review["misspellings"][0]["suggestions"], [])
 
     def test_project_pdf_export_returns_stream(self):
         with tempfile.TemporaryDirectory() as tmpdir:
