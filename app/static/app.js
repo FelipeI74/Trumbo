@@ -4084,3 +4084,14 @@ loadProjects()
       "No fue posible iniciar ADÜMN."
     );
   });
+
+// Navegación principal — pestaña activa
+{
+  const mainNavTabs = document.querySelectorAll(".main-nav-tab");
+  mainNavTabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+      mainNavTabs.forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+    });
+  });
+}

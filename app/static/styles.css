@@ -118,13 +118,48 @@ select:focus-visible,
 
 
 /* ======================================
+   NAVEGACIÓN PRINCIPAL
+====================================== */
+
+.main-nav {
+  display: flex;
+  height: 36px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  padding: 0 16px;
+}
+
+.main-nav-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 0 16px;
+  height: 100%;
+  cursor: pointer;
+}
+
+.main-nav-tab:hover {
+  color: #fff;
+  border-color: transparent;
+}
+
+.main-nav-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+
+/* ======================================
    ESTRUCTURA GENERAL
 ====================================== */
 
 .workspace {
   display: grid;
   grid-template-columns: 220px minmax(560px, 1fr) 300px;
-  height: calc(100vh - 56px);
+  height: calc(100vh - 92px);
   min-height: 0;
 }
 
@@ -739,7 +774,7 @@ body.inspector-collapsed .inspector {
   .workspace {
     grid-template-columns: 1fr;
     height: auto;
-    min-height: calc(100vh - 56px);
+    min-height: calc(100vh - 92px);
   }
 
   .sidebar {
@@ -747,7 +782,7 @@ body.inspector-collapsed .inspector {
   }
 
   .editor {
-    min-height: calc(100vh - 56px);
+    min-height: calc(100vh - 92px);
   }
 
   .screenplay-viewport {
@@ -755,7 +790,7 @@ body.inspector-collapsed .inspector {
   }
 
   .screenplay-editor {
-    min-height: calc(100vh - 130px);
+    min-height: calc(100vh - 166px);
     padding: 44px 30px 80px;
     font-size: 14px;
   }
