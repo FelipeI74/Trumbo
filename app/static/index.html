@@ -19,23 +19,26 @@
 
   <header class="topbar">
 
-    <div>
-      <div class="brand">
-        ADÜMN
-      </div>
-
-      <div class="subbrand">
-        Alpha 0.3 · Editor continuo semántico
-      </div>
+    <div class="topbar-brand">
+      <div class="brand">ADÜMN</div>
+      <div class="subbrand">Alpha 0.3 · Editor continuo semántico</div>
     </div>
 
-    <div class="runtime-box">
-      <span>Duración estimada</span>
-
-      <strong id="projectRuntime">
-        00:00
-      </strong>
+    <div class="topbar-group">
+      <span class="topbar-label">Proyecto</span>
+      <select id="projectSelect" aria-label="Proyecto"></select>
     </div>
+
+    <span id="saveState">Guardado</span>
+
+    <div class="topbar-group">
+      <span class="topbar-label">Duración estimada</span>
+      <strong id="projectRuntime">00:00</strong>
+    </div>
+
+    <button class="topbar-ai" disabled title="Próximamente">Asistente IA</button>
+
+    <button id="exportPdfButton" title="Exportar proyecto a PDF">Exportar</button>
 
   </header>
 
@@ -47,11 +50,6 @@
     <aside class="sidebar">
 
       <div class="sidebar-header">
-
-        <select
-          id="projectSelect"
-          aria-label="Proyecto"
-        ></select>
 
         <button
           id="newProjectButton"
@@ -70,13 +68,6 @@
           aria-label="Título del proyecto"
           placeholder="Título del proyecto"
         >
-
-        <button
-          id="exportPdfButton"
-          title="Exportar proyecto a PDF"
-        >
-          PDF
-        </button>
 
       </div>
 
@@ -143,10 +134,6 @@
           >
             Inspector ◂
           </button>
-
-          <span id="saveState">
-            Guardado
-          </span>
 
         </div>
 
