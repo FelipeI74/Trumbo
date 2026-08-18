@@ -240,11 +240,7 @@ select:focus-visible,
 ====================================== */
 
 .sidebar-project-row {
-  display: flex;
-  gap: 6px;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--line);
-  flex-shrink: 0;
+  display: none;
 }
 
 .sidebar-project-row input {
