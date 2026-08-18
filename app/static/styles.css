@@ -392,10 +392,20 @@ select:focus-visible,
 }
 
 .editor-toolbar-left,
+.editor-toolbar-center,
 .editor-toolbar-right {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.editor-toolbar-left,
+.editor-toolbar-right {
+  flex: 1;
+}
+
+.editor-toolbar-right {
+  justify-content: flex-end;
 }
 
 .toolbar-toggle {
