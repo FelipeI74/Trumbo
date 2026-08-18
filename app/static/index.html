@@ -95,7 +95,13 @@
 
     <aside class="sidebar">
 
-      <div class="sidebar-header">
+      <div class="sidebar-project-row">
+
+        <input
+          id="projectTitle"
+          aria-label="Título del proyecto"
+          placeholder="Título del proyecto"
+        >
 
         <button
           id="newProjectButton"
@@ -107,30 +113,31 @@
       </div>
 
 
-      <div class="project-title-row">
+      <div class="scene-list-header">
 
-        <input
-          id="projectTitle"
-          aria-label="Título del proyecto"
-          placeholder="Título del proyecto"
-        >
+        <span>Escenas</span>
+
+        <div class="scene-list-actions">
+          <button class="sidebar-ctrl-btn" title="Filtrar" aria-label="Filtrar escenas">⊟</button>
+          <button class="sidebar-ctrl-btn" title="Vista lista" aria-label="Vista lista">≡</button>
+          <button
+            id="newSceneButton"
+            title="Insertar una nueva escena"
+          >
+            Nueva
+          </button>
+        </div>
 
       </div>
 
 
-      <div class="scene-list-header">
-
-        <span>
-          Escenas
-        </span>
-
-        <button
-          id="newSceneButton"
-          title="Insertar una nueva escena"
+      <div class="sidebar-search-row">
+        <input
+          class="sidebar-search"
+          type="search"
+          placeholder="Buscar escena…"
+          aria-label="Buscar escena"
         >
-          Nueva
-        </button>
-
       </div>
 
 
@@ -138,6 +145,12 @@
         id="sceneList"
         class="scene-list"
       ></div>
+
+
+      <div class="sidebar-footer">
+        <span class="sidebar-footer-label">Duración total</span>
+        <span class="sidebar-footer-runtime">—</span>
+      </div>
 
     </aside>
 

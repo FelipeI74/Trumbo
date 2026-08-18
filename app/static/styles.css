@@ -219,16 +219,19 @@ select:focus-visible,
 .sidebar,
 .inspector {
   background: var(--panel);
-  overflow: auto;
   min-height: 0;
+}
+
+.inspector {
+  overflow: auto;
+  border-left: 1px solid var(--line);
 }
 
 .sidebar {
   border-right: 1px solid var(--line);
-}
-
-.inspector {
-  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 
@@ -236,35 +239,98 @@ select:focus-visible,
    BARRA LATERAL
 ====================================== */
 
-.sidebar-header,
-.project-title-row,
-.scene-list-header {
+.sidebar-project-row {
   display: flex;
-  gap: 8px;
-  padding: 10px;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
 }
 
-.sidebar-header select,
-.project-title-row input {
+.sidebar-project-row input {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  color: #fff;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.scene-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 12px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.scene-list-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sidebar-ctrl-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: 3px 5px;
+  font-size: 13px;
+  border-radius: 4px;
+}
+
+.sidebar-ctrl-btn:hover {
+  color: #fff;
+  background: var(--panel-soft);
+  border-color: transparent;
+}
+
+.sidebar-search-row {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.sidebar-search {
   width: 100%;
   background: var(--panel-soft);
   border: 1px solid var(--line);
-  color: white;
+  color: #fff;
   border-radius: 6px;
-  padding: 8px;
+  padding: 5px 8px;
+  font-size: 12px;
 }
 
-.scene-list-header {
+.sidebar-search::placeholder {
+  color: var(--muted);
+}
+
+.sidebar-footer {
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  color: var(--muted);
-  font-size: 12px;
+  padding: 8px 10px;
   border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.sidebar-footer-runtime {
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .scene-list {
-  min-height: 100px;
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
 }
 
 .scene-card {
