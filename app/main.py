@@ -676,6 +676,87 @@ def list_project_locations(
     return {"locations": locations}
 
 
+@app.get("/api/projects/{project_id}/resources")
+def list_project_resources(
+    project_id: int,
+) -> dict:
+    with connect() as connection:
+        project_exists = connection.execute(
+            """
+            SELECT 1
+            FROM projects
+            WHERE id = ?
+            """,
+            (project_id,),
+        ).fetchone()
+
+        if project_exists is None:
+            raise HTTPException(
+                404,
+                "Proyecto no encontrado",
+            )
+
+        resource_rows = connection.execute(
+            """
+            SELECT
+                breakdown_items.name,
+                breakdown_items.category,
+                scenes.scene_number
+            FROM breakdown_items
+            JOIN scenes
+                ON scenes.id = breakdown_items.scene_id
+            WHERE scenes.project_id = ?
+            ORDER BY scenes.scene_number, breakdown_items.name, breakdown_items.category
+            """,
+            (project_id,),
+        ).fetchall()
+
+    grouped: dict[tuple[str, str], dict] = {}
+    seen_in_scene: set[tuple[int, str, str]] = set()
+
+    for resource in resource_rows:
+        name = str(resource["name"] or "").strip()
+        category = str(resource["category"] or "").strip()
+        scene_number = int(resource["scene_number"])
+        key = (name.casefold(), category.casefold())
+        scene_key = (scene_number, *key)
+
+        if not name or not category or scene_key in seen_in_scene:
+            continue
+
+        seen_in_scene.add(scene_key)
+        resource_data = grouped.setdefault(
+            key,
+            {
+                "name": name,
+                "category": category,
+                "scene_numbers": [],
+            },
+        )
+
+        if scene_number not in resource_data["scene_numbers"]:
+            resource_data["scene_numbers"].append(scene_number)
+
+    resources = [
+        {
+            "name": resource["name"],
+            "category": resource["category"],
+            "scene_count": len(resource["scene_numbers"]),
+            "first_scene": resource["scene_numbers"][0],
+            "scene_numbers": resource["scene_numbers"],
+        }
+        for resource in grouped.values()
+    ]
+    resources.sort(
+        key=lambda resource: (
+            resource["name"].casefold(),
+            resource["category"].casefold(),
+        )
+    )
+
+    return {"resources": resources}
+
+
 @app.get("/api/projects/{project_id}/document")
 def get_project_document(
     project_id: int,
