@@ -3899,7 +3899,13 @@ function setupEvents() {
 
           $("#sceneList").innerHTML = characters.length
             ? characters.map(character => `
-                <div class="scene-card">
+                <div
+                  class="scene-card"
+                  data-character-name="${escapeHtml(character.name)}"
+                  data-character-first-scene="${character.first_scene}"
+                  data-character-scene-count="${character.scene_count}"
+                  data-character-scene-numbers="${character.scene_numbers.join(", ")}"
+                >
                   <div class="scene-card-heading">${escapeHtml(character.name)}</div>
                   <div class="scene-card-runtime">
                     ${character.scene_count} escenas · ${character.scene_numbers.join(", ")}
@@ -3916,8 +3922,31 @@ function setupEvents() {
           newSceneButton.hidden = false;
           searchRow.hidden = false;
           footer.hidden = false;
+          $("#characterDetailView").hidden = true;
+          $("#screenplayViewport").hidden = false;
           renderSceneList();
         }
+      }
+    );
+
+  $("#sceneList")
+    .addEventListener(
+      "click",
+      event => {
+        const character = event.target.closest("[data-character-name]");
+
+        if (!character) {
+          return;
+        }
+
+        $("#screenplayViewport").hidden = true;
+        $("#characterDetailView").hidden = false;
+        $("#characterDetailView").innerHTML = `
+          <h2>${character.dataset.characterName}</h2>
+          <p>Primera aparición: escena ${character.dataset.characterFirstScene}</p>
+          <p>Cantidad de escenas: ${character.dataset.characterSceneCount}</p>
+          <p>Números de escena: ${character.dataset.characterSceneNumbers}</p>
+        `;
       }
     );
 
