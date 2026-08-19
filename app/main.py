@@ -530,6 +530,78 @@ def get_project(
         }
 
 
+@app.get("/api/projects/{project_id}/characters")
+def list_project_characters(
+    project_id: int,
+) -> dict:
+    with connect() as connection:
+        project_exists = connection.execute(
+            """
+            SELECT 1
+            FROM projects
+            WHERE id = ?
+            """,
+            (project_id,),
+        ).fetchone()
+
+        if project_exists is None:
+            raise HTTPException(
+                404,
+                "Proyecto no encontrado",
+            )
+
+        scene_rows = connection.execute(
+            """
+            SELECT scene_number, semantic_lines
+            FROM scenes
+            WHERE project_id = ?
+            ORDER BY scene_number
+            """,
+            (project_id,),
+        ).fetchall()
+
+    grouped: dict[str, dict] = {}
+
+    for scene in scene_rows:
+        scene_number = int(scene["scene_number"])
+        seen_in_scene: set[str] = set()
+
+        for line in deserialize_semantic_lines(scene["semantic_lines"]):
+            if line.get("type") != "character":
+                continue
+
+            name = str(line.get("text") or "").strip()
+            key = name.casefold()
+
+            if not name or key in seen_in_scene:
+                continue
+
+            seen_in_scene.add(key)
+            character = grouped.setdefault(
+                key,
+                {
+                    "name": name,
+                    "scene_numbers": [],
+                },
+            )
+
+            if scene_number not in character["scene_numbers"]:
+                character["scene_numbers"].append(scene_number)
+
+    characters = [
+        {
+            "name": character["name"],
+            "scene_count": len(character["scene_numbers"]),
+            "first_scene": character["scene_numbers"][0],
+            "scene_numbers": character["scene_numbers"],
+        }
+        for character in grouped.values()
+    ]
+    characters.sort(key=lambda character: character["name"].casefold())
+
+    return {"characters": characters}
+
+
 @app.get("/api/projects/{project_id}/document")
 def get_project_document(
     project_id: int,
