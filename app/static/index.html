@@ -26,7 +26,10 @@
 
     <div class="topbar-group">
       <span class="topbar-label">Proyecto</span>
-      <select id="projectSelect" aria-label="Proyecto"></select>
+      <div class="topbar-project-row">
+        <select id="projectSelect" aria-label="Proyecto"></select>
+        <button id="newProjectButton" title="Nuevo proyecto">+</button>
+      </div>
     </div>
 
     <span id="saveState">Guardado</span>
@@ -102,13 +105,6 @@
           aria-label="Título del proyecto"
           placeholder="Título del proyecto"
         >
-
-        <button
-          id="newProjectButton"
-          title="Nuevo proyecto"
-        >
-          +
-        </button>
 
       </div>
 

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from collections import Counter
-from io import BytesIO
+import csv
+from io import BytesIO, StringIO
 import json
 from pathlib import Path
 import re
@@ -9,6 +10,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -17,7 +19,7 @@ from .document_projection import (
     derive_scenes_from_document_lines,
 )
 from .document_store import sync_project_document_from_scenes
-from .domain import estimate_runtime, screenplay_summary
+from .domain import estimate_runtime, format_seconds, screenplay_summary
 from .services.engine_analysis_adapter import analyze_scene_with_engine
 from .schemas import (
     BreakdownItemCreate,
@@ -65,6 +67,19 @@ BREAKDOWN_STATES = {
     "confirmed",
     "rejected",
 }
+
+# Matches INT./EXT./INT/EXT. etc.; period makes trailing space optional
+_HEADING_PREFIX_RE = re.compile(
+    r"^(INT\.?/EXT\.?|EXT\.?/INT\.?|I/E\.?|E/I\.?|INT\.?|EXT\.?)(?:(?<=\.)\s*|\s+)",
+    re.IGNORECASE,
+)
+
+# Transition cues sometimes misclassified as character lines; skip them in CSV
+_CSV_TRANSITION_SKIP = frozenset({
+    "CUT TO:", "FADE IN:", "FADE OUT:", "FADE TO:", "DISSOLVE TO:",
+    "CORTE A:", "CORTE:", "FUNDIDO A:", "FUNDIDO:", "DISOLVENCIA A:",
+    "MATCH CUT:", "JUMP CUT:", "IRIS OUT:", "IRIS IN:", "SMASH CUT TO:",
+})
 
 
 def serialize_semantic_lines(
@@ -286,6 +301,46 @@ def scene_lines_for_export(
         )
 
     return lines
+
+
+def _parse_heading_fields(heading: str) -> dict:
+    """Conservative best-effort split of a scene heading into its components."""
+    text = heading.strip().upper()
+    match = _HEADING_PREFIX_RE.match(text)
+    if not match:
+        return {
+            "int_ext": "",
+            "location": "",
+            "sublocation": "",
+            "time_of_day": "",
+        }
+
+    int_ext = match.group(1).upper()
+    remainder = text[match.end():].strip()
+    parts = [p.strip() for p in remainder.split(" - ") if p.strip()]
+
+    if not parts:
+        return {
+            "int_ext": int_ext,
+            "location": "",
+            "sublocation": "",
+            "time_of_day": "",
+        }
+
+    if len(parts) == 1:
+        return {
+            "int_ext": int_ext,
+            "location": parts[0],
+            "sublocation": "",
+            "time_of_day": "",
+        }
+
+    return {
+        "int_ext": int_ext,
+        "location": parts[0],
+        "sublocation": " - ".join(parts[1:-1]),
+        "time_of_day": parts[-1],
+    }
 
 
 def spelling_candidates(
@@ -1498,6 +1553,127 @@ def export_project_pdf(
         headers={
             "Content-Disposition": (
                 f'attachment; filename="{safe_name}.pdf"'
+            )
+        },
+    )
+
+
+@app.get("/api/projects/{project_id}/export/csv")
+def export_project_csv(
+    project_id: int,
+):
+    with connect() as connection:
+        project = connection.execute(
+            """
+            SELECT *
+            FROM projects
+            WHERE id = ?
+            """,
+            (project_id,),
+        ).fetchone()
+
+        if project is None:
+            raise HTTPException(
+                404,
+                "Proyecto no encontrado",
+            )
+
+        scene_rows = connection.execute(
+            """
+            SELECT *
+            FROM scenes
+            WHERE project_id = ?
+            ORDER BY scene_number
+            """,
+            (project_id,),
+        ).fetchall()
+
+        scenes = [
+            scene_with_metadata(connection, row)
+            for row in scene_rows
+        ]
+
+    buffer = StringIO()
+    writer = csv.writer(buffer, delimiter=";")
+    writer.writerow([
+        "Escena", "Heading", "INT/EXT", "Locación", "Sublocación",
+        "Tiempo", "Acción", "Sinopsis", "Personajes",
+        "Props", "Vestuario", "Duración", "Notas",
+    ])
+
+    for scene in scenes:
+        heading = str(scene.get("heading") or "").strip()
+        fields = _parse_heading_fields(heading)
+
+        # scene_with_metadata already deserializes semantic_lines to list[dict]
+        semantic_lines = scene.get("semantic_lines") or []
+
+        action_text = " / ".join(
+            line["text"]
+            for line in semantic_lines
+            if line.get("type") == "action" and line.get("text", "").strip()
+        )
+
+        seen: set[str] = set()
+        characters: list[str] = []
+        for line in semantic_lines:
+            if line.get("type") == "character":
+                name = re.sub(
+                    r"\s*\([^)]*\)\s*$", "", line["text"]
+                ).strip().upper()
+                if name and name not in seen and name not in _CSV_TRANSITION_SKIP:
+                    seen.add(name)
+                    characters.append(name)
+
+        breakdown = scene.get("breakdown_items") or []
+        props = [
+            item["name"]
+            for item in breakdown
+            if item.get("category") == "prop"
+        ]
+        wardrobe = [
+            item["name"]
+            for item in breakdown
+            if item.get("category") == "wardrobe"
+        ]
+
+        notes_text = " | ".join(
+            str(note.get("body") or "").strip()
+            for note in (scene.get("notes") or [])
+            if str(note.get("body") or "").strip()
+        )
+
+        writer.writerow([
+            scene.get("scene_number", ""),
+            heading,
+            fields["int_ext"],
+            fields["location"],
+            fields["sublocation"],
+            fields["time_of_day"],
+            action_text,
+            str(scene.get("synopsis") or "").strip(),
+            ", ".join(characters),
+            ", ".join(props),
+            ", ".join(wardrobe),
+            format_seconds(scene.get("runtime_seconds") or 0),
+            notes_text,
+        ])
+
+    # Explicit BOM bytes + UTF-8 content; avoids StreamingResponse re-encoding
+    csv_bytes = b"\xef\xbb\xbf" + buffer.getvalue().encode("utf-8")
+
+    safe_name = re.sub(
+        r"[^A-Za-z0-9_-]+",
+        "_",
+        str(project["title"]),
+    ).strip("_") or "adumn_project"
+
+    return Response(
+        content=csv_bytes,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{safe_name}_desglose.csv"'
             )
         },
     )

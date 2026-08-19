@@ -88,6 +88,12 @@ select:focus-visible,
   gap: 2px;
 }
 
+.topbar-project-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .topbar-label {
   color: var(--muted);
   font-size: 11px;
