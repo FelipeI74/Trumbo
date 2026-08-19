@@ -602,6 +602,80 @@ def list_project_characters(
     return {"characters": characters}
 
 
+@app.get("/api/projects/{project_id}/locations")
+def list_project_locations(
+    project_id: int,
+) -> dict:
+    with connect() as connection:
+        project_exists = connection.execute(
+            """
+            SELECT 1
+            FROM projects
+            WHERE id = ?
+            """,
+            (project_id,),
+        ).fetchone()
+
+        if project_exists is None:
+            raise HTTPException(
+                404,
+                "Proyecto no encontrado",
+            )
+
+        scene_rows = connection.execute(
+            """
+            SELECT scene_number, heading
+            FROM scenes
+            WHERE project_id = ?
+            ORDER BY scene_number
+            """,
+            (project_id,),
+        ).fetchall()
+
+    grouped: dict[str, dict] = {}
+
+    for scene in scene_rows:
+        fields = _parse_heading_fields(
+            str(scene["heading"] or "")
+        )
+        location = fields["location"]
+        sublocation = fields["sublocation"]
+
+        if not location:
+            continue
+
+        name = (
+            f"{location} - {sublocation}"
+            if sublocation
+            else location
+        )
+        key = name.casefold()
+        scene_number = int(scene["scene_number"])
+        location_data = grouped.setdefault(
+            key,
+            {
+                "name": name,
+                "scene_numbers": [],
+            },
+        )
+
+        if scene_number not in location_data["scene_numbers"]:
+            location_data["scene_numbers"].append(scene_number)
+
+    locations = [
+        {
+            "name": location["name"],
+            "scene_count": len(location["scene_numbers"]),
+            "first_scene": location["scene_numbers"][0],
+            "scene_numbers": location["scene_numbers"],
+        }
+        for location in grouped.values()
+    ]
+    locations.sort(key=lambda location: location["name"].casefold())
+
+    return {"locations": locations}
+
+
 @app.get("/api/projects/{project_id}/document")
 def get_project_document(
     project_id: int,
