@@ -3917,6 +3917,41 @@ function setupEvents() {
           return;
         }
 
+        if (view === "locations") {
+          title.textContent = "Locaciones";
+          newSceneButton.hidden = true;
+          searchRow.hidden = true;
+          footer.hidden = true;
+
+          if (!state.project) {
+            return;
+          }
+
+          const response = await request(
+            `/api/projects/${state.project.id}/locations`
+          );
+          const locations = response.locations || [];
+
+          $("#sceneList").innerHTML = locations.length
+            ? locations.map(location => `
+                <div
+                  class="scene-card"
+                  data-location-name="${escapeHtml(location.name)}"
+                  data-location-first-scene="${location.first_scene}"
+                  data-location-scene-count="${location.scene_count}"
+                  data-location-scene-numbers="${location.scene_numbers.join(", ")}"
+                >
+                  <div class="scene-card-heading">${escapeHtml(location.name)}</div>
+                  <div class="scene-card-runtime">
+                    ${location.scene_count} escenas · ${location.scene_numbers.join(", ")}
+                  </div>
+                </div>
+              `).join("")
+            : '<div class="empty">No hay locaciones.</div>';
+
+          return;
+        }
+
         if (view === "scenes") {
           title.textContent = "Escenas";
           newSceneButton.hidden = false;
@@ -3934,18 +3969,33 @@ function setupEvents() {
       "click",
       event => {
         const character = event.target.closest("[data-character-name]");
+        const location = event.target.closest("[data-location-name]");
 
-        if (!character) {
+        if (!character && !location) {
           return;
         }
+
+        const detail = character || location;
+        const name = character
+          ? detail.dataset.characterName
+          : detail.dataset.locationName;
+        const firstScene = character
+          ? detail.dataset.characterFirstScene
+          : detail.dataset.locationFirstScene;
+        const sceneCount = character
+          ? detail.dataset.characterSceneCount
+          : detail.dataset.locationSceneCount;
+        const sceneNumbers = character
+          ? detail.dataset.characterSceneNumbers
+          : detail.dataset.locationSceneNumbers;
 
         $("#screenplayViewport").hidden = true;
         $("#characterDetailView").hidden = false;
         $("#characterDetailView").innerHTML = `
-          <h2>${character.dataset.characterName}</h2>
-          <p>Primera aparición: escena ${character.dataset.characterFirstScene}</p>
-          <p>Cantidad de escenas: ${character.dataset.characterSceneCount}</p>
-          <p>Números de escena: ${character.dataset.characterSceneNumbers}</p>
+          <h2>${name}</h2>
+          <p>Primera aparición: escena ${firstScene}</p>
+          <p>Cantidad de escenas: ${sceneCount}</p>
+          <p>Números de escena: ${sceneNumbers}</p>
         `;
       }
     );
