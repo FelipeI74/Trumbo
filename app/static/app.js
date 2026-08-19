@@ -3860,6 +3860,67 @@ function toggleInspector() {
 }
 
 function setupEvents() {
+  $("#elementList")
+    .addEventListener(
+      "click",
+      async event => {
+        const item = event.target.closest("[data-element-view]");
+
+        if (!item) {
+          return;
+        }
+
+        document
+          .querySelectorAll("#elementList [data-element-view]")
+          .forEach(element => {
+            element.classList.toggle("active", element === item);
+          });
+
+        const view = item.dataset.elementView;
+        const title = $("#sidebarContextTitle");
+        const newSceneButton = $("#newSceneButton");
+        const searchRow = $(".sidebar-search-row");
+        const footer = $(".sidebar-footer");
+
+        if (view === "characters") {
+          title.textContent = "Personajes";
+          newSceneButton.hidden = true;
+          searchRow.hidden = true;
+          footer.hidden = true;
+
+          if (!state.project) {
+            return;
+          }
+
+          const response = await request(
+            `/api/projects/${state.project.id}/characters`
+          );
+          const characters = response.characters || [];
+
+          $("#sceneList").innerHTML = characters.length
+            ? characters.map(character => `
+                <div class="scene-card">
+                  <div class="scene-card-heading">${escapeHtml(character.name)}</div>
+                  <div class="scene-card-runtime">
+                    ${character.scene_count} escenas · ${character.scene_numbers.join(", ")}
+                  </div>
+                </div>
+              `).join("")
+            : '<div class="empty">No hay personajes.</div>';
+
+          return;
+        }
+
+        if (view === "scenes") {
+          title.textContent = "Escenas";
+          newSceneButton.hidden = false;
+          searchRow.hidden = false;
+          footer.hidden = false;
+          renderSceneList();
+        }
+      }
+    );
+
   $("#projectSelect")
     .addEventListener(
       "change",

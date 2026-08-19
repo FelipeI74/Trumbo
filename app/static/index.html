@@ -61,9 +61,9 @@
 
       <div class="col-left-section">
         <span class="col-left-heading">ELEMENTOS</span>
-        <ul class="col-left-list">
-          <li class="col-left-item active">Escenas</li>
-          <li class="col-left-item">Personajes</li>
+        <ul id="elementList" class="col-left-list">
+          <li class="col-left-item active" data-element-view="scenes">Escenas</li>
+          <li class="col-left-item" data-element-view="characters">Personajes</li>
           <li class="col-left-item">Locaciones</li>
           <li class="col-left-item">Arte / Utilería</li>
         </ul>
@@ -111,7 +111,7 @@
 
       <div class="scene-list-header">
 
-        <span>Escenas</span>
+        <span id="sidebarContextTitle">Escenas</span>
 
         <div class="scene-list-actions">
           <button class="sidebar-ctrl-btn" title="Filtrar" aria-label="Filtrar escenas">⊟</button>
