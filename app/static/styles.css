@@ -702,7 +702,11 @@ select:focus-visible,
 }
 
 .breakdown-form {
-  grid-template-columns: 100px 1fr auto;
+  grid-template-columns: 90px minmax(120px, 1fr) auto;
+}
+
+.breakdown-form #addBreakdownButton {
+  grid-column: 1 / -1;
 }
 
 .item {
