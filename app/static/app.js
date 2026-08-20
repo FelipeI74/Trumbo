@@ -714,7 +714,7 @@ function renderSceneList() {
   }
 
   container.innerHTML =
-    state.scenes.map(scene => `
+    state.scenes.map((scene, index) => `
       <div
         class="scene-card ${
           scene.id === state.activeSceneId
@@ -724,11 +724,8 @@ function renderSceneList() {
         data-scene-id="${scene.id}"
       >
 
-        <div class="scene-number">
-          ESCENA ${scene.scene_number}
-        </div>
-
         <div class="scene-card-heading">
+          ${index + 1}.&nbsp;&nbsp;
           ${
             escapeHtml(
               scene.heading ||

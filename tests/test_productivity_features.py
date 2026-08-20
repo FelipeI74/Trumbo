@@ -379,6 +379,22 @@ class ProductivityFeaturesTests(unittest.TestCase):
                 "EXT.PLAZA - NOCHE",
                 {"int_ext": "EXT.", "location": "PLAZA", "sublocation": "", "time_of_day": "NOCHE"},
             ),
+            (
+                "INT. LOCUTORIO – AMANECER",
+                {"int_ext": "INT.", "location": "LOCUTORIO", "sublocation": "", "time_of_day": "AMANECER"},
+            ),
+            (
+                "EXT. PATIO – ATARDECER",
+                {"int_ext": "EXT.", "location": "PATIO", "sublocation": "", "time_of_day": "ATARDECER"},
+            ),
+            (
+                "INT. LOCUTORIO - DIA.",
+                {"int_ext": "INT.", "location": "LOCUTORIO", "sublocation": "", "time_of_day": "DIA"},
+            ),
+            (
+                "INT. LOCUTORIO - DIA(FLASHFORWARD)",
+                {"int_ext": "INT.", "location": "LOCUTORIO", "sublocation": "", "time_of_day": "DIA"},
+            ),
         ]
         for heading, expected in cases:
             with self.subTest(heading=heading):

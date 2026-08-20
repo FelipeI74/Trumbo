@@ -20,6 +20,7 @@ from .document_projection import (
 )
 from .document_store import sync_project_document_from_scenes
 from .domain import estimate_runtime, format_seconds, screenplay_summary
+from .scheduling.simple_scheduler import generate_schedule
 from .services.engine_analysis_adapter import analyze_scene_with_engine
 from .schemas import (
     BreakdownItemCreate,
@@ -72,6 +73,23 @@ BREAKDOWN_STATES = {
 _HEADING_PREFIX_RE = re.compile(
     r"^(INT\.?/EXT\.?|EXT\.?/INT\.?|I/E\.?|E/I\.?|INT\.?|EXT\.?)(?:(?<=\.)\s*|\s+)",
     re.IGNORECASE,
+)
+
+_HEADING_SPLIT_RE = re.compile(
+    r"\s*[-–]\s*"
+)
+
+_KNOWN_TIME_OF_DAY = frozenset({
+    "DIA",
+    "DÍA",
+    "NOCHE",
+    "AMANECER",
+    "ATARDECER",
+    "TARDE",
+})
+
+_TIME_OF_DAY_SUFFIX_RE = re.compile(
+    r"^(D[IÍ]A|NOCHE|AMANECER|ATARDECER|TARDE)(?:[\.,;:!?]+)?(?:\([^)]*\))?$"
 )
 
 # Transition cues sometimes misclassified as character lines; skip them in CSV
@@ -317,7 +335,11 @@ def _parse_heading_fields(heading: str) -> dict:
 
     int_ext = match.group(1).upper()
     remainder = text[match.end():].strip()
-    parts = [p.strip() for p in remainder.split(" - ") if p.strip()]
+    parts = [
+        p.strip()
+        for p in _HEADING_SPLIT_RE.split(remainder)
+        if p.strip()
+    ]
 
     if not parts:
         return {
@@ -335,11 +357,23 @@ def _parse_heading_fields(heading: str) -> dict:
             "time_of_day": "",
         }
 
+    time_of_day_match = _TIME_OF_DAY_SUFFIX_RE.match(
+        parts[-1]
+    )
+
+    if time_of_day_match:
+        return {
+            "int_ext": int_ext,
+            "location": parts[0],
+            "sublocation": " - ".join(parts[1:-1]),
+            "time_of_day": time_of_day_match.group(1),
+        }
+
     return {
         "int_ext": int_ext,
         "location": parts[0],
-        "sublocation": " - ".join(parts[1:-1]),
-        "time_of_day": parts[-1],
+        "sublocation": " - ".join(parts[1:]),
+        "time_of_day": "",
     }
 
 
@@ -757,8 +791,7 @@ def list_project_resources(
     return {"resources": resources}
 
 
-@app.get("/api/projects/{project_id}/scheduling-input")
-def get_project_scheduling_input(
+def _build_project_scheduling_input(
     project_id: int,
 ) -> dict:
     with connect() as connection:
@@ -875,6 +908,30 @@ def get_project_scheduling_input(
         )
 
     return {"scenes": scenes}
+
+
+@app.get("/api/projects/{project_id}/scheduling-input")
+def get_project_scheduling_input(
+    project_id: int,
+) -> dict:
+    return _build_project_scheduling_input(
+        project_id
+    )
+
+
+@app.get("/api/projects/{project_id}/schedule-preview")
+def get_project_schedule_preview(
+    project_id: int,
+    shoot_rate_seconds: int = Query(420),
+) -> dict:
+    scheduling_input = _build_project_scheduling_input(
+        project_id
+    )
+
+    return generate_schedule(
+        scheduling_input["scenes"],
+        shoot_rate_seconds=shoot_rate_seconds,
+    )
 
 
 @app.get("/api/projects/{project_id}/document")
