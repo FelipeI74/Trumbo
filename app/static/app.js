@@ -3952,6 +3952,42 @@ function setupEvents() {
           return;
         }
 
+        if (view === "resources") {
+          title.textContent = "Arte / Utilería";
+          newSceneButton.hidden = true;
+          searchRow.hidden = true;
+          footer.hidden = true;
+
+          if (!state.project) {
+            return;
+          }
+
+          const response = await request(
+            `/api/projects/${state.project.id}/resources`
+          );
+          const resources = response.resources || [];
+
+          $("#sceneList").innerHTML = resources.length
+            ? resources.map(resource => `
+                <div
+                  class="scene-card"
+                  data-resource-name="${escapeHtml(resource.name)}"
+                  data-resource-category="${escapeHtml(resource.category)}"
+                  data-resource-first-scene="${resource.first_scene}"
+                  data-resource-scene-count="${resource.scene_count}"
+                  data-resource-scene-numbers="${resource.scene_numbers.join(", ")}"
+                >
+                  <div class="scene-card-heading">${escapeHtml(resource.name)}</div>
+                  <div class="scene-card-runtime">
+                    ${escapeHtml(resource.category)} · ${resource.scene_count} escenas · ${resource.scene_numbers.join(", ")}
+                  </div>
+                </div>
+              `).join("")
+            : '<div class="empty">No hay recursos.</div>';
+
+          return;
+        }
+
         if (view === "scenes") {
           title.textContent = "Escenas";
           newSceneButton.hidden = false;
@@ -3970,29 +4006,42 @@ function setupEvents() {
       event => {
         const character = event.target.closest("[data-character-name]");
         const location = event.target.closest("[data-location-name]");
+        const resource = event.target.closest("[data-resource-name]");
 
-        if (!character && !location) {
+        if (!character && !location && !resource) {
           return;
         }
 
-        const detail = character || location;
+        const detail = character || location || resource;
         const name = character
           ? detail.dataset.characterName
-          : detail.dataset.locationName;
+          : location
+            ? detail.dataset.locationName
+            : detail.dataset.resourceName;
         const firstScene = character
           ? detail.dataset.characterFirstScene
-          : detail.dataset.locationFirstScene;
+          : location
+            ? detail.dataset.locationFirstScene
+            : detail.dataset.resourceFirstScene;
         const sceneCount = character
           ? detail.dataset.characterSceneCount
-          : detail.dataset.locationSceneCount;
+          : location
+            ? detail.dataset.locationSceneCount
+            : detail.dataset.resourceSceneCount;
         const sceneNumbers = character
           ? detail.dataset.characterSceneNumbers
-          : detail.dataset.locationSceneNumbers;
+          : location
+            ? detail.dataset.locationSceneNumbers
+            : detail.dataset.resourceSceneNumbers;
+        const category = resource
+          ? detail.dataset.resourceCategory
+          : "";
 
         $("#screenplayViewport").hidden = true;
         $("#characterDetailView").hidden = false;
         $("#characterDetailView").innerHTML = `
           <h2>${name}</h2>
+          ${category ? `<p>Categoría: ${category}</p>` : ""}
           <p>Primera aparición: escena ${firstScene}</p>
           <p>Cantidad de escenas: ${sceneCount}</p>
           <p>Números de escena: ${sceneNumbers}</p>
