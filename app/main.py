@@ -757,6 +757,126 @@ def list_project_resources(
     return {"resources": resources}
 
 
+@app.get("/api/projects/{project_id}/scheduling-input")
+def get_project_scheduling_input(
+    project_id: int,
+) -> dict:
+    with connect() as connection:
+        project_exists = connection.execute(
+            """
+            SELECT 1
+            FROM projects
+            WHERE id = ?
+            """,
+            (project_id,),
+        ).fetchone()
+
+        if project_exists is None:
+            raise HTTPException(
+                404,
+                "Proyecto no encontrado",
+            )
+
+        scene_rows = connection.execute(
+            """
+            SELECT
+                id,
+                scene_number,
+                heading,
+                runtime_seconds,
+                semantic_lines
+            FROM scenes
+            WHERE project_id = ?
+            ORDER BY scene_number, id
+            """,
+            (project_id,),
+        ).fetchall()
+
+        resource_rows = connection.execute(
+            """
+            SELECT
+                breakdown_items.scene_id,
+                breakdown_items.name
+            FROM breakdown_items
+            JOIN scenes
+                ON scenes.id = breakdown_items.scene_id
+            WHERE scenes.project_id = ?
+            ORDER BY scenes.scene_number, breakdown_items.name
+            """,
+            (project_id,),
+        ).fetchall()
+
+    resources_by_scene: dict[int, list[str]] = {}
+    seen_resources_by_scene: dict[int, set[str]] = {}
+
+    for resource_row in resource_rows:
+        scene_id = int(resource_row["scene_id"])
+        resource_name = str(resource_row["name"] or "").strip()
+
+        if not resource_name:
+            continue
+
+        resource_key = resource_name.casefold()
+        seen_resources = seen_resources_by_scene.setdefault(
+            scene_id,
+            set(),
+        )
+
+        if resource_key in seen_resources:
+            continue
+
+        seen_resources.add(resource_key)
+        resources_by_scene.setdefault(
+            scene_id,
+            [],
+        ).append(resource_name)
+
+    scenes: list[dict] = []
+
+    for script_order, scene_row in enumerate(
+        scene_rows,
+        start=1,
+    ):
+        scene_id = int(scene_row["id"])
+        heading_fields = _parse_heading_fields(
+            str(scene_row["heading"] or "")
+        )
+        seen_characters: set[str] = set()
+        characters: list[str] = []
+
+        for line in deserialize_semantic_lines(
+            scene_row["semantic_lines"]
+        ):
+            if line.get("type") != "character":
+                continue
+
+            name = str(line.get("text") or "").strip()
+            key = name.casefold()
+
+            if not name or key in seen_characters:
+                continue
+
+            seen_characters.add(key)
+            characters.append(name)
+
+        scenes.append(
+            {
+                "scene_id": scene_id,
+                "scene_number": int(scene_row["scene_number"]),
+                "script_order": script_order,
+                "int_ext": heading_fields["int_ext"],
+                "location": heading_fields["location"],
+                "sublocation": heading_fields["sublocation"],
+                "time_of_day": heading_fields["time_of_day"],
+                "runtime_seconds": int(scene_row["runtime_seconds"] or 0),
+                "characters": characters,
+                "resources": resources_by_scene.get(scene_id, []),
+            }
+        )
+
+    return {"scenes": scenes}
+
+
 @app.get("/api/projects/{project_id}/document")
 def get_project_document(
     project_id: int,
