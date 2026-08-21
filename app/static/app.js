@@ -3743,6 +3743,34 @@ async function loadProject(
     state.scenes[0]?.id ??
     null;
 
+  $("#screenplayViewport")
+    .hidden = false;
+
+  $("#characterDetailView")
+    .hidden = true;
+
+  $("#sidebarContextTitle")
+    .textContent =
+      "Escenas";
+
+  $("#newSceneButton")
+    .hidden = false;
+
+  $(".sidebar-search-row")
+    .hidden = false;
+
+  $(".sidebar-footer")
+    .hidden = false;
+
+  document
+    .querySelectorAll("#elementList [data-element-view]")
+    .forEach(element => {
+      element.classList.toggle(
+        "active",
+        element.dataset.elementView === "scenes"
+      );
+    });
+
   $("#projectSelect")
     .value =
       String(projectId);
