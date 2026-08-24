@@ -289,6 +289,7 @@ def optimize_schedule(
     search_depth: int = 20,
     engine: str = "cp_sat",
     max_time_seconds: float = 60.0,
+    cast_unavailability: dict[str, list[int]] | None = None,
 ) -> dict[str, Any]:
     """Optimize a schedule with CP-SAT by default and candidate search as fallback."""
 
@@ -335,6 +336,7 @@ def optimize_schedule(
             sequence_weight=sequence_weight,
             max_time_seconds=max_time_seconds,
             warm_start_schedule=candidate_result["best_schedule"],
+            cast_unavailability=cast_unavailability,
         )
         score = score_schedule(
             cp_sat_schedule.get("days", []),
@@ -369,6 +371,10 @@ def optimize_schedule(
             "best_objective_bound": best_objective_bound,
         }
     except Exception:
+        if cast_unavailability is not None:
+            raise RuntimeError(
+                "CP-SAT could not satisfy cast availability constraints"
+            )
         return _with_engine_metadata(
             candidate_result,
             engine="fallback",

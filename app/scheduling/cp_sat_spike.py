@@ -62,6 +62,26 @@ def _warm_start_day_by_scene_id(warm_start_schedule: Any) -> dict[int, int]:
     return day_by_scene_id
 
 
+def _normalized_cast_unavailability(
+    cast_unavailability: dict[str, list[int]] | None,
+) -> dict[str, set[int]]:
+    if not cast_unavailability:
+        return {}
+
+    unavailable_days_by_character: dict[str, set[int]] = {}
+    for name, days in cast_unavailability.items():
+        key = str(name or "").strip().casefold()
+        if not key:
+            continue
+        for day in days or []:
+            try:
+                day_index = int(day) - 1
+            except (TypeError, ValueError):
+                continue
+            unavailable_days_by_character.setdefault(key, set()).add(day_index)
+    return unavailable_days_by_character
+
+
 def generate_cp_sat_schedule(
     scenes: list[dict[str, Any]],
     shoot_rate_seconds: int = 420,
@@ -70,6 +90,7 @@ def generate_cp_sat_schedule(
     sequence_weight: float = 1.0,
     max_time_seconds: float = 60.0,
     warm_start_schedule: dict[str, Any] | list[dict[str, Any]] | None = None,
+    cast_unavailability: dict[str, list[int]] | None = None,
 ) -> dict[str, Any]:
     """CP-SAT spike minimizing the exact score_schedule objective.
 
@@ -149,6 +170,16 @@ def generate_cp_sat_schedule(
         for i in range(n)
         for k in range(n)
     }
+
+    unavailable_days_by_character = _normalized_cast_unavailability(cast_unavailability)
+    for i, scene in enumerate(ordered_scenes):
+        unavailable_days = set()
+        for name in _scene_characters(scene):
+            key = name.strip().casefold()
+            unavailable_days.update(unavailable_days_by_character.get(key, set()))
+        for d in unavailable_days:
+            if 0 <= d < n:
+                model.Add(x[(i, d)] == 0)
 
     for i in range(n):
         model.Add(sum(x[(i, d)] for d in range(n)) == 1)

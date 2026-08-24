@@ -200,6 +200,46 @@ class CpSatSpikeTests(unittest.TestCase):
         self.assertIn(schedule["solver_status"], {"OPTIMAL", "FEASIBLE"})
         self.assertEqual(set(self._flatten(schedule)), {scene["scene_id"] for scene in self.scenes})
 
+    def test_cast_unavailability_blocks_scene_on_day(self):
+        scenes = [
+            {"scene_id": 1, "script_order": 1, "location": "A", "runtime_seconds": 100, "characters": ["ANA"]},
+            {"scene_id": 2, "script_order": 2, "location": "B", "runtime_seconds": 100, "characters": ["BOB"]},
+        ]
+
+        schedule = generate_cp_sat_schedule(
+            scenes,
+            shoot_rate_seconds=100,
+            cast_unavailability={"ANA": [1]},
+        )
+
+        self.assertNotIn(1, schedule["days"][0]["scene_ids"])
+
+    def test_cast_unavailability_matches_normalized_names(self):
+        scenes = [
+            {"scene_id": 1, "script_order": 1, "location": "A", "runtime_seconds": 100, "characters": ["ANA"]},
+            {"scene_id": 2, "script_order": 2, "location": "B", "runtime_seconds": 100, "characters": ["BOB"]},
+        ]
+
+        schedule = generate_cp_sat_schedule(
+            scenes,
+            shoot_rate_seconds=100,
+            cast_unavailability={" ana ": [1]},
+        )
+
+        self.assertNotIn(1, schedule["days"][0]["scene_ids"])
+
+    def test_cast_unavailability_can_make_problem_infeasible(self):
+        scenes = [
+            {"scene_id": 1, "script_order": 1, "location": "A", "runtime_seconds": 100, "characters": ["ANA"]},
+        ]
+
+        with self.assertRaises(RuntimeError):
+            generate_cp_sat_schedule(
+                scenes,
+                shoot_rate_seconds=100,
+                cast_unavailability={"ANA": [1]},
+            )
+
     def test_empty_scenes_reports_no_solver_diagnostics(self):
         schedule = generate_cp_sat_schedule([], shoot_rate_seconds=240)
 

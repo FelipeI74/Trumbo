@@ -159,6 +159,37 @@ class SchedulingOptimizerTests(unittest.TestCase):
             result["best_schedule"],
         )
 
+    def test_passes_cast_unavailability_to_cp_sat(self):
+        cast_unavailability = {"X": [1]}
+        with patch(
+            "app.scheduling.optimizer.generate_cp_sat_schedule",
+            side_effect=RuntimeError("stop after inspecting availability"),
+        ) as generate_cp_sat:
+            with self.assertRaisesRegex(RuntimeError, "cast availability"):
+                optimize_schedule(
+                    self.scenes,
+                    shoot_rate_seconds=300,
+                    cast_unavailability=cast_unavailability,
+                )
+
+        self.assertEqual(
+            generate_cp_sat.call_args.kwargs["cast_unavailability"],
+            cast_unavailability,
+        )
+
+    def test_cast_unavailability_failure_does_not_fallback_to_candidates(self):
+        with patch(
+            "app.scheduling.optimizer.generate_cp_sat_schedule",
+            side_effect=RuntimeError("infeasible"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "cast availability"):
+                optimize_schedule(
+                    self.scenes,
+                    shoot_rate_seconds=300,
+                    search_depth=5,
+                    cast_unavailability={"X": [1]},
+                )
+
     def test_score_is_coherent_with_common_scoring(self):
         result = optimize_schedule(
             self.scenes,
