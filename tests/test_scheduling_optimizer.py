@@ -1,6 +1,8 @@
 import unittest
+from unittest.mock import patch
 
 from app.scheduling.optimizer import optimize_schedule
+from app.scheduling.scoring import score_schedule
 
 
 class SchedulingOptimizerTests(unittest.TestCase):
@@ -46,10 +48,159 @@ class SchedulingOptimizerTests(unittest.TestCase):
 
         self.assertEqual(result_a, result_b)
 
+    def test_existing_call_contract_is_preserved(self):
+        result = optimize_schedule(self.scenes, shoot_rate_seconds=300, search_depth=20)
+
+        self.assertIn("best_schedule", result)
+        self.assertIn("score", result)
+        self.assertIn("candidates_evaluated", result)
+        self.assertIn("days", result["best_schedule"])
+        self.assertIn("total_score", result["score"])
+
+    def test_cp_sat_can_win_as_primary_engine(self):
+        cp_sat_schedule = {
+            "days": [
+                {"day": 1, "runtime_seconds": 300, "scene_ids": [1, 4], "locations": ["A"], "over_capacity": False},
+                {"day": 2, "runtime_seconds": 300, "scene_ids": [2, 5], "locations": ["B"], "over_capacity": False},
+                {"day": 3, "runtime_seconds": 300, "scene_ids": [3, 6], "locations": ["C"], "over_capacity": False},
+            ],
+            "total_days": 3,
+            "total_runtime_seconds": 900,
+            "solver_status": "OPTIMAL",
+            "objective_value": 3.0,
+            "best_objective_bound": 3.0,
+        }
+
+        with patch(
+            "app.scheduling.optimizer.generate_cp_sat_schedule",
+            return_value=cp_sat_schedule,
+        ):
+            result = optimize_schedule(
+                self.scenes,
+                shoot_rate_seconds=300,
+                location_weight=1.0,
+                cast_weight=0.0,
+                sequence_weight=0.0,
+                search_depth=1,
+            )
+
+        self.assertEqual(result["engine"], "cp_sat")
+        self.assertFalse(result["fallback_used"])
+        self.assertEqual(result["solver_status"], "OPTIMAL")
+        self.assertEqual(result["objective_value"], 3.0)
+        self.assertEqual(result["best_objective_bound"], 3.0)
+
+    def test_default_uses_cp_sat_when_not_worse_than_candidates(self):
+        result = optimize_schedule(self.scenes, shoot_rate_seconds=300, search_depth=20)
+
+        self.assertIn(result["engine"], {"cp_sat", "candidates"})
+        self.assertFalse(result["fallback_used"])
+        self.assertIn(result["solver_status"], {"OPTIMAL", "FEASIBLE"})
+        self.assertIsInstance(result["objective_value"], float)
+        self.assertIsInstance(result["best_objective_bound"], float)
+
+    def test_default_never_returns_worse_score_than_candidates(self):
+        default_result = optimize_schedule(self.scenes, shoot_rate_seconds=300, search_depth=20)
+        candidate_result = optimize_schedule(
+            self.scenes,
+            shoot_rate_seconds=300,
+            search_depth=20,
+            engine="candidates",
+        )
+
+        self.assertLessEqual(
+            default_result["score"]["total_score"],
+            candidate_result["score"]["total_score"],
+        )
+
+    def test_candidate_wins_when_cp_sat_score_is_worse(self):
+        worse_cp_sat_schedule = {
+            "days": [
+                {"day": 1, "runtime_seconds": 300, "scene_ids": [1, 3], "locations": ["A", "C"], "over_capacity": False},
+                {"day": 2, "runtime_seconds": 300, "scene_ids": [2, 5], "locations": ["B"], "over_capacity": False},
+                {"day": 3, "runtime_seconds": 300, "scene_ids": [4, 6], "locations": ["A", "C"], "over_capacity": False},
+            ],
+            "total_days": 3,
+            "total_runtime_seconds": 900,
+            "solver_status": "FEASIBLE",
+            "objective_value": 99.0,
+            "best_objective_bound": 1.0,
+        }
+
+        with patch(
+            "app.scheduling.optimizer.generate_cp_sat_schedule",
+            return_value=worse_cp_sat_schedule,
+        ):
+            result = optimize_schedule(
+                self.scenes,
+                shoot_rate_seconds=300,
+                location_weight=1.0,
+                cast_weight=0.0,
+                sequence_weight=0.0,
+                search_depth=20,
+            )
+
+        self.assertEqual(result["engine"], "candidates")
+        self.assertFalse(result["fallback_used"])
+        self.assertEqual(result["solver_status"], "FEASIBLE")
+        self.assertEqual(result["objective_value"], 99.0)
+        self.assertEqual(result["best_objective_bound"], 1.0)
+
+    def test_cp_sat_uses_candidate_schedule_as_warm_start(self):
+        with patch(
+            "app.scheduling.optimizer.generate_cp_sat_schedule",
+            side_effect=RuntimeError("stop after inspecting warm start"),
+        ) as generate_cp_sat:
+            result = optimize_schedule(self.scenes, shoot_rate_seconds=300, search_depth=5)
+
+        self.assertEqual(result["engine"], "fallback")
+        self.assertEqual(
+            generate_cp_sat.call_args.kwargs["warm_start_schedule"],
+            result["best_schedule"],
+        )
+
+    def test_score_is_coherent_with_common_scoring(self):
+        result = optimize_schedule(
+            self.scenes,
+            shoot_rate_seconds=300,
+            location_weight=2.0,
+            cast_weight=3.0,
+            sequence_weight=4.0,
+        )
+        expected = score_schedule(
+            result["best_schedule"]["days"],
+            self.scenes,
+            location_weight=2.0,
+            cast_weight=3.0,
+            sequence_weight=4.0,
+        )
+
+        self.assertEqual(result["score"], expected)
+
     def test_candidates_evaluated_respects_search_depth(self):
-        result = optimize_schedule(self.scenes, shoot_rate_seconds=300, search_depth=5)
+        result = optimize_schedule(self.scenes, shoot_rate_seconds=300, search_depth=5, engine="candidates")
 
         self.assertLessEqual(result["candidates_evaluated"], 5)
+
+    def test_engine_candidates_uses_previous_optimizer(self):
+        result = optimize_schedule(self.scenes, shoot_rate_seconds=300, search_depth=5, engine="candidates")
+
+        self.assertEqual(result["engine"], "candidates")
+        self.assertFalse(result["fallback_used"])
+        self.assertGreater(result["candidates_evaluated"], 0)
+        self.assertIsNone(result["solver_status"])
+
+    def test_cp_sat_exception_falls_back_to_candidates(self):
+        with patch(
+            "app.scheduling.optimizer.generate_cp_sat_schedule",
+            side_effect=RuntimeError("solver failed"),
+        ):
+            result = optimize_schedule(self.scenes, shoot_rate_seconds=300, search_depth=5)
+
+        self.assertEqual(result["engine"], "fallback")
+        self.assertTrue(result["fallback_used"])
+        self.assertGreater(result["candidates_evaluated"], 0)
+        self.assertIsNone(result["solver_status"])
 
     def test_high_location_weight_favors_better_location_cost(self):
         location_dominant = optimize_schedule(
@@ -139,7 +290,7 @@ class SchedulingOptimizerTests(unittest.TestCase):
         self.assertLessEqual(sequence_dominant["score"]["sequence_cost"], cast_dominant["score"]["sequence_cost"])
 
     def test_search_depth_one_returns_valid_solution(self):
-        result = optimize_schedule(self.scenes, shoot_rate_seconds=300, search_depth=1)
+        result = optimize_schedule(self.scenes, shoot_rate_seconds=300, search_depth=1, engine="candidates")
 
         flattened = self._flatten(result["best_schedule"])
         expected = [scene["scene_id"] for scene in self.scenes]

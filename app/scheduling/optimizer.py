@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .cp_sat_spike import generate_cp_sat_schedule
 from .scoring import score_schedule
 from .simple_scheduler import generate_schedule
 
@@ -200,7 +201,7 @@ def _candidate_orders(
     return orders
 
 
-def optimize_schedule(
+def _optimize_schedule_by_candidates(
     scenes: list[dict[str, Any]],
     shoot_rate_seconds: int = 420,
     location_weight: float = 1.0,
@@ -259,3 +260,117 @@ def optimize_schedule(
         ),
         "candidates_evaluated": int(evaluated),
     }
+
+
+def _with_engine_metadata(
+    result: dict[str, Any],
+    engine: str,
+    fallback_used: bool,
+    solver_status: str | None = None,
+    objective_value: float | None = None,
+    best_objective_bound: float | None = None,
+) -> dict[str, Any]:
+    return {
+        **result,
+        "engine": engine,
+        "fallback_used": fallback_used,
+        "solver_status": solver_status,
+        "objective_value": objective_value,
+        "best_objective_bound": best_objective_bound,
+    }
+
+
+def optimize_schedule(
+    scenes: list[dict[str, Any]],
+    shoot_rate_seconds: int = 420,
+    location_weight: float = 1.0,
+    cast_weight: float = 1.0,
+    sequence_weight: float = 1.0,
+    search_depth: int = 20,
+    engine: str = "cp_sat",
+    max_time_seconds: float = 60.0,
+) -> dict[str, Any]:
+    """Optimize a schedule with CP-SAT by default and candidate search as fallback."""
+
+    if engine == "candidates":
+        return _with_engine_metadata(
+            _optimize_schedule_by_candidates(
+                scenes,
+                shoot_rate_seconds=shoot_rate_seconds,
+                location_weight=location_weight,
+                cast_weight=cast_weight,
+                sequence_weight=sequence_weight,
+                search_depth=search_depth,
+            ),
+            engine="candidates",
+            fallback_used=False,
+        )
+
+    candidate_result = _optimize_schedule_by_candidates(
+        scenes,
+        shoot_rate_seconds=shoot_rate_seconds,
+        location_weight=location_weight,
+        cast_weight=cast_weight,
+        sequence_weight=sequence_weight,
+        search_depth=search_depth,
+    )
+    candidate_score = score_schedule(
+        candidate_result["best_schedule"].get("days", []),
+        scenes,
+        location_weight=location_weight,
+        cast_weight=cast_weight,
+        sequence_weight=sequence_weight,
+    )
+    candidate_result = {
+        **candidate_result,
+        "score": candidate_score,
+    }
+
+    try:
+        cp_sat_schedule = generate_cp_sat_schedule(
+            scenes,
+            shoot_rate_seconds=shoot_rate_seconds,
+            location_weight=location_weight,
+            cast_weight=cast_weight,
+            sequence_weight=sequence_weight,
+            max_time_seconds=max_time_seconds,
+            warm_start_schedule=candidate_result["best_schedule"],
+        )
+        score = score_schedule(
+            cp_sat_schedule.get("days", []),
+            scenes,
+            location_weight=location_weight,
+            cast_weight=cast_weight,
+            sequence_weight=sequence_weight,
+        )
+
+        solver_status = cp_sat_schedule.get("solver_status")
+        objective_value = cp_sat_schedule.get("objective_value")
+        best_objective_bound = cp_sat_schedule.get("best_objective_bound")
+
+        if candidate_score["total_score"] < score["total_score"]:
+            return _with_engine_metadata(
+                candidate_result,
+                engine="candidates",
+                fallback_used=False,
+                solver_status=solver_status,
+                objective_value=objective_value,
+                best_objective_bound=best_objective_bound,
+            )
+
+        return {
+            "best_schedule": cp_sat_schedule,
+            "score": score,
+            "candidates_evaluated": candidate_result["candidates_evaluated"],
+            "engine": "cp_sat",
+            "fallback_used": False,
+            "solver_status": solver_status,
+            "objective_value": objective_value,
+            "best_objective_bound": best_objective_bound,
+        }
+    except Exception:
+        return _with_engine_metadata(
+            candidate_result,
+            engine="fallback",
+            fallback_used=True,
+        )
