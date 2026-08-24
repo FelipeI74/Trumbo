@@ -28,6 +28,12 @@ def _count_inversions(keys: list[tuple[int, int]]) -> int:
     return inversions
 
 
+def _scene_cast(scene: dict[str, Any]) -> list[Any]:
+    if "scene_cast" in scene:
+        return scene.get("scene_cast") or []
+    return scene.get("characters") or []
+
+
 def score_schedule(
     days: list[dict[str, Any]],
     scenes: list[dict[str, Any]],
@@ -87,7 +93,7 @@ def score_schedule(
         seen_characters_today: set[str] = set()
         for scene_id in day.get("scene_ids", []):
             scene = scene_by_id.get(int(scene_id), {})
-            for character in scene.get("characters", []) or []:
+            for character in _scene_cast(scene):
                 name = str(character or "").strip()
                 if not name or name in seen_characters_today:
                     continue

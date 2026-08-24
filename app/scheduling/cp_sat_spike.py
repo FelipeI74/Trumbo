@@ -23,11 +23,12 @@ def _sequence_key(scene: dict[str, Any]) -> tuple[int, int]:
     )
 
 
-def _scene_characters(scene: dict[str, Any]) -> set[str]:
+def _scene_cast(scene: dict[str, Any]) -> set[str]:
     # Same normalization as score_schedule: strip only, case sensitive.
+    raw_cast = scene.get("scene_cast") if "scene_cast" in scene else scene.get("characters")
     return {
         str(name or "").strip()
-        for name in (scene.get("characters") or [])
+        for name in (raw_cast or [])
         if str(name or "").strip()
     }
 
@@ -143,13 +144,13 @@ def generate_cp_sat_schedule(
         {
             name
             for scene in ordered_scenes
-            for name in _scene_characters(scene)
+            for name in _scene_cast(scene)
         }
     )
     scenes_by_character = {
         name: [
             i for i in range(n)
-            if name in _scene_characters(ordered_scenes[i])
+            if name in _scene_cast(ordered_scenes[i])
         ]
         for name in characters
     }
@@ -174,7 +175,7 @@ def generate_cp_sat_schedule(
     unavailable_days_by_character = _normalized_cast_unavailability(cast_unavailability)
     for i, scene in enumerate(ordered_scenes):
         unavailable_days = set()
-        for name in _scene_characters(scene):
+        for name in _scene_cast(scene):
             key = name.strip().casefold()
             unavailable_days.update(unavailable_days_by_character.get(key, set()))
         for d in unavailable_days:

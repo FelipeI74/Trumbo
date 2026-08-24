@@ -228,6 +228,20 @@ class CpSatSpikeTests(unittest.TestCase):
 
         self.assertNotIn(1, schedule["days"][0]["scene_ids"])
 
+    def test_cast_unavailability_blocks_silent_scene_cast_member(self):
+        scenes = [
+            {"scene_id": 1, "script_order": 1, "location": "A", "runtime_seconds": 100, "characters": [], "scene_cast": ["PEDRO"]},
+            {"scene_id": 2, "script_order": 2, "location": "B", "runtime_seconds": 100, "characters": ["ANA"]},
+        ]
+
+        schedule = generate_cp_sat_schedule(
+            scenes,
+            shoot_rate_seconds=100,
+            cast_unavailability={"PEDRO": [1]},
+        )
+
+        self.assertNotIn(1, schedule["days"][0]["scene_ids"])
+
     def test_cast_unavailability_can_make_problem_infeasible(self):
         scenes = [
             {"scene_id": 1, "script_order": 1, "location": "A", "runtime_seconds": 100, "characters": ["ANA"]},

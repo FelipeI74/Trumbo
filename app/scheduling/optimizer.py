@@ -16,11 +16,11 @@ def _scene_key(scene: dict[str, Any]) -> tuple[int, int, int]:
 
 
 def _cast_signature(scene: dict[str, Any]) -> tuple[str, ...]:
-    raw = scene.get("characters") or []
+    raw = scene.get("scene_cast") if "scene_cast" in scene else scene.get("characters")
     normalized = sorted(
         {
             str(name).strip().casefold()
-            for name in raw
+            for name in (raw or [])
             if str(name).strip()
         }
     )

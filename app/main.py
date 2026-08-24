@@ -829,6 +829,7 @@ def _build_project_scheduling_input(
             """
             SELECT
                 breakdown_items.scene_id,
+                breakdown_items.category,
                 breakdown_items.name
             FROM breakdown_items
             JOIN scenes
@@ -841,15 +842,34 @@ def _build_project_scheduling_input(
 
     resources_by_scene: dict[int, list[str]] = {}
     seen_resources_by_scene: dict[int, set[str]] = {}
+    scene_cast_by_scene: dict[int, list[str]] = {}
+    seen_scene_cast_by_scene: dict[int, set[str]] = {}
 
     for resource_row in resource_rows:
         scene_id = int(resource_row["scene_id"])
+        resource_category = str(resource_row["category"] or "").strip()
         resource_name = str(resource_row["name"] or "").strip()
 
         if not resource_name:
             continue
 
         resource_key = resource_name.casefold()
+        if resource_category.casefold() in {"cast", "scene_cast"}:
+            seen_scene_cast = seen_scene_cast_by_scene.setdefault(
+                scene_id,
+                set(),
+            )
+
+            if resource_key in seen_scene_cast:
+                continue
+
+            seen_scene_cast.add(resource_key)
+            scene_cast_by_scene.setdefault(
+                scene_id,
+                [],
+            ).append(resource_name)
+            continue
+
         seen_resources = seen_resources_by_scene.setdefault(
             scene_id,
             set(),
@@ -892,6 +912,15 @@ def _build_project_scheduling_input(
             seen_characters.add(key)
             characters.append(name)
 
+        scene_cast = list(characters)
+        seen_scene_cast = {name.strip().casefold() for name in scene_cast}
+        for name in scene_cast_by_scene.get(scene_id, []):
+            key = name.strip().casefold()
+            if not key or key in seen_scene_cast:
+                continue
+            seen_scene_cast.add(key)
+            scene_cast.append(name)
+
         scenes.append(
             {
                 "scene_id": scene_id,
@@ -903,6 +932,7 @@ def _build_project_scheduling_input(
                 "time_of_day": heading_fields["time_of_day"],
                 "runtime_seconds": int(scene_row["runtime_seconds"] or 0),
                 "characters": characters,
+                "scene_cast": scene_cast,
                 "resources": resources_by_scene.get(scene_id, []),
             }
         )

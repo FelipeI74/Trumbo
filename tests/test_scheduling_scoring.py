@@ -60,6 +60,34 @@ class SchedulingScoringTests(unittest.TestCase):
 
         self.assertLess(grouped_score["cast_cost"], split_score["cast_cost"])
 
+    def test_scene_cast_overrides_characters_for_cast_cost(self):
+        scenes = [
+            {"scene_id": 1, "script_order": 1, "location": "A", "characters": [], "scene_cast": ["MUDO"]},
+            {"scene_id": 2, "script_order": 2, "location": "B", "characters": [], "scene_cast": []},
+            {"scene_id": 3, "script_order": 3, "location": "C", "characters": [], "scene_cast": ["MUDO"]},
+        ]
+        days = [
+            {"day": 1, "scene_ids": [1]},
+            {"day": 2, "scene_ids": [2]},
+            {"day": 3, "scene_ids": [3]},
+        ]
+
+        self.assertEqual(score_schedule(days, scenes)["cast_cost"], 1.0)
+
+    def test_cast_cost_falls_back_to_characters_without_scene_cast(self):
+        scenes = [
+            {"scene_id": 1, "script_order": 1, "location": "A", "characters": ["ANA"]},
+            {"scene_id": 2, "script_order": 2, "location": "B", "characters": ["BOB"]},
+            {"scene_id": 3, "script_order": 3, "location": "C", "characters": ["ANA"]},
+        ]
+        days = [
+            {"day": 1, "scene_ids": [1]},
+            {"day": 2, "scene_ids": [2]},
+            {"day": 3, "scene_ids": [3]},
+        ]
+
+        self.assertEqual(score_schedule(days, scenes)["cast_cost"], 1.0)
+
     def test_narrative_order_improves_sequence_cost(self):
         ordered_days = [
             {"day": 1, "scene_ids": [1, 2, 3, 4]},

@@ -98,6 +98,52 @@ class ProductivityFeaturesTests(unittest.TestCase):
             self.assertEqual(review["scene_id"], scene["id"])
             self.assertEqual(review["misspellings"][0]["suggestions"], [])
 
+    def test_scheduling_input_derives_scene_cast_from_breakdown(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+
+            project = main.create_project(
+                ProjectCreate(title="Scene cast", format="feature")
+            )
+            scene = main.create_scene(
+                project["id"],
+                SceneCreate(
+                    heading="INT. CASA - DIA",
+                    body="PEDRO observa desde el pasillo.",
+                    semantic_lines=[
+                        {"type": "heading", "text": "INT. CASA - DIA"},
+                        {"type": "action", "text": "PEDRO observa desde el pasillo."},
+                        {"type": "character", "text": "MARTA"},
+                        {"type": "dialogue", "text": "Hola."},
+                    ],
+                ),
+            )
+            main.add_breakdown_item(
+                scene["id"],
+                BreakdownItemCreate(
+                    category="cast", name="PEDRO", source="manual", state="confirmed"
+                ),
+            )
+            main.add_breakdown_item(
+                scene["id"],
+                BreakdownItemCreate(
+                    category="scene_cast", name=" marta ", source="manual", state="confirmed"
+                ),
+            )
+            main.add_breakdown_item(
+                scene["id"],
+                BreakdownItemCreate(
+                    category="prop", name="Llave", source="manual", state="confirmed"
+                ),
+            )
+
+            payload = main.get_project_scheduling_input(project["id"])
+            scheduled_scene = payload["scenes"][0]
+
+            self.assertEqual(scheduled_scene["characters"], ["MARTA"])
+            self.assertEqual(scheduled_scene["scene_cast"], ["MARTA", "PEDRO"])
+            self.assertEqual(scheduled_scene["resources"], ["Llave"])
+
     def test_project_pdf_export_returns_stream(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             self._prepare_empty_database(tmpdir)
