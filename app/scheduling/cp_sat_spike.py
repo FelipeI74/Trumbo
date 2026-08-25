@@ -83,6 +83,26 @@ def _normalized_cast_unavailability(
     return unavailable_days_by_character
 
 
+def _normalized_location_unavailability(
+    location_unavailability: dict[str, list[int]] | None,
+) -> dict[str, set[int]]:
+    if not location_unavailability:
+        return {}
+
+    unavailable_days_by_location: dict[str, set[int]] = {}
+    for location, days in location_unavailability.items():
+        key = str(location or "").strip().casefold()
+        if not key:
+            continue
+        for day in days or []:
+            try:
+                day_index = int(day) - 1
+            except (TypeError, ValueError):
+                continue
+            unavailable_days_by_location.setdefault(key, set()).add(day_index)
+    return unavailable_days_by_location
+
+
 def generate_cp_sat_schedule(
     scenes: list[dict[str, Any]],
     shoot_rate_seconds: int = 420,
@@ -92,6 +112,7 @@ def generate_cp_sat_schedule(
     max_time_seconds: float = 60.0,
     warm_start_schedule: dict[str, Any] | list[dict[str, Any]] | None = None,
     cast_unavailability: dict[str, list[int]] | None = None,
+    location_unavailability: dict[str, list[int]] | None = None,
 ) -> dict[str, Any]:
     """CP-SAT spike minimizing the exact score_schedule objective.
 
@@ -173,11 +194,14 @@ def generate_cp_sat_schedule(
     }
 
     unavailable_days_by_character = _normalized_cast_unavailability(cast_unavailability)
+    unavailable_days_by_location = _normalized_location_unavailability(location_unavailability)
     for i, scene in enumerate(ordered_scenes):
         unavailable_days = set()
         for name in _scene_cast(scene):
             key = name.strip().casefold()
             unavailable_days.update(unavailable_days_by_character.get(key, set()))
+        location_key = str(scene.get("location") or "").strip().casefold()
+        unavailable_days.update(unavailable_days_by_location.get(location_key, set()))
         for d in unavailable_days:
             if 0 <= d < n:
                 model.Add(x[(i, d)] == 0)

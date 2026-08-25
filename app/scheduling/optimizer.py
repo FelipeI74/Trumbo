@@ -35,6 +35,62 @@ def _flatten_schedule_scene_ids(schedule: dict[str, Any]) -> list[int]:
     return ids
 
 
+def _normalized_unavailability(
+    unavailability: dict[str, list[int]] | None,
+) -> dict[str, set[int]]:
+    if not unavailability:
+        return {}
+
+    normalized: dict[str, set[int]] = {}
+    for name, days in unavailability.items():
+        key = str(name or "").strip().casefold()
+        if not key:
+            continue
+        normalized[key] = {
+            int(day)
+            for day in (days or [])
+            if isinstance(day, (int, str)) and str(day).strip().lstrip("-").isdigit()
+        }
+    return normalized
+
+
+def _scene_cast(scene: dict[str, Any]) -> list[Any]:
+    if "scene_cast" in scene:
+        return scene.get("scene_cast") or []
+    return scene.get("characters") or []
+
+
+def _schedule_respects_hard_availability(
+    schedule: dict[str, Any],
+    scenes: list[dict[str, Any]],
+    cast_unavailability: dict[str, list[int]] | None,
+    location_unavailability: dict[str, list[int]] | None,
+) -> bool:
+    unavailable_cast = _normalized_unavailability(cast_unavailability)
+    unavailable_locations = _normalized_unavailability(location_unavailability)
+    if not unavailable_cast and not unavailable_locations:
+        return True
+
+    scenes_by_id = {int(scene["scene_id"]): scene for scene in scenes}
+    for day in schedule.get("days", []):
+        day_number = int(day.get("day", 0))
+        for scene_id in day.get("scene_ids", []):
+            scene = scenes_by_id.get(int(scene_id))
+            if scene is None:
+                return False
+
+            location_key = str(scene.get("location") or "").strip().casefold()
+            if day_number in unavailable_locations.get(location_key, set()):
+                return False
+
+            for character in _scene_cast(scene):
+                character_key = str(character or "").strip().casefold()
+                if day_number in unavailable_cast.get(character_key, set()):
+                    return False
+
+    return True
+
+
 def _finalize_day(
     days: list[dict[str, Any]],
     day_scene_ids: list[int],
@@ -290,19 +346,30 @@ def optimize_schedule(
     engine: str = "cp_sat",
     max_time_seconds: float = 60.0,
     cast_unavailability: dict[str, list[int]] | None = None,
+    location_unavailability: dict[str, list[int]] | None = None,
 ) -> dict[str, Any]:
     """Optimize a schedule with CP-SAT by default and candidate search as fallback."""
 
     if engine == "candidates":
+        candidate_result = _optimize_schedule_by_candidates(
+            scenes,
+            shoot_rate_seconds=shoot_rate_seconds,
+            location_weight=location_weight,
+            cast_weight=cast_weight,
+            sequence_weight=sequence_weight,
+            search_depth=search_depth,
+        )
+        if not _schedule_respects_hard_availability(
+            candidate_result["best_schedule"],
+            scenes,
+            cast_unavailability,
+            location_unavailability,
+        ):
+            raise RuntimeError(
+                "Candidate schedule violates hard availability constraints"
+            )
         return _with_engine_metadata(
-            _optimize_schedule_by_candidates(
-                scenes,
-                shoot_rate_seconds=shoot_rate_seconds,
-                location_weight=location_weight,
-                cast_weight=cast_weight,
-                sequence_weight=sequence_weight,
-                search_depth=search_depth,
-            ),
+            candidate_result,
             engine="candidates",
             fallback_used=False,
         )
@@ -326,6 +393,12 @@ def optimize_schedule(
         **candidate_result,
         "score": candidate_score,
     }
+    candidate_is_valid = _schedule_respects_hard_availability(
+        candidate_result["best_schedule"],
+        scenes,
+        cast_unavailability,
+        location_unavailability,
+    )
 
     try:
         cp_sat_schedule = generate_cp_sat_schedule(
@@ -337,6 +410,7 @@ def optimize_schedule(
             max_time_seconds=max_time_seconds,
             warm_start_schedule=candidate_result["best_schedule"],
             cast_unavailability=cast_unavailability,
+            location_unavailability=location_unavailability,
         )
         score = score_schedule(
             cp_sat_schedule.get("days", []),
@@ -350,7 +424,7 @@ def optimize_schedule(
         objective_value = cp_sat_schedule.get("objective_value")
         best_objective_bound = cp_sat_schedule.get("best_objective_bound")
 
-        if candidate_score["total_score"] < score["total_score"]:
+        if candidate_is_valid and candidate_score["total_score"] < score["total_score"]:
             return _with_engine_metadata(
                 candidate_result,
                 engine="candidates",
@@ -371,9 +445,9 @@ def optimize_schedule(
             "best_objective_bound": best_objective_bound,
         }
     except Exception:
-        if cast_unavailability is not None:
+        if cast_unavailability is not None or location_unavailability is not None:
             raise RuntimeError(
-                "CP-SAT could not satisfy cast availability constraints"
+                "CP-SAT could not satisfy hard availability constraints"
             )
         return _with_engine_metadata(
             candidate_result,

@@ -254,6 +254,46 @@ class CpSatSpikeTests(unittest.TestCase):
                 cast_unavailability={"ANA": [1]},
             )
 
+    def test_location_unavailability_blocks_scene_on_day(self):
+        scenes = [
+            {"scene_id": 1, "script_order": 1, "location": "A", "runtime_seconds": 100, "characters": []},
+            {"scene_id": 2, "script_order": 2, "location": "B", "runtime_seconds": 100, "characters": []},
+        ]
+
+        schedule = generate_cp_sat_schedule(
+            scenes,
+            shoot_rate_seconds=100,
+            location_unavailability={"A": [1]},
+        )
+
+        self.assertNotIn(1, schedule["days"][0]["scene_ids"])
+
+    def test_location_unavailability_matches_normalized_names(self):
+        scenes = [
+            {"scene_id": 1, "script_order": 1, "location": "Casa", "runtime_seconds": 100, "characters": []},
+            {"scene_id": 2, "script_order": 2, "location": "B", "runtime_seconds": 100, "characters": []},
+        ]
+
+        schedule = generate_cp_sat_schedule(
+            scenes,
+            shoot_rate_seconds=100,
+            location_unavailability={" casa ": [1]},
+        )
+
+        self.assertNotIn(1, schedule["days"][0]["scene_ids"])
+
+    def test_location_unavailability_can_make_problem_infeasible(self):
+        scenes = [
+            {"scene_id": 1, "script_order": 1, "location": "A", "runtime_seconds": 100, "characters": []},
+        ]
+
+        with self.assertRaises(RuntimeError):
+            generate_cp_sat_schedule(
+                scenes,
+                shoot_rate_seconds=100,
+                location_unavailability={"A": [1]},
+            )
+
     def test_empty_scenes_reports_no_solver_diagnostics(self):
         schedule = generate_cp_sat_schedule([], shoot_rate_seconds=240)
 

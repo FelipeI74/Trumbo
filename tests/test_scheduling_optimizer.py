@@ -165,7 +165,7 @@ class SchedulingOptimizerTests(unittest.TestCase):
             "app.scheduling.optimizer.generate_cp_sat_schedule",
             side_effect=RuntimeError("stop after inspecting availability"),
         ) as generate_cp_sat:
-            with self.assertRaisesRegex(RuntimeError, "cast availability"):
+            with self.assertRaisesRegex(RuntimeError, "hard availability"):
                 optimize_schedule(
                     self.scenes,
                     shoot_rate_seconds=300,
@@ -177,18 +177,180 @@ class SchedulingOptimizerTests(unittest.TestCase):
             cast_unavailability,
         )
 
+    def test_passes_location_unavailability_to_cp_sat(self):
+        location_unavailability = {"A": [1]}
+        with patch(
+            "app.scheduling.optimizer.generate_cp_sat_schedule",
+            side_effect=RuntimeError("stop after inspecting availability"),
+        ) as generate_cp_sat:
+            with self.assertRaisesRegex(RuntimeError, "hard availability"):
+                optimize_schedule(
+                    self.scenes,
+                    shoot_rate_seconds=300,
+                    location_unavailability=location_unavailability,
+                )
+
+        self.assertEqual(
+            generate_cp_sat.call_args.kwargs["location_unavailability"],
+            location_unavailability,
+        )
+
     def test_cast_unavailability_failure_does_not_fallback_to_candidates(self):
         with patch(
             "app.scheduling.optimizer.generate_cp_sat_schedule",
             side_effect=RuntimeError("infeasible"),
         ):
-            with self.assertRaisesRegex(RuntimeError, "cast availability"):
+            with self.assertRaisesRegex(RuntimeError, "hard availability"):
                 optimize_schedule(
                     self.scenes,
                     shoot_rate_seconds=300,
                     search_depth=5,
                     cast_unavailability={"X": [1]},
                 )
+
+    def test_location_unavailability_failure_does_not_fallback_to_candidates(self):
+        with patch(
+            "app.scheduling.optimizer.generate_cp_sat_schedule",
+            side_effect=RuntimeError("infeasible"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "hard availability"):
+                optimize_schedule(
+                    self.scenes,
+                    shoot_rate_seconds=300,
+                    search_depth=5,
+                    location_unavailability={"A": [1]},
+                )
+
+    def test_invalid_location_candidate_cannot_beat_cp_sat(self):
+        candidate_result = {
+            "best_schedule": {
+                "days": [
+                    {"day": 1, "scene_ids": [1, 2, 3]},
+                    {"day": 2, "scene_ids": [4, 5, 6]},
+                ],
+                "total_days": 2,
+                "total_runtime_seconds": 900,
+            },
+            "score": {"total_score": 0.0},
+            "candidates_evaluated": 1,
+        }
+        cp_sat_schedule = {
+            "days": [
+                {"day": 1, "scene_ids": [1, 2], "runtime_seconds": 300},
+                {"day": 2, "scene_ids": [3, 4], "runtime_seconds": 300},
+                {"day": 3, "scene_ids": [5, 6], "runtime_seconds": 300},
+            ],
+            "solver_status": "FEASIBLE",
+            "objective_value": 1.0,
+            "best_objective_bound": 1.0,
+        }
+        with patch(
+            "app.scheduling.optimizer._optimize_schedule_by_candidates",
+            return_value=candidate_result,
+        ), patch(
+            "app.scheduling.optimizer.generate_cp_sat_schedule",
+            return_value=cp_sat_schedule,
+        ):
+            result = optimize_schedule(
+                self.scenes,
+                shoot_rate_seconds=300,
+                location_weight=1.0,
+                cast_weight=0.0,
+                sequence_weight=0.0,
+                location_unavailability={"A": [2]},
+            )
+
+        self.assertEqual(result["engine"], "cp_sat")
+        self.assertEqual(result["best_schedule"], cp_sat_schedule)
+
+    def test_invalid_cast_candidate_cannot_beat_cp_sat(self):
+        candidate_result = {
+            "best_schedule": {
+                "days": [
+                    {"day": 1, "scene_ids": [1, 4]},
+                    {"day": 2, "scene_ids": [2, 3, 5, 6]},
+                ],
+                "total_days": 2,
+                "total_runtime_seconds": 900,
+            },
+            "score": {"total_score": 0.0},
+            "candidates_evaluated": 1,
+        }
+        cp_sat_schedule = {
+            "days": [
+                {"day": 1, "scene_ids": [1, 2], "runtime_seconds": 300},
+                {"day": 2, "scene_ids": [3, 4], "runtime_seconds": 300},
+                {"day": 3, "scene_ids": [5, 6], "runtime_seconds": 300},
+            ],
+            "solver_status": "FEASIBLE",
+            "objective_value": 1.0,
+            "best_objective_bound": 1.0,
+        }
+        scenes = [
+            {**scene, "scene_cast": ["X"]}
+            for scene in self.scenes
+        ]
+        with patch(
+            "app.scheduling.optimizer._optimize_schedule_by_candidates",
+            return_value=candidate_result,
+        ), patch(
+            "app.scheduling.optimizer.generate_cp_sat_schedule",
+            return_value=cp_sat_schedule,
+        ):
+            result = optimize_schedule(
+                scenes,
+                shoot_rate_seconds=300,
+                location_weight=1.0,
+                cast_weight=0.0,
+                sequence_weight=0.0,
+                cast_unavailability={"X": [2]},
+            )
+
+        self.assertEqual(result["engine"], "cp_sat")
+        self.assertEqual(result["best_schedule"], cp_sat_schedule)
+
+    def test_valid_candidate_can_still_win_by_score(self):
+        candidate_result = {
+            "best_schedule": {
+                "days": [
+                    {"day": 1, "scene_ids": [1, 4]},
+                    {"day": 2, "scene_ids": [2, 5]},
+                    {"day": 3, "scene_ids": [3, 6]},
+                ],
+                "total_days": 3,
+                "total_runtime_seconds": 900,
+            },
+            "score": {"total_score": 0.0},
+            "candidates_evaluated": 1,
+        }
+        cp_sat_schedule = {
+            "days": [
+                {"day": 1, "scene_ids": [1, 4], "runtime_seconds": 300},
+                {"day": 2, "scene_ids": [2, 3], "runtime_seconds": 300},
+                {"day": 3, "scene_ids": [5, 6], "runtime_seconds": 300},
+            ],
+            "solver_status": "FEASIBLE",
+            "objective_value": 99.0,
+            "best_objective_bound": 1.0,
+        }
+        with patch(
+            "app.scheduling.optimizer._optimize_schedule_by_candidates",
+            return_value=candidate_result,
+        ), patch(
+            "app.scheduling.optimizer.generate_cp_sat_schedule",
+            return_value=cp_sat_schedule,
+        ):
+            result = optimize_schedule(
+                self.scenes,
+                shoot_rate_seconds=300,
+                location_weight=1.0,
+                cast_weight=0.0,
+                sequence_weight=0.0,
+                location_unavailability={"A": [3]},
+            )
+
+        self.assertEqual(result["engine"], "candidates")
+        self.assertEqual(result["best_schedule"], candidate_result["best_schedule"])
 
     def test_score_is_coherent_with_common_scoring(self):
         result = optimize_schedule(
