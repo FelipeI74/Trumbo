@@ -88,6 +88,43 @@ class SchedulingScoringTests(unittest.TestCase):
 
         self.assertEqual(score_schedule(days, scenes)["cast_cost"], 1.0)
 
+    def test_same_time_of_day_has_zero_cost(self):
+        scenes = [
+            {"scene_id": 1, "script_order": 1, "location": "A", "time_of_day": "DÍA"},
+            {"scene_id": 2, "script_order": 2, "location": "B", "time_of_day": "DIA"},
+        ]
+        days = [{"day": 1, "scene_ids": [1, 2]}]
+
+        self.assertEqual(score_schedule(days, scenes)["time_of_day_cost"], 0.0)
+
+    def test_day_to_night_has_one_change(self):
+        scenes = [
+            {"scene_id": 1, "script_order": 1, "location": "A", "time_of_day": "DÍA"},
+            {"scene_id": 2, "script_order": 2, "location": "B", "time_of_day": "NOCHE"},
+        ]
+        days = [{"day": 1, "scene_ids": [1, 2]}]
+
+        self.assertEqual(score_schedule(days, scenes)["time_of_day_cost"], 1.0)
+
+    def test_amanecer_and_atarceder_are_distinct(self):
+        scenes = [
+            {"scene_id": 1, "script_order": 1, "location": "A", "time_of_day": "AMANECER"},
+            {"scene_id": 2, "script_order": 2, "location": "B", "time_of_day": "ATARDECER"},
+        ]
+        days = [{"day": 1, "scene_ids": [1, 2]}]
+
+        self.assertEqual(score_schedule(days, scenes)["time_of_day_cost"], 1.0)
+
+    def test_empty_time_of_day_values_are_ignored(self):
+        scenes = [
+            {"scene_id": 1, "script_order": 1, "location": "A", "time_of_day": "DÍA"},
+            {"scene_id": 2, "script_order": 2, "location": "B", "time_of_day": ""},
+            {"scene_id": 3, "script_order": 3, "location": "C", "time_of_day": "NOCHE"},
+        ]
+        days = [{"day": 1, "scene_ids": [1, 2, 3]}]
+
+        self.assertEqual(score_schedule(days, scenes)["time_of_day_cost"], 1.0)
+
     def test_narrative_order_improves_sequence_cost(self):
         ordered_days = [
             {"day": 1, "scene_ids": [1, 2, 3, 4]},

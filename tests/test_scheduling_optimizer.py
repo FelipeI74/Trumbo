@@ -383,6 +383,35 @@ class SchedulingOptimizerTests(unittest.TestCase):
         self.assertGreater(result["candidates_evaluated"], 0)
         self.assertIsNone(result["solver_status"])
 
+    def test_candidates_total_score_includes_time_of_day_weight(self):
+        scenes = [
+            {**scene, "time_of_day": period}
+            for scene, period in zip(
+                self.scenes,
+                ("DÍA", "NOCHE", "AMANECER", "ATARDECER", "TARDE", "DÍA"),
+            )
+        ]
+        result = optimize_schedule(
+            scenes,
+            shoot_rate_seconds=300,
+            engine="candidates",
+            time_of_day_weight=100.0,
+        )
+        expected = score_schedule(
+            result["best_schedule"]["days"],
+            scenes,
+            time_of_day_weight=100.0,
+        )
+
+        self.assertEqual(result["score"], expected)
+        self.assertEqual(
+            result["score"]["total_score"],
+            100.0 * result["score"]["time_of_day_cost"]
+            + result["score"]["location_cost"]
+            + result["score"]["cast_cost"]
+            + result["score"]["sequence_cost"],
+        )
+
     def test_cp_sat_exception_falls_back_to_candidates(self):
         with patch(
             "app.scheduling.optimizer.generate_cp_sat_schedule",

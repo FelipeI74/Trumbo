@@ -263,6 +263,7 @@ def _optimize_schedule_by_candidates(
     location_weight: float = 1.0,
     cast_weight: float = 1.0,
     sequence_weight: float = 1.0,
+    time_of_day_weight: float = 0.0,
     search_depth: int = 20,
 ) -> dict[str, Any]:
     """Generate and score deterministic schedule alternatives; lower score is better."""
@@ -297,6 +298,7 @@ def _optimize_schedule_by_candidates(
             location_weight=location_weight,
             cast_weight=cast_weight,
             sequence_weight=sequence_weight,
+            time_of_day_weight=time_of_day_weight,
         )
 
         evaluated += 1
@@ -313,6 +315,7 @@ def _optimize_schedule_by_candidates(
             location_weight=location_weight,
             cast_weight=cast_weight,
             sequence_weight=sequence_weight,
+            time_of_day_weight=time_of_day_weight,
         ),
         "candidates_evaluated": int(evaluated),
     }
@@ -347,6 +350,7 @@ def optimize_schedule(
     max_time_seconds: float = 60.0,
     cast_unavailability: dict[str, list[int]] | None = None,
     location_unavailability: dict[str, list[int]] | None = None,
+    time_of_day_weight: float = 0.0,
 ) -> dict[str, Any]:
     """Optimize a schedule with CP-SAT by default and candidate search as fallback."""
 
@@ -357,6 +361,7 @@ def optimize_schedule(
             location_weight=location_weight,
             cast_weight=cast_weight,
             sequence_weight=sequence_weight,
+            time_of_day_weight=time_of_day_weight,
             search_depth=search_depth,
         )
         if not _schedule_respects_hard_availability(
@@ -380,6 +385,7 @@ def optimize_schedule(
         location_weight=location_weight,
         cast_weight=cast_weight,
         sequence_weight=sequence_weight,
+        time_of_day_weight=time_of_day_weight,
         search_depth=search_depth,
     )
     candidate_score = score_schedule(
@@ -388,6 +394,7 @@ def optimize_schedule(
         location_weight=location_weight,
         cast_weight=cast_weight,
         sequence_weight=sequence_weight,
+        time_of_day_weight=time_of_day_weight,
     )
     candidate_result = {
         **candidate_result,
@@ -411,6 +418,7 @@ def optimize_schedule(
             warm_start_schedule=candidate_result["best_schedule"],
             cast_unavailability=cast_unavailability,
             location_unavailability=location_unavailability,
+            time_of_day_weight=time_of_day_weight,
         )
         score = score_schedule(
             cp_sat_schedule.get("days", []),
@@ -418,6 +426,7 @@ def optimize_schedule(
             location_weight=location_weight,
             cast_weight=cast_weight,
             sequence_weight=sequence_weight,
+            time_of_day_weight=time_of_day_weight,
         )
 
         solver_status = cp_sat_schedule.get("solver_status")

@@ -33,6 +33,11 @@ def _scene_cast(scene: dict[str, Any]) -> set[str]:
     }
 
 
+def _time_of_day_category(value: Any) -> str:
+    normalized = str(value or "").strip().casefold()
+    return "dia" if normalized in {"dia", "día"} else normalized
+
+
 def _day_locations(day_scenes: list[dict[str, Any]]) -> list[str]:
     locations: list[str] = []
     for scene in day_scenes:
@@ -113,6 +118,7 @@ def generate_cp_sat_schedule(
     warm_start_schedule: dict[str, Any] | list[dict[str, Any]] | None = None,
     cast_unavailability: dict[str, list[int]] | None = None,
     location_unavailability: dict[str, list[int]] | None = None,
+    time_of_day_weight: float = 0.0,
 ) -> dict[str, Any]:
     """CP-SAT spike minimizing the exact score_schedule objective.
 
@@ -135,6 +141,7 @@ def generate_cp_sat_schedule(
                 "location_cost": 0.0,
                 "cast_cost": 0.0,
                 "sequence_cost": 0.0,
+                "time_of_day_cost": 0.0,
             },
         }
 
@@ -303,6 +310,13 @@ def generate_cp_sat_schedule(
         cast_day_starts.extend(_block_starts(works, f"castday_{slot}"))
 
     sequence_keys = [_sequence_key(scene) for scene in ordered_scenes]
+    time_of_day_categories = [
+        _time_of_day_category(scene.get("time_of_day"))
+        for scene in ordered_scenes
+    ]
+    time_of_day_values = sorted(
+        {category for category in time_of_day_categories if category}
+    )
     inversions = []
     for i in range(n):
         for j in range(i + 1, n):
@@ -324,6 +338,7 @@ def generate_cp_sat_schedule(
     location_cost_var = model.NewIntVar(0, 3 * n, "location_cost")
     cast_cost_var = model.NewIntVar(0, max(1, n * character_count), "cast_cost")
     sequence_cost_var = model.NewIntVar(0, max(1, sequence_bound), "sequence_cost")
+    time_of_day_cost_var = model.NewIntVar(0, max(1, n), "time_of_day_cost")
 
     model.Add(
         location_cost_var
@@ -335,17 +350,68 @@ def generate_cp_sat_schedule(
     model.Add(cast_cost_var == sum(cast_day_starts) - character_count)
     model.Add(sequence_cost_var == (sum(inversions) if inversions else 0))
 
+    time_at_position = {
+        (category, k): model.NewBoolVar(f"time_{category}_{k}")
+        for category in time_of_day_values
+        for k in range(n)
+    }
+    nonempty_time_at_position = []
+    for k in range(n):
+        category_flags = []
+        for category in time_of_day_values:
+            flag = time_at_position[(category, k)]
+            indexes = [
+                i for i, scene_category in enumerate(time_of_day_categories)
+                if scene_category == category
+            ]
+            model.Add(flag == sum(q[(i, k)] for i in indexes))
+            category_flags.append(flag)
+        nonempty = model.NewBoolVar(f"time_nonempty_{k}")
+        model.Add(nonempty == sum(category_flags))
+        nonempty_time_at_position.append(nonempty)
+
+    time_changes = []
+    for first_position in range(n):
+        for next_position in range(first_position + 1, n):
+            empty_between = [
+                nonempty_time_at_position[position].Not()
+                for position in range(first_position + 1, next_position)
+            ]
+            for first_category in time_of_day_values:
+                for next_category in time_of_day_values:
+                    if first_category == next_category:
+                        continue
+                    change = model.NewBoolVar(
+                        f"time_change_{first_position}_{next_position}"
+                        f"_{first_category}_{next_category}"
+                    )
+                    literals = [
+                        time_at_position[(first_category, first_position)],
+                        time_at_position[(next_category, next_position)],
+                        *empty_between,
+                    ]
+                    model.AddBoolAnd(literals).OnlyEnforceIf(change)
+                    for literal in literals:
+                        model.Add(change <= literal)
+                    model.AddBoolOr(
+                        [change, *(literal.Not() for literal in literals)]
+                    )
+                    time_changes.append(change)
+    model.Add(time_of_day_cost_var == sum(time_changes))
+
     days_expr = sum(y[d] for d in range(n))
 
     scale = 1000
     location_coeff = int(round(float(location_weight) * scale))
     cast_coeff = int(round(float(cast_weight) * scale))
     sequence_coeff = int(round(float(sequence_weight) * scale))
+    time_of_day_coeff = int(round(float(time_of_day_weight) * scale))
 
     weighted_score = (
         location_coeff * location_cost_var
         + cast_coeff * cast_cost_var
         + sequence_coeff * sequence_cost_var
+        + time_of_day_coeff * time_of_day_cost_var
     )
 
     # Day count only breaks ties: it is strictly smaller than one score unit.
@@ -405,11 +471,13 @@ def generate_cp_sat_schedule(
         "location_cost": float(solver.Value(location_cost_var)),
         "cast_cost": float(solver.Value(cast_cost_var)),
         "sequence_cost": float(solver.Value(sequence_cost_var)),
+        "time_of_day_cost": float(solver.Value(time_of_day_cost_var)),
     }
     costs["total_score"] = (
         float(location_weight) * costs["location_cost"]
         + float(cast_weight) * costs["cast_cost"]
         + float(sequence_weight) * costs["sequence_cost"]
+        + float(time_of_day_weight) * costs["time_of_day_cost"]
     )
 
     reference = score_schedule(
@@ -418,8 +486,9 @@ def generate_cp_sat_schedule(
         location_weight=location_weight,
         cast_weight=cast_weight,
         sequence_weight=sequence_weight,
+        time_of_day_weight=time_of_day_weight,
     )
-    for key in ("location_cost", "cast_cost", "sequence_cost"):
+    for key in ("location_cost", "cast_cost", "sequence_cost", "time_of_day_cost"):
         if costs[key] != reference[key]:
             raise RuntimeError(
                 f"CP-SAT {key} {costs[key]} does not match score_schedule {reference[key]}"
@@ -437,5 +506,6 @@ def generate_cp_sat_schedule(
             "location_cost": costs["location_cost"],
             "cast_cost": costs["cast_cost"],
             "sequence_cost": costs["sequence_cost"],
+            "time_of_day_cost": costs["time_of_day_cost"],
         },
     }

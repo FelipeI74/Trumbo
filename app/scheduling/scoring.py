@@ -34,12 +34,18 @@ def _scene_cast(scene: dict[str, Any]) -> list[Any]:
     return scene.get("characters") or []
 
 
+def _time_of_day_category(value: Any) -> str:
+    normalized = str(value or "").strip().casefold()
+    return "dia" if normalized in {"dia", "día"} else normalized
+
+
 def score_schedule(
     days: list[dict[str, Any]],
     scenes: list[dict[str, Any]],
     location_weight: float = 1.0,
     cast_weight: float = 1.0,
     sequence_weight: float = 1.0,
+    time_of_day_weight: float = 0.0,
 ) -> dict[str, float]:
     """Score a schedule. Lower score means better plan."""
 
@@ -117,10 +123,24 @@ def score_schedule(
 
     sequence_cost = float(_count_inversions(sequence_keys))
 
+    previous_time_of_day: str | None = None
+    time_of_day_changes = 0
+    for scene_id in ordered_scene_ids:
+        category = _time_of_day_category(
+            scene_by_id.get(scene_id, {}).get("time_of_day")
+        )
+        if not category:
+            continue
+        if previous_time_of_day is not None and category != previous_time_of_day:
+            time_of_day_changes += 1
+        previous_time_of_day = category
+    time_of_day_cost = float(time_of_day_changes)
+
     total_score = (
         float(location_weight) * location_cost
         + float(cast_weight) * cast_cost
         + float(sequence_weight) * sequence_cost
+        + float(time_of_day_weight) * time_of_day_cost
     )
 
     return {
@@ -128,4 +148,5 @@ def score_schedule(
         "location_cost": location_cost,
         "cast_cost": cast_cost,
         "sequence_cost": sequence_cost,
+        "time_of_day_cost": time_of_day_cost,
     }

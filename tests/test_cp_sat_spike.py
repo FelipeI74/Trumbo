@@ -294,6 +294,33 @@ class CpSatSpikeTests(unittest.TestCase):
                 location_unavailability={"A": [1]},
             )
 
+    def test_time_of_day_cost_matches_scoring(self):
+        scenes = [
+            {"scene_id": 1, "script_order": 1, "location": "A", "runtime_seconds": 100, "time_of_day": "DÍA"},
+            {"scene_id": 2, "script_order": 2, "location": "B", "runtime_seconds": 100, "time_of_day": ""},
+            {"scene_id": 3, "script_order": 3, "location": "C", "runtime_seconds": 100, "time_of_day": "NOCHE"},
+        ]
+
+        schedule = generate_cp_sat_schedule(
+            scenes,
+            shoot_rate_seconds=300,
+            location_weight=0.0,
+            cast_weight=0.0,
+            sequence_weight=0.0,
+            time_of_day_weight=1.0,
+        )
+        reference = score_schedule(
+            schedule["days"],
+            scenes,
+            location_weight=0.0,
+            cast_weight=0.0,
+            sequence_weight=0.0,
+            time_of_day_weight=1.0,
+        )
+
+        self.assertEqual(schedule["costs"]["time_of_day_cost"], reference["time_of_day_cost"])
+        self.assertEqual(schedule["costs"]["total_score"], reference["total_score"])
+
     def test_empty_scenes_reports_no_solver_diagnostics(self):
         schedule = generate_cp_sat_schedule([], shoot_rate_seconds=240)
 
