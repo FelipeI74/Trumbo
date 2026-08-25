@@ -20,7 +20,7 @@ from .document_projection import (
 )
 from .document_store import sync_project_document_from_scenes
 from .domain import estimate_runtime, format_seconds, screenplay_summary
-from .scheduling.simple_scheduler import generate_schedule
+from .scheduling.optimizer import optimize_schedule
 from .services.engine_analysis_adapter import analyze_scene_with_engine
 from .schemas import (
     BreakdownItemCreate,
@@ -958,7 +958,7 @@ def get_project_schedule_preview(
         project_id
     )
 
-    return generate_schedule(
+    return optimize_schedule(
         scheduling_input["scenes"],
         shoot_rate_seconds=shoot_rate_seconds,
     )

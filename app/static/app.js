@@ -21,6 +21,7 @@ const state = {
   reconcileTimer: null,
   pendingReconcile: false,
   lineTypeSelectorPointerDown: false,
+  activeMainView: "guion",
 };
 
 const LINE_TYPES = [
@@ -160,6 +161,76 @@ function formatSeconds(total = 0) {
   const seconds = Math.floor(safeTotal % 60).toString().padStart(2, "0");
 
   return `${minutes}:${seconds}`;
+}
+
+function scheduleSceneLookup(schedulingInput) {
+  return new Map(
+    (schedulingInput?.scenes || []).map(scene => [scene.scene_id, scene])
+  );
+}
+
+function renderSchedule(schedule, schedulingInput) {
+  const sceneById = scheduleSceneLookup(schedulingInput);
+  const days = schedule?.best_schedule?.days || [];
+  $("#scheduleDays").innerHTML = days.length
+    ? days.map(day => `
+        <article class="schedule-day">
+          <div class="schedule-day-header">
+            <h2>Jornada ${day.day}</h2>
+            <span>Carga total <strong>${formatSeconds(day.runtime_seconds)}</strong></span>
+          </div>
+          <div class="schedule-scenes">
+            ${(day.scene_ids || []).map(sceneId => {
+              const scene = sceneById.get(sceneId) || {};
+              const cast = scene.scene_cast || scene.characters || [];
+              return `
+                <div class="schedule-scene">
+                  <span class="schedule-scene-number">${escapeHtml(scene.scene_number ?? sceneId)}</span>
+                  <span class="schedule-scene-heading">${escapeHtml(scene.heading || scene.location || "Sin locación")}</span>
+                  <span class="schedule-scene-int-ext">${escapeHtml(scene.int_ext || "—")}</span>
+                  <span class="schedule-scene-time">${escapeHtml(scene.time_of_day || "—")}</span>
+                  <span class="schedule-scene-runtime">${formatSeconds(scene.runtime_seconds)}</span>
+                  <span class="schedule-scene-cast">${escapeHtml(cast.join(", ") || "Sin elenco")}</span>
+                </div>
+              `;
+            }).join("")}
+          </div>
+          <div class="schedule-day-end">FIN JORNADA</div>
+        </article>
+      `).join("")
+    : '<div class="empty">No hay jornadas para este proyecto.</div>';
+}
+
+async function loadSchedulePreview() {
+  if (!state.project) {
+    return;
+  }
+
+  const status = $("#scheduleStatus");
+  status.textContent = "Generando plan...";
+
+  try {
+    const [schedule, schedulingInput] = await Promise.all([
+      request(`/api/projects/${state.project.id}/schedule-preview`),
+      request(`/api/projects/${state.project.id}/scheduling-input`),
+    ]);
+    renderSchedule(schedule, schedulingInput);
+    status.textContent = "Plan actualizado";
+  } catch (error) {
+    console.error(error);
+    status.textContent = "No fue posible generar el plan.";
+  }
+}
+
+function setMainView(view) {
+  state.activeMainView = view;
+  $("#screenplayViewport").hidden = view !== "guion";
+  $("#scheduleView").hidden = view !== "plan-rodaje";
+  $("#characterDetailView").hidden = true;
+
+  if (view === "plan-rodaje") {
+    loadSchedulePreview();
+  }
 }
 
 async function request(url, options = {}) {
@@ -3743,9 +3814,6 @@ async function loadProject(
     state.scenes[0]?.id ??
     null;
 
-  $("#screenplayViewport")
-    .hidden = false;
-
   $("#characterDetailView")
     .hidden = true;
 
@@ -3798,6 +3866,8 @@ async function loadProject(
   await collapseLeadingHeadinglessScene();
 
   await updateProjectRuntime();
+
+  setMainView(state.activeMainView);
 }
 
 function setSaveState(
@@ -4019,7 +4089,9 @@ function setupEvents() {
           searchRow.hidden = false;
           footer.hidden = false;
           $("#characterDetailView").hidden = true;
-          $("#screenplayViewport").hidden = false;
+          if (state.activeMainView === "guion") {
+            $("#screenplayViewport").hidden = false;
+          }
           renderSceneList();
         }
       }
@@ -4130,6 +4202,12 @@ function setupEvents() {
     .addEventListener(
       "click",
       exportProjectPdf
+    );
+
+  $("#generateScheduleButton")
+    .addEventListener(
+      "click",
+      loadSchedulePreview
     );
 
   $("#breakdownFilterCategory")
@@ -4299,13 +4377,14 @@ loadProjects()
     );
   });
 
-// Navegación principal — pestaña activa
+// Navegación principal
 {
   const mainNavTabs = document.querySelectorAll(".main-nav-tab");
   mainNavTabs.forEach(tab => {
     tab.addEventListener("click", () => {
       mainNavTabs.forEach(t => t.classList.remove("active"));
       tab.classList.add("active");
+      setMainView(tab.dataset.view);
     });
   });
 }

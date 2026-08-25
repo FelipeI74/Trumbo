@@ -445,6 +445,144 @@ select:focus-visible,
   scroll-behavior: smooth;
 }
 
+.schedule-view {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 28px clamp(18px, 5vw, 64px) 48px;
+  background: #1f2225;
+}
+
+.schedule-header,
+.schedule-day-header,
+.schedule-scene-title,
+.schedule-scene-meta {
+  display: flex;
+  align-items: center;
+}
+
+.schedule-header {
+  justify-content: space-between;
+  gap: 24px;
+  max-width: 980px;
+  margin: 0 auto 24px;
+}
+
+.schedule-eyebrow {
+  color: var(--accent);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+}
+
+.schedule-header h1 {
+  margin: 6px 0 4px;
+  font-size: 28px;
+}
+
+.schedule-status {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.schedule-status {
+  max-width: 980px;
+  margin: 0 auto 12px;
+}
+
+.schedule-days {
+  display: grid;
+  gap: 12px;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.schedule-day {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.schedule-day-header {
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  background: #202428;
+}
+
+.schedule-day-header h2 {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+}
+
+.schedule-day-header strong {
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.schedule-scenes {
+  display: grid;
+}
+
+.schedule-scene {
+  display: grid;
+  grid-template-columns: 38px minmax(180px, 1.8fr) 56px 92px 56px minmax(120px, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+}
+
+.schedule-scene:last-child {
+  border-bottom: 0;
+}
+
+.schedule-scene-number {
+  color: var(--accent);
+  font-weight: 700;
+  text-align: center;
+}
+
+.schedule-scene-heading {
+  overflow: hidden;
+  color: #e3e5e6;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schedule-scene-int-ext,
+.schedule-scene-time,
+.schedule-scene-runtime {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.schedule-scene-runtime {
+  color: var(--accent);
+  text-align: right;
+}
+
+.schedule-scene-cast {
+  overflow: hidden;
+  color: #c8cdd2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schedule-day-end {
+  padding: 7px 12px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-align: right;
+}
+
 
 /* ======================================
    HOJA CONTINUA DE GUION
@@ -939,6 +1077,25 @@ body.inspector-collapsed .inspector {
 
   .screenplay-viewport {
     padding: 12px 10px 34px;
+  }
+
+  .schedule-view {
+    padding: 20px 12px 32px;
+  }
+
+  .schedule-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .schedule-scene {
+    grid-template-columns: 28px minmax(0, 1fr) 52px 68px 48px;
+    gap: 7px;
+  }
+
+  .schedule-scene-cast {
+    grid-column: 2 / -1;
+    grid-row: 2;
   }
 
   .screenplay-editor {

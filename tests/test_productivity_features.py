@@ -144,6 +144,39 @@ class ProductivityFeaturesTests(unittest.TestCase):
             self.assertEqual(scheduled_scene["scene_cast"], ["MARTA", "PEDRO"])
             self.assertEqual(scheduled_scene["resources"], ["Llave"])
 
+    def test_schedule_preview_uses_productive_optimizer_contract(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+
+            project = main.create_project(
+                ProjectCreate(title="Schedule preview", format="feature")
+            )
+            main.create_scene(
+                project["id"],
+                SceneCreate(
+                    heading="INT. CASA - DIA",
+                    body="MARTA entra.",
+                    semantic_lines=[
+                        {"type": "heading", "text": "INT. CASA - DIA"},
+                        {"type": "character", "text": "MARTA"},
+                        {"type": "dialogue", "text": "Hola."},
+                    ],
+                ),
+            )
+            optimizer_result = {
+                "best_schedule": {"days": []},
+                "score": {"total_score": 0.0},
+                "candidates_evaluated": 0,
+                "engine": "cp_sat",
+                "fallback_used": False,
+            }
+
+            with patch("app.main.optimize_schedule", return_value=optimizer_result) as optimizer:
+                result = main.get_project_schedule_preview(project["id"])
+
+            optimizer.assert_called_once()
+            self.assertEqual(result, optimizer_result)
+
     def test_project_pdf_export_returns_stream(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             self._prepare_empty_database(tmpdir)

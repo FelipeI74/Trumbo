@@ -10,6 +10,9 @@ class FrontendLoadProjectSwitchTests(unittest.TestCase):
             Path(__file__).resolve().parents[1] / "app" / "static" / "app.js"
         )
         cls.source = cls.app_js_path.read_text(encoding="utf-8")
+        cls.index_html = (
+            Path(__file__).resolve().parents[1] / "app" / "static" / "index.html"
+        ).read_text(encoding="utf-8")
 
     def _load_project_body(self) -> str:
         marker = "async function loadProject("
@@ -97,6 +100,41 @@ class FrontendLoadProjectSwitchTests(unittest.TestCase):
         self.assertRegex(
             body,
             r"state\.activeSceneId\s*=\s*\n\s*state\.scenes\[0\]\?\.id\s*\?\?\s*\n\s*null",
+        )
+
+    def test_plan_de_rodaje_carga_y_renderiza_schedule_preview(self):
+        self.assertIn("id=\"scheduleView\"", self.index_html)
+        self.assertIn("id=\"generateScheduleButton\"", self.index_html)
+        self.assertNotIn("scheduleMetadata", self.index_html)
+        self.assertIn("/api/projects/${state.project.id}/schedule-preview", self.source)
+        self.assertIn("function renderSchedule(schedule, schedulingInput)", self.source)
+        self.assertIn("function loadSchedulePreview()", self.source)
+        self.assertIn("setMainView(tab.dataset.view)", self.source)
+        self.assertIn("FIN JORNADA", self.source)
+        self.assertIn("schedule-scene-cast", self.source)
+        self.assertIn("schedule-scene-time", self.source)
+
+    def test_carga_de_proyecto_reaplica_la_vista_principal_activa(self):
+        body = self._load_project_body()
+
+        self.assertIn("setMainView(state.activeMainView);", body)
+        self.assertNotIn('$("#screenplayViewport")', body)
+        self.assertNotIn('$("#scheduleView")', body)
+
+    def test_sidebar_escenas_no_muestra_guion_en_plan_de_rodaje(self):
+        start = self.source.find('if (view === "scenes")')
+        self.assertNotEqual(start, -1, "No se encontró el handler de Escenas")
+
+        body = self.source[start:]
+        end = body.find("      }\n    );")
+        self.assertNotEqual(end, -1, "No se pudo delimitar el handler de sidebar")
+        body = body[:end]
+
+        self.assertIn('if (state.activeMainView === "guion")', body)
+        self.assertIn('$("#screenplayViewport").hidden = false;', body)
+        self.assertNotIn(
+            '$("#screenplayViewport").hidden = false;\n          renderSceneList();',
+            body,
         )
 
 
