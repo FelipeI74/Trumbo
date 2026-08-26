@@ -490,6 +490,22 @@ select:focus-visible,
   margin: 0 auto 12px;
 }
 
+.schedule-columns,
+.schedule-scene {
+  display: grid;
+  grid-template-columns: 38px minmax(150px, 1.4fr) minmax(110px, 1fr) 56px 92px 56px minmax(120px, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.schedule-columns {
+  padding: 0 12px 6px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
 .schedule-days {
   display: grid;
   gap: 12px;
@@ -527,10 +543,6 @@ select:focus-visible,
 }
 
 .schedule-scene {
-  display: grid;
-  grid-template-columns: 38px minmax(180px, 1.8fr) 56px 92px 56px minmax(120px, 1fr);
-  align-items: center;
-  gap: 10px;
   min-height: 38px;
   padding: 7px 12px;
   border-bottom: 1px solid var(--line);
@@ -551,6 +563,13 @@ select:focus-visible,
   overflow: hidden;
   color: #e3e5e6;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schedule-scene-sublocation {
+  overflow: hidden;
+  color: var(--muted);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1093,9 +1112,29 @@ body.inspector-collapsed .inspector {
     gap: 7px;
   }
 
-  .schedule-scene-cast {
+  .schedule-columns {
+    grid-template-columns: 28px minmax(0, 1fr) 52px 68px 48px;
+    gap: 7px;
+  }
+
+  .schedule-columns span:nth-child(3) {
     grid-column: 2 / -1;
     grid-row: 2;
+  }
+
+  .schedule-columns span:last-child {
+    grid-column: 2 / -1;
+    grid-row: 3;
+  }
+
+  .schedule-scene-sublocation {
+    grid-column: 2 / -1;
+    grid-row: 2;
+  }
+
+  .schedule-scene-cast {
+    grid-column: 2 / -1;
+    grid-row: 3;
   }
 
   .screenplay-editor {

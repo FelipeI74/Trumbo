@@ -177,7 +177,7 @@ function renderSchedule(schedule, schedulingInput) {
         <article class="schedule-day">
           <div class="schedule-day-header">
             <h2>Jornada ${day.day}</h2>
-            <span>Carga total <strong>${formatSeconds(day.runtime_seconds)}</strong></span>
+            <span>Duración guion <strong>${formatSeconds(day.runtime_seconds)}</strong></span>
           </div>
           <div class="schedule-scenes">
             ${(day.scene_ids || []).map(sceneId => {
@@ -187,6 +187,7 @@ function renderSchedule(schedule, schedulingInput) {
                 <div class="schedule-scene">
                   <span class="schedule-scene-number">${escapeHtml(scene.scene_number ?? sceneId)}</span>
                   <span class="schedule-scene-heading">${escapeHtml(scene.heading || scene.location || "Sin locación")}</span>
+                  <span class="schedule-scene-sublocation">${escapeHtml(scene.sublocation || "—")}</span>
                   <span class="schedule-scene-int-ext">${escapeHtml(scene.int_ext || "—")}</span>
                   <span class="schedule-scene-time">${escapeHtml(scene.time_of_day || "—")}</span>
                   <span class="schedule-scene-runtime">${formatSeconds(scene.runtime_seconds)}</span>
@@ -226,6 +227,9 @@ function setMainView(view) {
   state.activeMainView = view;
   $("#screenplayViewport").hidden = view !== "guion";
   $("#scheduleView").hidden = view !== "plan-rodaje";
+  $(".editor-toolbar").hidden = view === "plan-rodaje";
+  $(".scene-footer").hidden = view === "plan-rodaje";
+  $(".inspector").hidden = view === "plan-rodaje";
   $("#characterDetailView").hidden = true;
 
   if (view === "plan-rodaje") {

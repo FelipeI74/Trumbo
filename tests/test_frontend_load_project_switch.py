@@ -106,6 +106,13 @@ class FrontendLoadProjectSwitchTests(unittest.TestCase):
         self.assertIn("id=\"scheduleView\"", self.index_html)
         self.assertIn("id=\"generateScheduleButton\"", self.index_html)
         self.assertNotIn("scheduleMetadata", self.index_html)
+        self.assertIn("ESC.", self.index_html)
+        self.assertIn("LOCACIÓN", self.index_html)
+        self.assertIn("SUBLOCACIÓN", self.index_html)
+        self.assertIn("INT/EXT", self.index_html)
+        self.assertIn("LUZ", self.index_html)
+        self.assertIn("DURACIÓN", self.index_html)
+        self.assertIn("ELENCO", self.index_html)
         self.assertIn("/api/projects/${state.project.id}/schedule-preview", self.source)
         self.assertIn("function renderSchedule(schedule, schedulingInput)", self.source)
         self.assertIn("function loadSchedulePreview()", self.source)
@@ -113,6 +120,21 @@ class FrontendLoadProjectSwitchTests(unittest.TestCase):
         self.assertIn("FIN JORNADA", self.source)
         self.assertIn("schedule-scene-cast", self.source)
         self.assertIn("schedule-scene-time", self.source)
+        self.assertIn("schedule-scene-sublocation", self.source)
+        self.assertIn("scene.sublocation", self.source)
+        self.assertIn("Duración guion", self.source)
+
+    def test_plan_de_rodaje_oculta_inspector_y_lo_restaura_en_guion(self):
+        start = self.source.find("function setMainView(view) {")
+        self.assertNotEqual(start, -1, "No se encontró setMainView en app.js")
+
+        end = self.source.find("\n}", start)
+        self.assertNotEqual(end, -1, "No se pudo delimitar setMainView")
+
+        body = self.source[start:end]
+
+        self.assertIn('$(".inspector").hidden = view === "plan-rodaje";', body)
+        self.assertIn('$(".editor-toolbar").hidden = view === "plan-rodaje";', self.source)
 
     def test_carga_de_proyecto_reaplica_la_vista_principal_activa(self):
         body = self._load_project_body()
