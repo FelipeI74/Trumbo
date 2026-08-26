@@ -510,7 +510,102 @@
 
   </main>
 
+  </main>
 
+
+  <div
+    id="storyboardOverlay"
+    class="storyboard-overlay"
+    hidden
+  >
+    <div class="storyboard-shell">
+
+      <header class="storyboard-header">
+        <div>
+          <span class="storyboard-eyebrow">STORYBOARD</span>
+          <h2 id="storyboardSceneTitle">Escena</h2>
+        </div>
+
+        <div class="storyboard-header-actions">
+          <span id="storyboardSaveState">Guardado</span>
+
+          <button
+            id="closeStoryboardButton"
+            type="button"
+          >
+            Cerrar
+          </button>
+        </div>
+      </header>
+
+      <div class="storyboard-layout">
+
+        <aside class="storyboard-shots">
+          <button
+            id="newShotButton"
+            type="button"
+          >
+            + Nuevo plano
+          </button>
+
+          <div id="storyboardShotList"></div>
+        </aside>
+
+        <section class="storyboard-canvas-area">
+          <div class="storyboard-canvas-placeholder">
+            Canvas 16:9
+          </div>
+        </section>
+
+        <aside class="storyboard-inspector">
+
+          <label>
+            Tipo de plano
+            <input
+              id="shotTypeInput"
+              type="text"
+            >
+          </label>
+
+          <label>
+            Movimiento
+            <input
+              id="shotMovementInput"
+              type="text"
+            >
+          </label>
+
+          <label>
+            Descripción
+            <textarea
+              id="shotDescriptionInput"
+            ></textarea>
+          </label>
+
+          <label>
+            Notas
+            <textarea
+              id="shotNotesInput"
+            ></textarea>
+          </label>
+
+        </aside>
+
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- LISTA DE AUTOCOMPLETADO -->
+
+  <div
+    id="autocompleteMenu"
+    class="autocomplete-menu"
+    hidden
+  ></div>
+
+  
   <!-- LISTA DE AUTOCOMPLETADO -->
 
   <div

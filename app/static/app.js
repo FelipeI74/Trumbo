@@ -688,6 +688,32 @@ function createSceneNode(scene) {
   section.dataset.sceneNumber =
     String(scene.scene_number);
 
+const storyboardButton = document.createElement(
+  "button"
+);
+
+storyboardButton.type = "button";
+storyboardButton.className =
+  "scene-storyboard-button";
+storyboardButton.textContent = "Storyboard";
+storyboardButton.title =
+  "Abrir Storyboard de esta escena";
+storyboardButton.dataset.sceneId =
+  String(scene.id);
+  storyboardButton.addEventListener(
+  "click",
+  event => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    openStoryboard(scene.id);
+  }
+);
+
+section.appendChild(
+  storyboardButton
+);
+
   const semanticLines =
     sceneToSemanticLines(scene);
 
@@ -2006,6 +2032,33 @@ async function reconcileScenesFromDocument() {
           String(
             scene.scene_number
           );
+         const storyboardButton = document.createElement(
+  "button"
+);
+
+storyboardButton.type = "button";
+storyboardButton.className =
+  "scene-storyboard-button";
+storyboardButton.textContent = "Storyboard";
+storyboardButton.title =
+  "Abrir Storyboard de esta escena";
+storyboardButton.dataset.sceneId =
+  String(scene.id);
+
+storyboardButton.addEventListener(
+  "click",
+  event => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    openStoryboard(scene.id);
+  }
+);
+
+section.appendChild(
+  storyboardButton
+);
+
 
         chunk.lines.forEach((line, lineIndex) => {
           normalizeLineForReconciliation(
@@ -4392,3 +4445,67 @@ loadProjects()
     });
   });
 }
+let storyboardSceneId = null;
+
+function openStoryboard(sceneId) {
+  const overlay =
+    document.getElementById("storyboardOverlay");
+
+  const title =
+    document.getElementById("storyboardSceneTitle");
+
+  if (!overlay) {
+    return;
+  }
+
+  storyboardSceneId = Number(sceneId);
+
+  const scene = state.scenes.find(
+    item => Number(item.id) === storyboardSceneId
+  );
+
+  if (title) {
+    title.textContent = scene
+      ? `Escena ${scene.scene_number}`
+      : "Escena";
+  }
+
+  overlay.hidden = false;
+}
+
+function closeStoryboard() {
+  const overlay =
+    document.getElementById("storyboardOverlay");
+
+  if (!overlay) {
+    return;
+  }
+
+  overlay.hidden = true;
+  storyboardSceneId = null;
+}
+
+document.addEventListener("click", event => {
+  const storyboardButton =
+    event.target.closest(".scene-storyboard-button");
+
+  if (storyboardButton) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    openStoryboard(
+      storyboardButton.dataset.sceneId
+    );
+
+    return;
+  }
+
+  if (
+    event.target.closest("#closeStoryboardButton")
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    closeStoryboard();
+  }
+}, true);

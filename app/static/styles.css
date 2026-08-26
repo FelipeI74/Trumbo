@@ -1163,3 +1163,150 @@ body.inspector-collapsed .inspector {
     margin-left: 14%;
   }
 }
+.scene-storyboard-button {
+  position: absolute;
+  top: 0;
+  right: 4px;
+  opacity: 1;
+  font-size: 11px;
+  padding: 4px 7px;
+  border: 1px solid #3a3d40;
+  border-radius: 4px;
+  background: #1a1d20;
+  color: #c9c9c9;
+  cursor: pointer;
+  z-index: 20;
+  pointer-events: auto;
+}
+
+.script-scene:hover .scene-storyboard-button,
+.script-scene.active .scene-storyboard-button {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* ======================================
+   STORYBOARD
+====================================== */
+
+.storyboard-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  padding: 24px;
+  background: rgba(8, 10, 12, 0.88);
+}
+
+.storyboard-overlay[hidden] {
+  display: none;
+}
+
+.storyboard-shell {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #15181b;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+}
+
+.storyboard-header {
+  min-height: 68px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  background: #1a1d20;
+}
+
+.storyboard-header h2 {
+  margin: 3px 0 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.storyboard-eyebrow {
+  color: var(--accent);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+}
+
+.storyboard-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#storyboardSaveState {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.storyboard-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 280px;
+}
+
+.storyboard-shots {
+  padding: 14px;
+  overflow: auto;
+  border-right: 1px solid var(--line);
+  background: #171a1d;
+}
+
+#newShotButton {
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+.storyboard-canvas-area {
+  min-width: 0;
+  padding: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  background: #202326;
+}
+
+.storyboard-canvas-placeholder {
+  width: min(900px, 100%);
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #555b60;
+  background: #111315;
+  color: #737a80;
+  font-size: 13px;
+}
+
+.storyboard-inspector {
+  padding: 16px;
+  overflow: auto;
+  border-left: 1px solid var(--line);
+  background: #171a1d;
+}
+
+.storyboard-inspector label {
+  display: block;
+  margin-bottom: 16px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.storyboard-inspector input,
+.storyboard-inspector textarea {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.storyboard-inspector textarea {
+  min-height: 90px;
+  resize: vertical;
+}
