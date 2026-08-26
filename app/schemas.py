@@ -89,3 +89,38 @@ class BreakdownItemUpdate(BaseModel):
         default=None,
         min_length=1,
     )
+
+
+class ShotBase(BaseModel):
+    shot_type: str | None = "PM"
+    camera_movement: str | None = "Fijo"
+    description: str | None = ""
+    notes: str | None = ""
+
+
+class ShotCreate(ShotBase):
+    pass
+
+
+class ShotUpdate(BaseModel):
+    shot_type: str | None = None
+    camera_movement: str | None = None
+    description: str | None = None
+    notes: str | None = None
+
+
+class ShotReorderRequest(BaseModel):
+    shot_ids: list[str] = Field(default_factory=list)
+
+
+class ShotOut(ShotBase):
+    id: str
+    project_id: int
+    scene_id: int
+    sort_order: int
+    storage_key: str
+    has_image: bool
+    image_url: str | None = None
+    is_archived: int
+    created_at: str
+    updated_at: str

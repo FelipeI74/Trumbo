@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from collections import Counter
 import csv
+from datetime import datetime, timezone
 from io import BytesIO, StringIO
 import json
 from pathlib import Path
 import re
-from typing import Any
+from typing import Any, List
+import uuid
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse
 from fastapi.responses import Response
 from fastapi.responses import StreamingResponse
@@ -22,6 +24,7 @@ from .document_store import sync_project_document_from_scenes
 from .domain import estimate_runtime, format_seconds, screenplay_summary
 from .scheduling.optimizer import optimize_schedule
 from .services.engine_analysis_adapter import analyze_scene_with_engine
+from .storage import SecurityError, StoryboardStorage
 from .schemas import (
     BreakdownItemCreate,
     BreakdownItemUpdate,
@@ -30,6 +33,10 @@ from .schemas import (
     ProjectUpdate,
     SceneCreate,
     SceneUpdate,
+    ShotCreate,
+    ShotOut,
+    ShotReorderRequest,
+    ShotUpdate,
 )
 
 
@@ -38,6 +45,44 @@ app = FastAPI(
     version="0.3.1",
 )
 
+storage_service = StoryboardStorage()
+
+def get_utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _validate_project_and_scene(
+    connection,
+    project_id: int,
+    scene_id: int,
+) -> None:
+    project = connection.execute(
+        "SELECT id FROM projects WHERE id = ?",
+        (project_id,),
+    ).fetchone()
+
+    if project is None:
+        raise HTTPException(
+            404,
+            f"Proyecto {project_id} no existe",
+        )
+
+    scene = connection.execute(
+        """
+        SELECT id
+        FROM scenes
+        WHERE id = ?
+          AND project_id = ?
+        """,
+        (scene_id, project_id),
+    ).fetchone()
+
+    if scene is None:
+        raise HTTPException(
+            404,
+            f"Escena {scene_id} no encontrada en el proyecto {project_id}",
+        )
+    
 STATIC_DIR = (
     Path(__file__)
     .resolve()
@@ -2159,4 +2204,443 @@ def project_runtime(
                 f"{seconds:02d}"
             ),
         }
-    
+
+
+@app.get(
+    "/api/projects/{project_id}/scenes/{scene_id}/shots",
+    response_model=List[ShotOut],
+)
+def list_shots(
+    project_id: int,
+    scene_id: int,
+):
+    with connect() as connection:
+        _validate_project_and_scene(
+            connection,
+            project_id,
+            scene_id,
+        )
+
+        shot_rows = connection.execute(
+            """
+            SELECT *
+            FROM shots
+            WHERE project_id = ?
+              AND scene_id = ?
+              AND is_archived = 0
+            ORDER BY sort_order, created_at
+            """,
+            (project_id, scene_id),
+        ).fetchall()
+
+        return [
+            {
+                **dict(row),
+                "has_image": bool(row["storage_key"]),
+                "image_url": (
+                    f"/api/shots/{row['id']}/image"
+                    if row["storage_key"]
+                    else None
+                ),
+            }
+            for row in shot_rows
+        ]
+@app.post(
+    "/api/projects/{project_id}/scenes/{scene_id}/shots",
+    response_model=ShotOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_shot(
+    project_id: int,
+    scene_id: int,
+    payload: ShotCreate,
+):
+    with connect() as connection:
+        _validate_project_and_scene(
+            connection,
+            project_id,
+            scene_id,
+        )
+
+        next_order = connection.execute(
+            """
+            SELECT COALESCE(MAX(sort_order), 0) + 1
+            FROM shots
+            WHERE project_id = ?
+              AND scene_id = ?
+              AND is_archived = 0
+            """,
+            (project_id, scene_id),
+        ).fetchone()[0]
+
+        shot_id = str(uuid.uuid4())
+        now = get_utc_now_iso()
+
+        connection.execute(
+            """
+            INSERT INTO shots (
+                id,
+                project_id,
+                scene_id,
+                sort_order,
+                shot_type,
+                camera_movement,
+                description,
+                notes,
+                storage_key,
+                is_archived,
+                created_at,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', 0, ?, ?)
+            """,
+            (
+                shot_id,
+                project_id,
+                scene_id,
+                next_order,
+                payload.shot_type,
+                payload.camera_movement,
+                payload.description,
+                payload.notes,
+                now,
+                now,
+            ),
+        )
+        connection.commit()
+
+        return {
+            "id": shot_id,
+            "project_id": project_id,
+            "scene_id": scene_id,
+            "sort_order": next_order,
+            "shot_type": payload.shot_type,
+            "camera_movement": payload.camera_movement,
+            "description": payload.description,
+            "notes": payload.notes,
+            "storage_key": "",
+            "has_image": False,
+            "image_url": None,
+            "is_archived": 0,
+            "created_at": now,
+            "updated_at": now,
+        }
+@app.patch(
+    "/api/projects/{project_id}/shots/{shot_id}",
+    response_model=ShotOut,
+)
+def update_shot_metadata(
+    project_id: int,
+    shot_id: str,
+    payload: ShotUpdate,
+):
+    with connect() as connection:
+        row = connection.execute(
+            """
+            SELECT *
+            FROM shots
+            WHERE id = ?
+              AND project_id = ?
+              AND is_archived = 0
+            """,
+            (shot_id, project_id),
+        ).fetchone()
+
+        if row is None:
+            raise HTTPException(
+                404,
+                "Shot no encontrado",
+            )
+
+        shot = dict(row)
+        updates = []
+        values = []
+
+        for field in (
+            "shot_type",
+            "camera_movement",
+            "description",
+            "notes",
+        ):
+            value = getattr(payload, field)
+            if value is not None:
+                updates.append(f"{field} = ?")
+                values.append(value)
+                shot[field] = value
+
+        if updates:
+            now = get_utc_now_iso()
+            updates.append("updated_at = ?")
+            values.append(now)
+            shot["updated_at"] = now
+
+            values.extend([shot_id, project_id])
+
+            connection.execute(
+                f"""
+                UPDATE shots
+                SET {", ".join(updates)}
+                WHERE id = ?
+                  AND project_id = ?
+                """,
+                values,
+            )
+            connection.commit()
+
+        shot["has_image"] = bool(shot["storage_key"])
+        shot["image_url"] = (
+            f"/api/shots/{shot_id}/image"
+            if shot["storage_key"]
+            else None
+        )
+
+        return shot
+@app.put(
+    "/api/projects/{project_id}/shots/{shot_id}/image"
+)
+async def upload_shot_image(
+    project_id: int,
+    shot_id: str,
+    request: Request,
+):
+    with connect() as connection:
+        row = connection.execute(
+            """
+            SELECT storage_key
+            FROM shots
+            WHERE id = ?
+              AND project_id = ?
+              AND is_archived = 0
+            """,
+            (shot_id, project_id),
+        ).fetchone()
+
+        if row is None:
+            raise HTTPException(
+                404,
+                "Shot no encontrado",
+            )
+
+        image_bytes = await request.body()
+
+        if not image_bytes:
+            raise HTTPException(
+                400,
+                "Cuerpo de petición vacío",
+            )
+
+        storage_key = (
+            f"{project_id}/shots/"
+            f"{shot_id}.png"
+        )
+
+        try:
+            storage_service.save_image(
+                storage_key,
+                image_bytes,
+            )
+        except SecurityError as error:
+            raise HTTPException(
+                400,
+                str(error),
+            )
+
+        now = get_utc_now_iso()
+
+        connection.execute(
+            """
+            UPDATE shots
+            SET storage_key = ?,
+                updated_at = ?
+            WHERE id = ?
+              AND project_id = ?
+            """,
+            (
+                storage_key,
+                now,
+                shot_id,
+                project_id,
+            ),
+        )
+        connection.commit()
+
+        return {
+            "status": "ok",
+            "storage_key": storage_key,
+            "updated_at": now,
+        }
+@app.get(
+    "/api/projects/{project_id}/storyboard/shots/{shot_id}/image"
+)
+def get_shot_image(
+    project_id: int,
+    shot_id: str,
+):
+    with connect() as connection:
+        row = connection.execute(
+            """
+            SELECT storage_key
+            FROM shots
+            WHERE id = ?
+              AND project_id = ?
+              AND is_archived = 0
+            """,
+            (shot_id, project_id),
+        ).fetchone()
+
+        if row is None or not row["storage_key"]:
+            raise HTTPException(
+                404,
+                "Imagen no encontrada",
+            )
+
+        try:
+            data = storage_service.read_image(
+                row["storage_key"]
+            )
+        except (FileNotFoundError, SecurityError):
+            raise HTTPException(
+                404,
+                "Archivo no disponible",
+            )
+
+        return Response(
+            content=data,
+            media_type="image/png",
+        )
+@app.post(
+    "/api/projects/{project_id}/scenes/{scene_id}/reorder"
+)
+def reorder_shots(
+    project_id: int,
+    scene_id: int,
+    payload: ShotReorderRequest,
+):
+    with connect() as connection:
+        _validate_project_and_scene(
+            connection,
+            project_id,
+            scene_id,
+        )
+
+        now = get_utc_now_iso()
+
+        for new_order, shot_id in enumerate(
+            payload.shot_ids,
+            start=1,
+        ):
+            connection.execute(
+                """
+                UPDATE shots
+                SET sort_order = ?,
+                    updated_at = ?
+                WHERE id = ?
+                  AND project_id = ?
+                  AND scene_id = ?
+                  AND is_archived = 0
+                """,
+                (
+                    new_order,
+                    now,
+                    shot_id,
+                    project_id,
+                    scene_id,
+                ),
+            )
+
+        connection.commit()
+
+        return {
+            "status": "ok",
+            "reordered_count": len(payload.shot_ids),
+        } 
+@app.delete(
+    "/api/projects/{project_id}/shots/{shot_id}"
+)
+def delete_shot(
+    project_id: int,
+    shot_id: str,
+):
+    with connect() as connection:
+        row = connection.execute(
+            """
+            SELECT storage_key
+            FROM shots
+            WHERE id = ?
+              AND project_id = ?
+            """,
+            (shot_id, project_id),
+        ).fetchone()
+
+        if row is None:
+            raise HTTPException(
+                404,
+                "Shot no encontrado",
+            )
+
+        storage_key = row["storage_key"]
+
+        if storage_key:
+            storage_service.delete_image(
+                storage_key
+            )
+
+        connection.execute(
+            """
+            DELETE FROM shots
+            WHERE id = ?
+              AND project_id = ?
+            """,
+            (shot_id, project_id),
+        )
+        connection.commit()
+
+        return {
+            "status": "deleted",
+            "id": shot_id,
+        }           
+@app.delete(
+    "/api/projects/{project_id}/shots/{shot_id}"
+)
+def delete_shot(
+    project_id: int,
+    shot_id: str,
+):
+    with connect() as connection:
+        row = connection.execute(
+            """
+            SELECT storage_key
+            FROM shots
+            WHERE id = ?
+              AND project_id = ?
+            """,
+            (shot_id, project_id),
+        ).fetchone()
+
+        if row is None:
+            raise HTTPException(
+                404,
+                "Shot no encontrado",
+            )
+
+        storage_key = row["storage_key"]
+
+        if storage_key:
+            storage_service.delete_image(
+                storage_key
+            )
+
+        connection.execute(
+            """
+            DELETE FROM shots
+            WHERE id = ?
+              AND project_id = ?
+            """,
+            (shot_id, project_id),
+        )
+        connection.commit()
+
+        return {
+            "status": "deleted",
+            "id": shot_id,
+        }

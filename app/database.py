@@ -153,6 +153,26 @@ def initialize() -> None:
 
     CREATE INDEX IF NOT EXISTS idx_document_lines_origin
         ON document_lines(document_id, source_scene_id, source_line_index);
+
+    CREATE TABLE IF NOT EXISTS shots (
+        id TEXT PRIMARY KEY,
+        project_id INTEGER NOT NULL,
+        scene_id INTEGER NOT NULL,
+        sort_order INTEGER NOT NULL,
+        shot_type TEXT NOT NULL DEFAULT 'PM',
+        camera_movement TEXT NOT NULL DEFAULT 'Fijo',
+        description TEXT,
+        notes TEXT,
+        storage_key TEXT,
+        is_archived INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY(scene_id) REFERENCES scenes(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_shots_project_scene_archived_order
+        ON shots(project_id, scene_id, is_archived, sort_order);
     """
 
     with connect() as connection:
