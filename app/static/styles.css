@@ -1310,3 +1310,8 @@ body.inspector-collapsed .inspector {
   min-height: 90px;
   resize: vertical;
 }
+.storyboard-shot-item.active {
+  border-color: var(--accent);
+  background: rgba(216, 166, 79, 0.12);
+  color: #f0d6a4;
+}

@@ -4517,6 +4517,15 @@ function selectStoryboardShot(shotId) {
 
   storyboardShotId = shot.id;
 
+  document
+    .querySelectorAll(".storyboard-shot-item")
+    .forEach(button => {
+      button.classList.toggle(
+        "active",
+        button.dataset.shotId === shot.id
+      );
+    });
+
   document.getElementById("shotTypeInput").value =
     shot.shot_type || "";
 
@@ -4528,45 +4537,6 @@ function selectStoryboardShot(shotId) {
 
   document.getElementById("shotNotesInput").value =
     shot.notes || "";
-}
-async function saveStoryboardShotMetadata() {
-  if (!storyboardShotId || !state.project?.id) {
-    return;
-  }
-
-  try {
-    const updated = await request(
-      `/api/projects/${state.project.id}/shots/${storyboardShotId}`,
-      {
-        method: "PATCH",
-        body: JSON.stringify({
-          shot_type:
-            document.getElementById("shotTypeInput").value,
-          camera_movement:
-            document.getElementById("shotMovementInput").value,
-          description:
-            document.getElementById("shotDescriptionInput").value,
-          notes:
-            document.getElementById("shotNotesInput").value,
-        }),
-      }
-    );
-
-    const index = storyboardShots.findIndex(
-      shot => shot.id === storyboardShotId
-    );
-
-    if (index !== -1) {
-      storyboardShots[index] = updated;
-    }
-
-    renderStoryboardShots(storyboardShots);
-  } catch (error) {
-    console.error(
-      "No fue posible guardar el plano.",
-      error
-    );
-  }
 }
 async function loadStoryboardShots() {
   if (!storyboardSceneId || !state.project?.id) {
@@ -4605,6 +4575,15 @@ async function createStoryboardShot() {
       shot
     );
     await loadStoryboardShots();
+    console.log(
+  "Plano creado:",
+  shot
+);
+
+await loadStoryboardShots();
+
+selectStoryboardShot(shot.id);
+
   } catch (error) {
     console.error(
       "No fue posible crear el plano.",
