@@ -4498,6 +4498,12 @@ function renderStoryboardShots(shots) {
           type="button"
           class="storyboard-shot-item"
           data-shot-id="${shot.id}"
+          <button
+  type="button"
+  class="storyboard-shot-item"
+  data-shot-id="${shot.id}"
+  draggable="true"
+>
         >
           Plano ${index + 1}
           · ${shot.shot_type || "Sin tipo"}
@@ -4537,6 +4543,46 @@ function selectStoryboardShot(shotId) {
 
   document.getElementById("shotNotesInput").value =
     shot.notes || "";
+}
+async function saveStoryboardShotMetadata() {
+  if (!storyboardShotId || !state.project?.id) {
+    return;
+  }
+
+  try {
+    const updated = await request(
+      `/api/projects/${state.project.id}/shots/${storyboardShotId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          shot_type:
+            document.getElementById("shotTypeInput").value,
+          camera_movement:
+            document.getElementById("shotMovementInput").value,
+          description:
+            document.getElementById("shotDescriptionInput").value,
+          notes:
+            document.getElementById("shotNotesInput").value,
+        }),
+      }
+    );
+
+    const index = storyboardShots.findIndex(
+      shot => shot.id === storyboardShotId
+    );
+
+    if (index !== -1) {
+      storyboardShots[index] = updated;
+    }
+
+    renderStoryboardShots(storyboardShots);
+    selectStoryboardShot(storyboardShotId);
+  } catch (error) {
+    console.error(
+      "No fue posible guardar el plano.",
+      error
+    );
+  }
 }
 async function loadStoryboardShots() {
   if (!storyboardSceneId || !state.project?.id) {
@@ -4709,4 +4755,109 @@ if (
       "change",
       saveStoryboardShotMetadata
     );
+});
+let draggedStoryboardShotId = null;
+
+document.addEventListener("dragstart", event => {
+  const shotButton =
+    event.target.closest(".storyboard-shot-item");
+
+  if (!shotButton) {
+    return;
+  }
+
+  draggedStoryboardShotId =
+    shotButton.dataset.shotId;
+
+  event.dataTransfer.effectAllowed = "move";
+});
+
+document.addEventListener("dragover", event => {
+  const shotButton =
+    event.target.closest(".storyboard-shot-item");
+
+  if (!shotButton) {
+    return;
+  }
+
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+});
+
+document.addEventListener("drop", async event => {
+  const targetButton =
+    event.target.closest(".storyboard-shot-item");
+
+  if (
+    !targetButton ||
+    !draggedStoryboardShotId ||
+    !storyboardSceneId ||
+    !state.project?.id
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+
+  const buttons = [
+    ...document.querySelectorAll(
+      ".storyboard-shot-item"
+    ),
+  ];
+
+  const draggedButton = buttons.find(
+    button =>
+      button.dataset.shotId ===
+      draggedStoryboardShotId
+  );
+
+  if (
+    !draggedButton ||
+    draggedButton === targetButton
+  ) {
+    draggedStoryboardShotId = null;
+    return;
+  }
+
+  const rect =
+  targetButton.getBoundingClientRect();
+
+const insertAfter =
+  event.clientY >
+  rect.top + rect.height / 2;
+
+if (insertAfter) {
+  targetButton.after(draggedButton);
+} else {
+  targetButton.before(draggedButton);
+}
+
+  const shotIds = [
+    ...document.querySelectorAll(
+      ".storyboard-shot-item"
+    ),
+  ].map(
+    button => button.dataset.shotId
+  );
+
+  try {
+    await request(
+      `/api/projects/${state.project.id}/scenes/${storyboardSceneId}/reorder`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          shot_ids: shotIds,
+        }),
+      }
+    );
+
+    await loadStoryboardShots();
+  } catch (error) {
+    console.error(
+      "No fue posible reordenar los planos.",
+      error
+    );
+  } finally {
+    draggedStoryboardShotId = null;
+  }
 });
