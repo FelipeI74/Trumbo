@@ -4591,6 +4591,42 @@ selectStoryboardShot(shot.id);
     );
   }
 }
+async function deleteStoryboardShot() {
+  if (!storyboardShotId || !state.project?.id) {
+    return;
+  }
+
+  const confirmed = window.confirm(
+    "¿Eliminar este plano?"
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    await request(
+      `/api/projects/${state.project.id}/shots/${storyboardShotId}`,
+      {
+        method: "DELETE",
+      }
+    );
+
+    storyboardShotId = null;
+
+    document.getElementById("shotTypeInput").value = "";
+    document.getElementById("shotMovementInput").value = "";
+    document.getElementById("shotDescriptionInput").value = "";
+    document.getElementById("shotNotesInput").value = "";
+
+    await loadStoryboardShots();
+  } catch (error) {
+    console.error(
+      "No fue posible eliminar el plano.",
+      error
+    );
+  }
+}
 
 function closeStoryboard() {
   const overlay =
@@ -4639,6 +4675,16 @@ if (shotButton) {
   selectStoryboardShot(
     shotButton.dataset.shotId
   );
+
+  return;
+}
+if (
+  event.target.closest("#deleteStoryboardShotButton")
+) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  deleteStoryboardShot();
 
   return;
 }
