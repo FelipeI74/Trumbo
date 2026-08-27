@@ -4446,6 +4446,8 @@ loadProjects()
   });
 }
 let storyboardSceneId = null;
+let storyboardShots = [];
+let storyboardShotId = null;
 
 function openStoryboard(sceneId) {
   const overlay =
@@ -4460,17 +4462,155 @@ function openStoryboard(sceneId) {
 
   storyboardSceneId = Number(sceneId);
 
-  const scene = state.scenes.find(
-    item => Number(item.id) === storyboardSceneId
-  );
+const scene = state.scenes.find(
+  item => Number(item.id) === storyboardSceneId
+);
 
-  if (title) {
-    title.textContent = scene
-      ? `Escena ${scene.scene_number}`
-      : "Escena";
+if (title) {
+  title.textContent = scene
+    ? `Escena ${scene.scene_number}`
+    : "Escena";
+}
+
+overlay.hidden = false;
+loadStoryboardShots();
+}
+function renderStoryboardShots(shots) {
+  const list =
+    document.getElementById("storyboardShotList");
+
+  if (!list) {
+    return;
   }
 
-  overlay.hidden = false;
+  storyboardShots = shots;
+
+  if (!shots.length) {
+    list.innerHTML =
+      '<div class="empty">Sin planos</div>';
+    return;
+  }
+
+  list.innerHTML = shots
+    .map(
+      (shot, index) => `
+        <button
+          type="button"
+          class="storyboard-shot-item"
+          data-shot-id="${shot.id}"
+        >
+          Plano ${index + 1}
+          · ${shot.shot_type || "Sin tipo"}
+        </button>
+      `
+    )
+    .join("");
+}
+function selectStoryboardShot(shotId) {
+  const shot = storyboardShots.find(
+    item => item.id === shotId
+  );
+
+  if (!shot) {
+    return;
+  }
+
+  storyboardShotId = shot.id;
+
+  document.getElementById("shotTypeInput").value =
+    shot.shot_type || "";
+
+  document.getElementById("shotMovementInput").value =
+    shot.camera_movement || "";
+
+  document.getElementById("shotDescriptionInput").value =
+    shot.description || "";
+
+  document.getElementById("shotNotesInput").value =
+    shot.notes || "";
+}
+async function saveStoryboardShotMetadata() {
+  if (!storyboardShotId || !state.project?.id) {
+    return;
+  }
+
+  try {
+    const updated = await request(
+      `/api/projects/${state.project.id}/shots/${storyboardShotId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          shot_type:
+            document.getElementById("shotTypeInput").value,
+          camera_movement:
+            document.getElementById("shotMovementInput").value,
+          description:
+            document.getElementById("shotDescriptionInput").value,
+          notes:
+            document.getElementById("shotNotesInput").value,
+        }),
+      }
+    );
+
+    const index = storyboardShots.findIndex(
+      shot => shot.id === storyboardShotId
+    );
+
+    if (index !== -1) {
+      storyboardShots[index] = updated;
+    }
+
+    renderStoryboardShots(storyboardShots);
+  } catch (error) {
+    console.error(
+      "No fue posible guardar el plano.",
+      error
+    );
+  }
+}
+async function loadStoryboardShots() {
+  if (!storyboardSceneId || !state.project?.id) {
+    return;
+  }
+
+  try {
+    const shots = await request(
+      `/api/projects/${state.project.id}/scenes/${storyboardSceneId}/shots`
+    );
+
+    renderStoryboardShots(shots);
+  } catch (error) {
+    console.error(
+      "No fue posible cargar los planos.",
+      error
+    );
+  }
+}
+async function createStoryboardShot() {
+  if (!storyboardSceneId || !state.project?.id) {
+    return;
+  }
+
+  try {
+    const shot = await request(
+      `/api/projects/${state.project.id}/scenes/${storyboardSceneId}/shots`,
+      {
+        method: "POST",
+        body: JSON.stringify({}),
+      }
+    );
+
+    console.log(
+      "Plano creado:",
+      shot
+    );
+    await loadStoryboardShots();
+  } catch (error) {
+    console.error(
+      "No fue posible crear el plano.",
+      error
+    );
+  }
 }
 
 function closeStoryboard() {
@@ -4507,5 +4647,41 @@ document.addEventListener("click", event => {
     event.stopPropagation();
 
     closeStoryboard();
+
+    return;
+  }
+const shotButton =
+  event.target.closest(".storyboard-shot-item");
+
+if (shotButton) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  selectStoryboardShot(
+    shotButton.dataset.shotId
+  );
+
+  return;
+}
+  if (
+    event.target.closest("#newShotButton")
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    createStoryboardShot();
   }
 }, true);
+[
+  "shotTypeInput",
+  "shotMovementInput",
+  "shotDescriptionInput",
+  "shotNotesInput",
+].forEach(id => {
+  document
+    .getElementById(id)
+    ?.addEventListener(
+      "change",
+      saveStoryboardShotMetadata
+    );
+});
