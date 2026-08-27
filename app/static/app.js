@@ -4861,3 +4861,67 @@ if (insertAfter) {
     draggedStoryboardShotId = null;
   }
 });
+const storyboardOverlay =
+  document.getElementById("storyboardOverlay");
+
+const storyboardHeader =
+  document.querySelector(".storyboard-header");
+
+let storyboardDragging = false;
+let storyboardDragOffsetX = 0;
+let storyboardDragOffsetY = 0;
+
+storyboardHeader?.addEventListener(
+  "mousedown",
+  event => {
+    if (
+      event.target.closest(
+        ".storyboard-header-actions"
+      )
+    ) {
+      return;
+    }
+
+    storyboardDragging = true;
+
+    const rect =
+      storyboardOverlay.getBoundingClientRect();
+
+    storyboardDragOffsetX =
+      event.clientX - rect.left;
+
+    storyboardDragOffsetY =
+      event.clientY - rect.top;
+  }
+);
+
+document.addEventListener("mousemove", event => {
+  if (
+    !storyboardDragging ||
+    !storyboardOverlay
+  ) {
+    return;
+  }
+
+  storyboardOverlay.style.left =
+    `${event.clientX - storyboardDragOffsetX}px`;
+
+  storyboardOverlay.style.top =
+    `${event.clientY - storyboardDragOffsetY}px`;
+});
+
+document.addEventListener("mouseup", () => {
+  storyboardDragging = false;
+});
+document
+  .getElementById("openStoryboardWindowButton")
+  ?.addEventListener("click", event => {
+    event.preventDefault();
+    event.stopPropagation();
+
+   window.open(
+  `/static/storyboard.html?project=${state.project.id}&scene=${storyboardSceneId}`,
+  "adumnStoryboard",
+  "width=1200,height=800,resizable=yes,scrollbars=yes"
+);
+  });

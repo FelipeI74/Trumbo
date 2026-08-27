@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>ADÜMN · Storyboard</title>
+
+  <link
+    rel="stylesheet"
+    href="/static/styles.css"
+  >
+</head>
+
+<body>
+  <main
+    style="
+      padding: 24px;
+      background: #111315;
+      min-height: 100vh;
+      color: #f4f0e8;
+    "
+  >
+    <h1 id="storyboardWindowTitle">
+      Storyboard
+    </h1>
+
+    <div id="storyboardWindowShots">
+      Cargando planos...
+    </div>
+  </main>
+
+  <script>
+    async function loadStoryboardWindow() {
+      const params =
+        new URLSearchParams(window.location.search);
+
+      const projectId =
+        params.get("project");
+
+      const sceneId =
+        params.get("scene");
+
+      if (!projectId || !sceneId) {
+        document.getElementById(
+          "storyboardWindowShots"
+        ).textContent =
+          "Falta proyecto o escena.";
+        return;
+      }
+
+      document.getElementById(
+        "storyboardWindowTitle"
+      ).textContent =
+        `Storyboard · Escena ${sceneId}`;
+
+      try {
+        const response = await fetch(
+          `/api/projects/${projectId}/scenes/${sceneId}/shots`
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Error ${response.status}`
+          );
+        }
+
+        const shots =
+          await response.json();
+
+        const container =
+          document.getElementById(
+            "storyboardWindowShots"
+          );
+
+        if (!shots.length) {
+          container.textContent =
+            "Sin planos";
+          return;
+        }
+
+        container.innerHTML = shots
+          .map(
+            (shot, index) => `
+              <div
+                style="
+                  margin-bottom: 12px;
+                  padding: 12px;
+                  border: 1px solid #3a3d40;
+                  border-radius: 6px;
+                  background: #1a1d20;
+                "
+              >
+                Plano ${index + 1}
+                · ${shot.shot_type || "Sin tipo"}
+              </div>
+            `
+          )
+          .join("");
+      } catch (error) {
+        document.getElementById(
+          "storyboardWindowShots"
+        ).textContent =
+          "No fue posible cargar los planos.";
+
+        console.error(error);
+      }
+    }
+
+    loadStoryboardWindow();
+  </script>
+</body>
+</html>

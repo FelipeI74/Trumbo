@@ -1220,7 +1220,7 @@ body.inspector-collapsed .inspector {
   justify-content: space-between;
   border-bottom: 1px solid var(--line);
   background: #1a1d20;
-}
+ }
 
 .storyboard-header h2 {
   margin: 3px 0 0;
