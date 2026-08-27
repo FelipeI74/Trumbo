@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
@@ -14,104 +14,561 @@
     rel="stylesheet"
     href="/static/styles.css"
   >
+
+  <style>
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      background: #111315;
+      overflow: hidden;
+    }
+
+    .storyboard-window {
+      width: 100%;
+      height: 100%;
+      padding: 12px;
+      box-sizing: border-box;
+    }
+
+    .storyboard-window .storyboard-shell {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
 </head>
 
 <body>
-  <main
-    style="
-      padding: 24px;
-      background: #111315;
-      min-height: 100vh;
-      color: #f4f0e8;
-    "
-  >
-    <h1 id="storyboardWindowTitle">
-      Storyboard
-    </h1>
 
-    <div id="storyboardWindowShots">
-      Cargando planos...
+  <main class="storyboard-window">
+
+    <div class="storyboard-shell">
+
+      <header class="storyboard-header">
+
+        <div>
+          <span class="storyboard-eyebrow">
+            STORYBOARD
+          </span>
+
+          <h2 id="storyboardSceneTitle">
+            Escena
+          </h2>
+        </div>
+
+        <div class="storyboard-header-actions">
+          <span id="storyboardSaveState">
+            Guardado
+          </span>
+        </div>
+
+      </header>
+
+      <div class="storyboard-layout">
+
+        <aside class="storyboard-shots">
+
+          <button
+            id="newShotButton"
+            type="button"
+          >
+            + Nuevo plano
+          </button>
+
+          <div id="storyboardShotList"></div>
+
+        </aside>
+
+        <section class="storyboard-canvas-area">
+
+          <div class="storyboard-canvas-placeholder">
+            Canvas 16:9
+          </div>
+
+        </section>
+
+        <aside class="storyboard-inspector">
+
+          <label>
+            Tipo de plano
+
+            <input
+              id="shotTypeInput"
+              type="text"
+            >
+          </label>
+
+          <label>
+            Movimiento
+
+            <input
+              id="shotMovementInput"
+              type="text"
+            >
+          </label>
+
+          <label>
+            Descripción
+
+            <textarea
+              id="shotDescriptionInput"
+            ></textarea>
+          </label>
+
+          <label>
+            Notas
+
+            <textarea
+              id="shotNotesInput"
+            ></textarea>
+          </label>
+
+          <button
+            id="deleteStoryboardShotButton"
+            type="button"
+          >
+            Eliminar plano
+          </button>
+
+        </aside>
+
+      </div>
+
     </div>
+
   </main>
 
   <script>
-    async function loadStoryboardWindow() {
-      const params =
-        new URLSearchParams(window.location.search);
+    const params =
+      new URLSearchParams(window.location.search);
 
-      const projectId =
-        params.get("project");
+    const projectId =
+      params.get("project");
 
-      const sceneId =
-        params.get("scene");
+      const sceneNumber =
+  params.get("sceneNumber");
 
-      if (!projectId || !sceneId) {
+    const sceneId =
+      params.get("scene");
+
+    let shots = [];
+    let selectedShotId = null;
+    let draggedShotId = null;
+
+
+    async function request(url, options = {}) {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          ...(options.headers || {}),
+        },
+      });
+
+      if (!response.ok) {
+        const detail = await response
+          .json()
+          .catch(() => ({
+            detail: "Error inesperado",
+          }));
+
+        throw new Error(
+          detail.detail || `Error ${response.status}`
+        );
+      }
+
+      return response.json();
+    }
+
+
+    function renderShots() {
+      const list =
         document.getElementById(
-          "storyboardWindowShots"
-        ).textContent =
-          "Falta proyecto o escena.";
+          "storyboardShotList"
+        );
+
+      if (!shots.length) {
+        list.innerHTML =
+          '<div class="empty">Sin planos</div>';
         return;
       }
 
+      list.innerHTML = shots
+        .map(
+          (shot, index) => `
+            <button
+              type="button"
+              class="storyboard-shot-item ${
+                shot.id === selectedShotId
+                  ? "active"
+                  : ""
+              }"
+              data-shot-id="${shot.id}"
+              draggable="true"
+            >
+              Plano ${index + 1}
+              · ${shot.shot_type || "Sin tipo"}
+            </button>
+          `
+        )
+        .join("");
+    }
+
+
+    function selectShot(shotId) {
+      const shot = shots.find(
+        item => item.id === shotId
+      );
+
+      if (!shot) {
+        return;
+      }
+
+      selectedShotId = shot.id;
+
       document.getElementById(
-        "storyboardWindowTitle"
-      ).textContent =
-        `Storyboard · Escena ${sceneId}`;
+        "shotTypeInput"
+      ).value =
+        shot.shot_type || "";
+
+      document.getElementById(
+        "shotMovementInput"
+      ).value =
+        shot.camera_movement || "";
+
+      document.getElementById(
+        "shotDescriptionInput"
+      ).value =
+        shot.description || "";
+
+      document.getElementById(
+        "shotNotesInput"
+      ).value =
+        shot.notes || "";
+
+      renderShots();
+    }
+
+
+    async function loadShots() {
+      if (!projectId || !sceneId) {
+        return;
+      }
 
       try {
-        const response = await fetch(
+        shots = await request(
           `/api/projects/${projectId}/scenes/${sceneId}/shots`
         );
 
-        if (!response.ok) {
-          throw new Error(
-            `Error ${response.status}`
-          );
-        }
+        renderShots();
 
-        const shots =
-          await response.json();
-
-        const container =
-          document.getElementById(
-            "storyboardWindowShots"
-          );
-
-        if (!shots.length) {
-          container.textContent =
-            "Sin planos";
-          return;
-        }
-
-        container.innerHTML = shots
-          .map(
-            (shot, index) => `
-              <div
-                style="
-                  margin-bottom: 12px;
-                  padding: 12px;
-                  border: 1px solid #3a3d40;
-                  border-radius: 6px;
-                  background: #1a1d20;
-                "
-              >
-                Plano ${index + 1}
-                · ${shot.shot_type || "Sin tipo"}
-              </div>
-            `
+        if (
+          selectedShotId &&
+          shots.some(
+            shot => shot.id === selectedShotId
           )
-          .join("");
+        ) {
+          selectShot(selectedShotId);
+        }
       } catch (error) {
-        document.getElementById(
-          "storyboardWindowShots"
-        ).textContent =
-          "No fue posible cargar los planos.";
-
-        console.error(error);
+        console.error(
+          "No fue posible cargar los planos.",
+          error
+        );
       }
     }
 
-    loadStoryboardWindow();
+
+    async function createShot() {
+      try {
+        const shot = await request(
+          `/api/projects/${projectId}/scenes/${sceneId}/shots`,
+          {
+            method: "POST",
+            body: JSON.stringify({}),
+          }
+        );
+
+        await loadShots();
+
+        selectShot(shot.id);
+      } catch (error) {
+        console.error(
+          "No fue posible crear el plano.",
+          error
+        );
+      }
+    }
+
+
+    async function saveShot() {
+      if (!selectedShotId) {
+        return;
+      }
+
+      try {
+        const updated = await request(
+          `/api/projects/${projectId}/shots/${selectedShotId}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              shot_type:
+                document.getElementById(
+                  "shotTypeInput"
+                ).value,
+
+              camera_movement:
+                document.getElementById(
+                  "shotMovementInput"
+                ).value,
+
+              description:
+                document.getElementById(
+                  "shotDescriptionInput"
+                ).value,
+
+              notes:
+                document.getElementById(
+                  "shotNotesInput"
+                ).value,
+            }),
+          }
+        );
+
+        const index = shots.findIndex(
+          shot => shot.id === selectedShotId
+        );
+
+        if (index !== -1) {
+          shots[index] = updated;
+        }
+
+        renderShots();
+      } catch (error) {
+        console.error(
+          "No fue posible guardar el plano.",
+          error
+        );
+      }
+    }
+
+
+    async function deleteShot() {
+      if (!selectedShotId) {
+        return;
+      }
+
+      if (!window.confirm("¿Eliminar este plano?")) {
+        return;
+      }
+
+      try {
+        await request(
+          `/api/projects/${projectId}/shots/${selectedShotId}`,
+          {
+            method: "DELETE",
+          }
+        );
+
+        selectedShotId = null;
+
+        document.getElementById(
+          "shotTypeInput"
+        ).value = "";
+
+        document.getElementById(
+          "shotMovementInput"
+        ).value = "";
+
+        document.getElementById(
+          "shotDescriptionInput"
+        ).value = "";
+
+        document.getElementById(
+          "shotNotesInput"
+        ).value = "";
+
+        await loadShots();
+      } catch (error) {
+        console.error(
+          "No fue posible eliminar el plano.",
+          error
+        );
+      }
+    }
+
+
+    document
+      .getElementById("newShotButton")
+      .addEventListener(
+        "click",
+        createShot
+      );
+
+
+    document
+      .getElementById(
+        "deleteStoryboardShotButton"
+      )
+      .addEventListener(
+        "click",
+        deleteShot
+      );
+
+
+    document
+      .getElementById(
+        "storyboardShotList"
+      )
+      .addEventListener(
+        "click",
+        event => {
+          const button =
+            event.target.closest(
+              ".storyboard-shot-item"
+            );
+
+          if (!button) {
+            return;
+          }
+
+          selectShot(
+            button.dataset.shotId
+          );
+        }
+      );
+
+
+    [
+      "shotTypeInput",
+      "shotMovementInput",
+      "shotDescriptionInput",
+      "shotNotesInput",
+    ].forEach(id => {
+      document
+        .getElementById(id)
+        .addEventListener(
+          "change",
+          saveShot
+        );
+    });
+
+
+    document.addEventListener(
+      "dragstart",
+      event => {
+        const button =
+          event.target.closest(
+            ".storyboard-shot-item"
+          );
+
+        if (!button) {
+          return;
+        }
+
+        draggedShotId =
+          button.dataset.shotId;
+      }
+    );
+
+
+    document.addEventListener(
+      "dragover",
+      event => {
+        if (
+          event.target.closest(
+            ".storyboard-shot-item"
+          )
+        ) {
+          event.preventDefault();
+        }
+      }
+    );
+
+
+    document.addEventListener(
+      "drop",
+      async event => {
+        const target =
+          event.target.closest(
+            ".storyboard-shot-item"
+          );
+
+        if (
+          !target ||
+          !draggedShotId
+        ) {
+          return;
+        }
+
+        event.preventDefault();
+
+        const dragged =
+          document.querySelector(
+            `[data-shot-id="${draggedShotId}"]`
+          );
+
+        if (
+          !dragged ||
+          dragged === target
+        ) {
+          draggedShotId = null;
+          return;
+        }
+
+        const rect =
+          target.getBoundingClientRect();
+
+        if (
+          event.clientY >
+          rect.top + rect.height / 2
+        ) {
+          target.after(dragged);
+        } else {
+          target.before(dragged);
+        }
+
+        const shotIds = [
+          ...document.querySelectorAll(
+            ".storyboard-shot-item"
+          ),
+        ].map(
+          button =>
+            button.dataset.shotId
+        );
+
+        try {
+          await request(
+            `/api/projects/${projectId}/scenes/${sceneId}/reorder`,
+            {
+              method: "POST",
+              body: JSON.stringify({
+                shot_ids: shotIds,
+              }),
+            }
+          );
+
+          await loadShots();
+        } catch (error) {
+          console.error(
+            "No fue posible reordenar los planos.",
+            error
+          );
+        }
+
+        draggedShotId = null;
+      }
+    );
+
+
+    document.getElementById(
+  "storyboardSceneTitle"
+).textContent =
+  `Escena ${sceneNumber || sceneId}`;
+
+    loadShots();
   </script>
+
 </body>
 </html>

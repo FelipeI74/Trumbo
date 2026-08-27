@@ -706,7 +706,7 @@ storyboardButton.dataset.sceneId =
     event.preventDefault();
     event.stopPropagation();
 
-    openStoryboard(scene.id);
+    openStoryboardWindow(scene.id);
   }
 );
 
@@ -2051,7 +2051,7 @@ storyboardButton.addEventListener(
     event.preventDefault();
     event.stopPropagation();
 
-    openStoryboard(scene.id);
+    openStoryboardWindow(scene.id);
   }
 );
 
@@ -4449,6 +4449,28 @@ let storyboardSceneId = null;
 let storyboardShots = [];
 let storyboardShotId = null;
 
+function openStoryboardWindow(sceneId) {
+  if (!state.project?.id) {
+    return;
+  }
+
+  const scene = state.scenes.find(
+    item =>
+      Number(item.id) ===
+      Number(sceneId)
+  );
+
+  const sceneNumber =
+    scene?.scene_number || "";
+
+  window.open(
+    `/static/storyboard.html?project=${state.project.id}&scene=${sceneId}&sceneNumber=${encodeURIComponent(sceneNumber)}&v=${Date.now()}`,
+    "_blank",
+    "width=1200,height=800,resizable=yes,scrollbars=yes"
+  );
+}
+
+
 function openStoryboard(sceneId) {
   const overlay =
     document.getElementById("storyboardOverlay");
@@ -4694,9 +4716,9 @@ document.addEventListener("click", event => {
     event.preventDefault();
     event.stopPropagation();
 
-    openStoryboard(
-      storyboardButton.dataset.sceneId
-    );
+    openStoryboardWindow(
+  storyboardButton.dataset.sceneId
+);
 
     return;
   }
@@ -4919,9 +4941,19 @@ document
     event.preventDefault();
     event.stopPropagation();
 
-   window.open(
-  `/static/storyboard.html?project=${state.project.id}&scene=${storyboardSceneId}`,
-  "adumnStoryboard",
-  "width=1200,height=800,resizable=yes,scrollbars=yes"
-);
+    const scene = state.scenes.find(
+      item =>
+        Number(item.id) ===
+        Number(storyboardSceneId)
+    );
+
+    const sceneNumber =
+      scene?.scene_number || "";
+
+    window.open(
+      `/static/storyboard.html?project=${state.project.id}&scene=${storyboardSceneId}&sceneNumber=${encodeURIComponent(sceneNumber)}&v=${Date.now()}`,
+      "_blank",
+      "width=1200,height=800,resizable=yes,scrollbars=yes"
+    );
   });
+  
