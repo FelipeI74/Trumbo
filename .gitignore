@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 trumbo.db
 .DS_Store
+data/
