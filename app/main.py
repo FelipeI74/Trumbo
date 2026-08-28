@@ -2238,7 +2238,7 @@ def list_shots(
                 **dict(row),
                 "has_image": bool(row["storage_key"]),
                 "image_url": (
-                    f"/api/shots/{row['id']}/image"
+                   f"/api/projects/{project_id}/storyboard/shots/{row['id']}/image"
                     if row["storage_key"]
                     else None
                 ),
@@ -2389,7 +2389,7 @@ def update_shot_metadata(
 
         shot["has_image"] = bool(shot["storage_key"])
         shot["image_url"] = (
-            f"/api/shots/{shot_id}/image"
+           f"/api/projects/{project_id}/storyboard/shots/{shot_id}/image"
             if shot["storage_key"]
             else None
         )

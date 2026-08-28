@@ -1,4 +1,4 @@
-<<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
@@ -14,7 +14,6 @@
     rel="stylesheet"
     href="/static/styles.css"
   >
-
   <style>
     html,
     body {
@@ -36,6 +35,140 @@
       width: 100%;
       height: 100%;
     }
+  
+
+.storyboard-single-view {
+  width: 100%;
+  height: 100%;
+}
+
+.storyboard-cascade-view {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.storyboard-cascade-view[hidden] {
+  display: none;
+}
+
+.storyboard-cascade-card {
+  width: min(900px, 100%);
+  margin: 0 auto 28px;
+  padding: 0;
+  display: block;
+  border: 1px solid #34383d;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #1a1d20;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.storyboard-cascade-card.active {
+  border-color: #d8a64f;
+}
+
+.storyboard-cascade-frame {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #111315;
+  color: #70767d;
+  font-size: 14px;
+}
+
+.storyboard-cascade-info {
+  padding: 12px 14px;
+}
+
+.storyboard-cascade-title {
+  font-weight: 600;
+}
+
+.storyboard-cascade-description {
+  margin-top: 5px;
+  color: #9da3a9;
+  font-size: 13px;
+}
+
+
+.storyboard-mosaic-view {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.storyboard-mosaic-view[hidden] {
+  display: none;
+}
+
+.storyboard-mosaic-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+.storyboard-mosaic-card {
+  width: 100%;
+  padding: 0;
+  display: block;
+  border: 1px solid #34383d;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #1a1d20;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.storyboard-mosaic-card.active {
+  border-color: #d8a64f;
+}
+
+.storyboard-mosaic-frame {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #111315;
+  color: #70767d;
+  font-size: 14px;
+}
+
+.storyboard-mosaic-info {
+  padding: 10px 12px;
+}
+
+.storyboard-mosaic-title {
+  font-weight: 600;
+}
+
+.storyboard-mosaic-description {
+  margin-top: 4px;
+  color: #9da3a9;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+
+.storyboard-single-view { display:flex; align-items:center; justify-content:center; padding:24px; box-sizing:border-box; }
+.storyboard-single-view[hidden] { display:none; }
+.storyboard-image-stage { width:min(1100px,100%); display:flex; flex-direction:column; gap:12px; }
+.storyboard-image-frame { width:100%; aspect-ratio:16/9; display:flex; align-items:center; justify-content:center; overflow:hidden; border:1px solid #34383d; border-radius:8px; background:#111315; color:#70767d; }
+.storyboard-image-frame img, .storyboard-cascade-frame img, .storyboard-mosaic-frame img { width:100%; height:100%; display:block; object-fit:contain; background:#111315; }
+.storyboard-image-actions { display:flex; align-items:center; gap:10px; }
+.storyboard-image-hint { color:#8f969d; font-size:12px; }
+
   </style>
 </head>
 
@@ -57,11 +190,43 @@
           </h2>
         </div>
 
-        <div class="storyboard-header-actions">
-          <span id="storyboardSaveState">
-            Guardado
-          </span>
-        </div>
+       <div class="storyboard-header-actions">
+
+  <div
+    class="storyboard-view-modes"
+    role="group"
+    aria-label="Modo de vista del Storyboard"
+  >
+    <button
+      type="button"
+      class="storyboard-view-mode active"
+      data-storyboard-view="single"
+    >
+      Plano único
+    </button>
+
+    <button
+      type="button"
+      class="storyboard-view-mode"
+      data-storyboard-view="cascade"
+    >
+      Cascada
+    </button>
+
+    <button
+      type="button"
+      class="storyboard-view-mode"
+      data-storyboard-view="mosaic"
+    >
+      Mosaico
+    </button>
+  </div>
+
+  <span id="storyboardSaveState">
+    Guardado
+  </span>
+
+</div>
 
       </header>
 
@@ -82,11 +247,37 @@
 
         <section class="storyboard-canvas-area">
 
-          <div class="storyboard-canvas-placeholder">
-            Canvas 16:9
-          </div>
+<div
+    id="storyboardSingleView"
+    class="storyboard-single-view"
+  >
+    <div class="storyboard-image-stage">
+      <div id="storyboardSingleFrame" class="storyboard-image-frame">
+        Selecciona un plano
+      </div>
+      <div class="storyboard-image-actions">
+        <button id="importShotImageButton" type="button" disabled>
+          Importar imagen
+        </button>
+        <input id="shotImageInput" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+        <span class="storyboard-image-hint">PNG, JPG o WebP · cuadro 16:9</span>
+      </div>
+    </div>
+  </div>
 
-        </section>
+  <div
+    id="storyboardCascadeView"
+    class="storyboard-cascade-view"
+    hidden
+  ></div>
+
+  <div
+    id="storyboardMosaicView"
+    class="storyboard-mosaic-view"
+    hidden
+  ></div>
+
+</section>
 
         <aside class="storyboard-inspector">
 
@@ -146,8 +337,8 @@
     const projectId =
       params.get("project");
 
-      const sceneNumber =
-  params.get("sceneNumber");
+    const sceneNumber =
+      params.get("sceneNumber");
 
     const sceneId =
       params.get("scene");
@@ -181,7 +372,203 @@
       return response.json();
     }
 
+let storyboardView = "single";
 
+function shotImageUrl(shot) {
+  if (!shot || !shot.has_image) return null;
+  const baseUrl = shot.image_url ||
+    `/api/projects/${projectId}/storyboard/shots/${shot.id}/image`;
+  return `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}v=${encodeURIComponent(shot.updated_at || Date.now())}`;
+}
+
+function imageFrameContent(shot, emptyLabel = "Canvas 16:9") {
+  const imageUrl = shotImageUrl(shot);
+  if (!imageUrl) return `<span>${emptyLabel}</span>`;
+  return `<img src="${imageUrl}" alt="Imagen del plano">`;
+}
+
+function renderSingleView() {
+  const frame = document.getElementById("storyboardSingleFrame");
+  const importButton = document.getElementById("importShotImageButton");
+  const shot = shots.find(item => item.id === selectedShotId);
+  importButton.disabled = !shot;
+  frame.innerHTML = shot
+    ? imageFrameContent(shot, "Canvas 16:9 · Sin imagen")
+    : "<span>Selecciona un plano</span>";
+}
+
+async function uploadShotImage(file) {
+  if (!selectedShotId || !file) return;
+  const allowedTypes = ["image/png", "image/jpeg", "image/webp"];
+  if (!allowedTypes.includes(file.type)) {
+    window.alert("Formato no compatible. Usa PNG, JPG o WebP.");
+    return;
+  }
+  const saveState = document.getElementById("storyboardSaveState");
+  saveState.textContent = "Guardando imagen…";
+  try {
+    const response = await fetch(
+      `/api/projects/${projectId}/shots/${selectedShotId}/image`,
+      { method: "PUT", headers: { "Content-Type": file.type }, body: file }
+    );
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({detail: `Error ${response.status}`}));
+      throw new Error(detail.detail || `Error ${response.status}`);
+    }
+    await loadShots();
+    if (shots.some(shot => shot.id === selectedShotId)) selectShot(selectedShotId);
+    saveState.textContent = "Guardado";
+  } catch (error) {
+    console.error("No fue posible importar la imagen.", error);
+    saveState.textContent = "Error al guardar";
+    window.alert(`No fue posible importar la imagen: ${error.message}`);
+  }
+}
+
+
+function renderCascadeView() {
+  const container =
+    document.getElementById(
+      "storyboardCascadeView"
+    );
+
+  if (!shots.length) {
+    container.innerHTML =
+      '<div class="empty">Sin planos</div>';
+    return;
+  }
+
+  container.innerHTML = shots
+    .map(
+      (shot, index) => `
+        <button
+          type="button"
+          class="storyboard-cascade-card ${
+            shot.id === selectedShotId
+              ? "active"
+              : ""
+          }"
+          data-cascade-shot-id="${shot.id}"
+        >
+          <div class="storyboard-cascade-frame">
+            ${imageFrameContent(shot, "Canvas 16:9 · Sin imagen")}
+          </div>
+
+          <div class="storyboard-cascade-info">
+            <div class="storyboard-cascade-title">
+              Plano ${index + 1}
+              · ${shot.shot_type || "Sin tipo"}
+            </div>
+
+            <div class="storyboard-cascade-description">
+              ${shot.description || "Sin descripción"}
+            </div>
+          </div>
+        </button>
+      `
+    )
+    .join("");
+}
+
+
+function renderMosaicView() {
+  const container =
+    document.getElementById(
+      "storyboardMosaicView"
+    );
+
+  if (!shots.length) {
+    container.innerHTML =
+      '<div class="empty">Sin planos</div>';
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="storyboard-mosaic-grid">
+      ${shots
+        .map(
+          (shot, index) => `
+            <button
+              type="button"
+              class="storyboard-mosaic-card ${
+                shot.id === selectedShotId
+                  ? "active"
+                  : ""
+              }"
+              data-mosaic-shot-id="${shot.id}"
+            >
+              <div class="storyboard-mosaic-frame">
+                ${imageFrameContent(shot, "Canvas 16:9 · Sin imagen")}
+              </div>
+
+              <div class="storyboard-mosaic-info">
+                <div class="storyboard-mosaic-title">
+                  Plano ${index + 1}
+                  · ${shot.shot_type || "Sin tipo"}
+                </div>
+
+                <div class="storyboard-mosaic-description">
+                  ${shot.description || "Sin descripción"}
+                </div>
+              </div>
+            </button>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+
+function renderStoryboardView() {
+  const singleView =
+    document.getElementById(
+      "storyboardSingleView"
+    );
+
+  const cascadeView =
+    document.getElementById(
+      "storyboardCascadeView"
+    );
+
+  const mosaicView =
+    document.getElementById(
+      "storyboardMosaicView"
+    );
+
+  singleView.hidden =
+    storyboardView !== "single";
+
+  cascadeView.hidden =
+    storyboardView !== "cascade";
+
+  mosaicView.hidden =
+    storyboardView !== "mosaic";
+
+  document
+    .querySelectorAll(
+      ".storyboard-view-mode"
+    )
+    .forEach(button => {
+      button.classList.toggle(
+        "active",
+        button.dataset.storyboardView ===
+          storyboardView
+      );
+    });
+
+  if (storyboardView === "single") {
+    renderSingleView();
+  }
+
+  if (storyboardView === "cascade") {
+    renderCascadeView();
+  }
+
+  if (storyboardView === "mosaic") {
+    renderMosaicView();
+  }
+}
     function renderShots() {
       const list =
         document.getElementById(
@@ -191,6 +578,7 @@
       if (!shots.length) {
         list.innerHTML =
           '<div class="empty">Sin planos</div>';
+        renderStoryboardView();
         return;
       }
 
@@ -213,6 +601,7 @@
           `
         )
         .join("");
+      renderStoryboardView();
     }
 
 
@@ -455,6 +844,17 @@
     });
 
 
+    document.getElementById("importShotImageButton").addEventListener("click", () => {
+      if (selectedShotId) document.getElementById("shotImageInput").click();
+    });
+
+    document.getElementById("shotImageInput").addEventListener("change", async event => {
+      const file = event.target.files?.[0];
+      if (file) await uploadShotImage(file);
+      event.target.value = "";
+    });
+
+
     document.addEventListener(
       "dragstart",
       event => {
@@ -561,11 +961,67 @@
       }
     );
 
+document.addEventListener(
+  "click",
+  event => {
+    const viewButton =
+      event.target.closest(
+        ".storyboard-view-mode"
+      );
+
+    if (viewButton) {
+      const requestedView =
+        viewButton.dataset.storyboardView;
+
+      if (
+        requestedView === "single" ||
+        requestedView === "cascade" ||
+        requestedView === "mosaic"
+      ) {
+        storyboardView =
+          requestedView;
+
+      renderStoryboardView();
+      }
+
+      return;
+    }
+
+    const cascadeCard =
+      event.target.closest(
+        ".storyboard-cascade-card"
+      );
+
+    if (cascadeCard) {
+      selectShot(
+        cascadeCard.dataset
+          .cascadeShotId
+      );
+
+      renderCascadeView();
+      return;
+    }
+
+    const mosaicCard =
+      event.target.closest(
+        ".storyboard-mosaic-card"
+      );
+
+    if (mosaicCard) {
+      selectShot(
+        mosaicCard.dataset
+          .mosaicShotId
+      );
+
+      renderMosaicView();
+    }
+  }
+);
 
     document.getElementById(
-  "storyboardSceneTitle"
-).textContent =
-  `Escena ${sceneNumber || sceneId}`;
+      "storyboardSceneTitle"
+    ).textContent =
+      `Escena ${sceneNumber || sceneId}`;
 
     loadShots();
   </script>
