@@ -2245,6 +2245,85 @@ def list_shots(
             }
             for row in shot_rows
         ]
+@app.get("/api/projects/{project_id}/storyboard")
+def get_project_storyboard(
+    project_id: int,
+):
+    with connect() as connection:
+        project = connection.execute(
+            """
+            SELECT id
+            FROM projects
+            WHERE id = ?
+            """,
+            (project_id,),
+        ).fetchone()
+
+        if project is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Proyecto no encontrado",
+            )
+
+        scene_rows = connection.execute(
+            """
+            SELECT id, scene_number, heading
+            FROM scenes
+            WHERE project_id = ?
+            ORDER BY scene_number, id
+            """,
+            (project_id,),
+        ).fetchall()
+
+        storyboard = []
+
+        for scene_row in scene_rows:
+            shot_rows = connection.execute(
+                """
+                SELECT *
+                FROM shots
+                WHERE project_id = ?
+                  AND scene_id = ?
+                  AND is_archived = 0
+                ORDER BY sort_order, created_at
+                """,
+                (
+                    project_id,
+                    scene_row["id"],
+                ),
+            ).fetchall()
+
+            shots = [
+                {
+                    **dict(row),
+                    "has_image": bool(
+                        row["storage_key"]
+                    ),
+                    "image_url": (
+                        f"/api/projects/{project_id}/storyboard/shots/{row['id']}/image"
+                        if row["storage_key"]
+                        else None
+                    ),
+                }
+                for row in shot_rows
+            ]
+
+            storyboard.append(
+                {
+                    "scene_id": scene_row["id"],
+                    "scene_number": scene_row[
+                        "scene_number"
+                    ],
+                    "heading": scene_row["heading"],
+                    "shots": shots,
+                }
+            )
+
+        return {
+            "project_id": project_id,
+            "scenes": storyboard,
+        }
+    
 @app.post(
     "/api/projects/{project_id}/scenes/{scene_id}/shots",
     response_model=ShotOut,
@@ -2389,7 +2468,7 @@ def update_shot_metadata(
 
         shot["has_image"] = bool(shot["storage_key"])
         shot["image_url"] = (
-           f"/api/projects/{project_id}/storyboard/shots/{shot_id}/image"
+            f"/api/projects/{project_id}/storyboard/shots/{shot_id}/image"
             if shot["storage_key"]
             else None
         )
