@@ -49,6 +49,13 @@
     <button class="main-nav-tab active" data-view="guion">Guion</button>
     <button class="main-nav-tab" data-view="desglose">Desglose</button>
     <button class="main-nav-tab" data-view="plan-rodaje">Plan de rodaje</button>
+    <button
+      id="generalStoryboardButton"
+      type="button"
+      onclick="const projectId=document.getElementById('projectSelect')?.value;if(projectId){window.open('/static/storyboard-general.html?project='+encodeURIComponent(projectId)+'&v='+Date.now(),'_blank','width=1400,height=900,resizable=yes,scrollbars=yes');}"
+    >
+      Storyboard General
+    </button>
     <button class="main-nav-tab" data-view="informes">Informes</button>
   </nav>
 
