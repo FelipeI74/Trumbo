@@ -165,9 +165,27 @@
 .storyboard-single-view[hidden] { display:none; }
 .storyboard-image-stage { width:min(1100px,100%); display:flex; flex-direction:column; gap:12px; }
 .storyboard-image-frame { width:100%; aspect-ratio:16/9; display:flex; align-items:center; justify-content:center; overflow:hidden; border:1px solid #34383d; border-radius:8px; background:#111315; color:#70767d; }
-.storyboard-image-frame img, .storyboard-cascade-frame img, .storyboard-mosaic-frame img { width:100%; height:100%; display:block; object-fit:contain; background:#111315; }
+.storyboard-image-frame img,
+.storyboard-cascade-frame img,
+.storyboard-mosaic-frame img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  background: #111315;
+}
+
+.storyboard-image-frame img.image-fill {
+  object-fit: cover;
+}
 .storyboard-image-actions { display:flex; align-items:center; gap:10px; }
 .storyboard-image-hint { color:#8f969d; font-size:12px; }
+
+/* resaltar botón activo en los controles de imagen */
+.storyboard-image-actions button.active {
+  border-color: #d8a64f;
+  background: #2a2d30;
+}
 
   </style>
 </head>
@@ -256,12 +274,29 @@
         Selecciona un plano
       </div>
       <div class="storyboard-image-actions">
-        <button id="importShotImageButton" type="button" disabled>
-          Importar imagen
-        </button>
-        <input id="shotImageInput" type="file" accept="image/png,image/jpeg,image/webp" hidden>
-        <span class="storyboard-image-hint">PNG, JPG o WebP · cuadro 16:9</span>
-      </div>
+  <button id="importShotImageButton" type="button" disabled>
+    Importar imagen
+  </button>
+
+  <button id="fitShotImageButton" type="button" disabled>
+    Ajustar
+  </button>
+
+  <button id="fillShotImageButton" type="button" disabled>
+    Llenar
+  </button>
+
+  <input
+    id="shotImageInput"
+    type="file"
+    accept="image/png,image/jpeg,image/webp"
+    hidden
+  >
+
+  <span class="storyboard-image-hint">
+    PNG, JPG o WebP · cuadro 16:9
+  </span>
+</div>
     </div>
   </div>
 
@@ -346,6 +381,7 @@
     let shots = [];
     let selectedShotId = null;
     let draggedShotId = null;
+    let imageFitFill = false; // false = Ajustar (contain), true = Llenar (cover)
 
 
     async function request(url, options = {}) {
@@ -390,11 +426,29 @@ function imageFrameContent(shot, emptyLabel = "Canvas 16:9") {
 function renderSingleView() {
   const frame = document.getElementById("storyboardSingleFrame");
   const importButton = document.getElementById("importShotImageButton");
+  const fitButton = document.getElementById("fitShotImageButton");
+  const fillButton = document.getElementById("fillShotImageButton");
   const shot = shots.find(item => item.id === selectedShotId);
+  const hasImage = shot && shot.has_image;
+
+  // Importar imagen: solo deshabilitado si no hay plano seleccionado
   importButton.disabled = !shot;
-  frame.innerHTML = shot
-    ? imageFrameContent(shot, "Canvas 16:9 · Sin imagen")
-    : "<span>Selecciona un plano</span>";
+  // Ajustar y Llenar: deshabilitados si no hay imagen
+  fitButton.disabled = !hasImage;
+  fillButton.disabled = !hasImage;
+
+  if (hasImage) {
+    const imageUrl = shotImageUrl(shot);
+    const fillClass = imageFitFill ? 'image-fill' : '';
+    frame.innerHTML = `<img src="${imageUrl}" alt="Imagen del plano" class="${fillClass}">`;
+    // resaltar botón activo
+    fitButton.classList.toggle('active', !imageFitFill);
+    fillButton.classList.toggle('active', imageFitFill);
+  } else {
+    frame.innerHTML = shot ? "Canvas 16:9 · Sin imagen" : "Selecciona un plano";
+    fitButton.classList.remove('active');
+    fillButton.classList.remove('active');
+  }
 }
 
 async function uploadShotImage(file) {
@@ -615,6 +669,7 @@ function renderStoryboardView() {
       }
 
       selectedShotId = shot.id;
+      imageFitFill = false; // volver a Ajustar al cambiar de plano
 
       document.getElementById(
         "shotTypeInput"
@@ -854,6 +909,34 @@ function renderStoryboardView() {
       event.target.value = "";
     });
 
+    document.addEventListener("paste", async event => {
+  if (!selectedShotId) {
+    return;
+  }
+
+  const items = Array.from(
+    event.clipboardData?.items || []
+  );
+
+  const imageItem = items.find(
+    item => item.type.startsWith("image/")
+  );
+
+  if (!imageItem) {
+    return;
+  }
+
+  const file = imageItem.getAsFile();
+
+  if (!file) {
+    return;
+  }
+
+  event.preventDefault();
+
+  await uploadShotImage(file);
+});
+
 
     document.addEventListener(
       "dragstart",
@@ -1017,6 +1100,17 @@ document.addEventListener(
     }
   }
 );
+
+// Control de los botones Ajustar / Llenar
+document.getElementById("fitShotImageButton").addEventListener("click", function() {
+  imageFitFill = false;
+  renderSingleView();
+});
+
+document.getElementById("fillShotImageButton").addEventListener("click", function() {
+  imageFitFill = true;
+  renderSingleView();
+});
 
     document.getElementById(
       "storyboardSceneTitle"

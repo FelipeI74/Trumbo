@@ -3106,6 +3106,146 @@ function scheduleSceneAnalysis(
     );
 }
 
+const breakdownAnalysisSyncing = new Set();
+
+function normalizeBreakdownKey(category, name) {
+  return `${String(category || "").trim().toLowerCase()}::${String(name || "").trim().toLowerCase()}`;
+}
+
+function analysisElementToBreakdownCategory(elementType) {
+  const type = String(elementType || "").trim().toLowerCase();
+
+  const categoryMap = {
+    character: "character",
+    cast: "character",
+    location: "location",
+
+    prop: "prop",
+    props: "prop",
+    object: "prop",
+
+    wardrobe: "wardrobe",
+    costume: "wardrobe",
+
+    extra: "extra",
+    extras: "extra",
+
+    vehicle: "vehicle",
+    vehicles: "vehicle",
+
+    animal: "animal",
+    animals: "animal",
+
+    makeup: "makeup",
+
+    fx: "fx",
+    vfx: "fx",
+    sfx: "fx",
+
+    equipment: "equipment",
+    special_equipment: "equipment",
+  };
+
+  return categoryMap[type] || type;
+}
+
+async function syncAnalysisToBreakdown(scene, analysis) {
+  if (!scene?.id || !analysis) return;
+
+  if (breakdownAnalysisSyncing.has(scene.id)) {
+    return;
+  }
+
+  breakdownAnalysisSyncing.add(scene.id);
+
+  try {
+    scene.breakdown_items = scene.breakdown_items || [];
+
+    const existingKeys = new Set(
+      scene.breakdown_items.map(item =>
+        normalizeBreakdownKey(
+          item.category,
+          item.name
+        )
+      )
+    );
+
+    const candidates = [];
+
+    for (const characterName of analysis.characters || []) {
+      const name = String(characterName || "").trim();
+
+      if (!name) continue;
+
+      candidates.push({
+        category: "character",
+        name,
+      });
+    }
+
+    for (const element of analysis.production_elements || []) {
+      const name = String(element.name || "").trim();
+      const category = analysisElementToBreakdownCategory(
+        element.element_type
+      );
+
+      if (!name || !category) continue;
+
+      candidates.push({
+        category,
+        name,
+      });
+    }
+
+    const seenCandidates = new Set();
+
+    for (const candidate of candidates) {
+      const key = normalizeBreakdownKey(
+        candidate.category,
+        candidate.name
+      );
+
+      if (
+        existingKeys.has(key) ||
+        seenCandidates.has(key)
+      ) {
+        continue;
+      }
+
+      seenCandidates.add(key);
+
+      const item = await request(
+        `/api/scenes/${scene.id}/breakdown`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            category: candidate.category,
+            name: candidate.name,
+            source: "analysis",
+            state: "detected",
+          }),
+        }
+      );
+
+      scene.breakdown_items.push(item);
+      existingKeys.add(key);
+    }
+
+    renderBreakdown(scene);
+
+    if (state.activeMainView === "desglose") {
+      renderProductionBreakdown();
+    }
+  } catch (error) {
+    console.error(
+      "No fue posible sincronizar el reconocimiento con el desglose.",
+      error
+    );
+  } finally {
+    breakdownAnalysisSyncing.delete(scene.id);
+  }
+}
+
 async function analyzeActiveScene() {
   const scene = activeScene();
 
@@ -3139,9 +3279,14 @@ async function analyzeActiveScene() {
       return;
     }
 
-    renderScriptAnalysis(
-      analysis
-    );
+    await syncAnalysisToBreakdown(
+  scene,
+  analysis
+);
+
+renderScriptAnalysis(
+  analysis
+);
   } catch (error) {
     if (
       scene.id === state.activeSceneId
