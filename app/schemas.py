@@ -49,6 +49,7 @@ class SceneCreate(BaseModel):
     semantic_lines: list[SemanticLine] = Field(
         default_factory=list
     )
+    production_number: str | None = None
     synopsis: str = ""
 
 
@@ -57,6 +58,7 @@ class SceneUpdate(BaseModel):
     body: str | None = None
     semantic_lines: list[SemanticLine] | None = None
     synopsis: str | None = None
+    production_number: str | None = None
     status: str | None = None
 
 
@@ -124,3 +126,4 @@ class ShotOut(ShotBase):
     is_archived: int
     created_at: str
     updated_at: str
+    

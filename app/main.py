@@ -1158,6 +1158,17 @@ def get_project_document(
         }
 
 
+# --- NUEVA FUNCIÓN DE NORMALIZACIÓN PARA PRODUCTION_NUMBER ---
+def normalize_production_number(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip().upper()
+    if normalized == "":
+        return None
+    return normalized
+# --- FIN NUEVA FUNCIÓN ---
+
+
 @app.post("/api/projects/{project_id}/scenes")
 def create_scene(
     project_id: int,
@@ -1202,22 +1213,27 @@ def create_scene(
             (project_id,),
         ).fetchone()[0]
 
+        # Normalizar production_number
+        prod_num = normalize_production_number(payload.production_number)
+
         cursor = connection.execute(
             """
             INSERT INTO scenes(
                 project_id,
                 scene_number,
+                production_number,
                 heading,
                 body,
                 semantic_lines,
                 synopsis,
                 runtime_seconds
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 project_id,
                 next_number,
+                prod_num,
                 payload.heading,
                 payload.body,
                 semantic_json,
@@ -1259,15 +1275,19 @@ def update_scene(
     scene_id: int,
     payload: SceneUpdate,
 ) -> dict:
-    data = payload.model_dump(
-        exclude_none=True
-    )
+    # Obtener solo los campos enviados explícitamente
+    sent = payload.model_dump(exclude_unset=True)
+    if not sent:
+        raise HTTPException(400, "No hay cambios")
+
+    # Construir data: permitir actualizar production_number a NULL,
+    # pero ignorar otros campos con valor None (no deben actualizarse)
+    data = {k: v for k, v in sent.items() if v is not None}
+    if "production_number" in sent:
+        data["production_number"] = normalize_production_number(sent["production_number"])
 
     if not data:
-        raise HTTPException(
-            400,
-            "No hay cambios",
-        )
+        raise HTTPException(400, "No hay cambios")
 
     with connect() as connection:
         current = connection.execute(
@@ -1844,6 +1864,301 @@ def scene_spelling_review(
     }
 
 
+@app.get("/api/projects/{project_id}/export/pdf")
+def export_project_pdf(
+    project_id: int,
+):
+    with connect() as connection:
+        project = connection.execute(
+            """
+            SELECT *
+            FROM projects
+            WHERE id = ?
+            """,
+            (project_id,),
+        ).fetchone()
+
+        if project is None:
+            raise HTTPException(
+                404,
+                "Proyecto no encontrado",
+            )
+
+        scenes = rows(
+            connection,
+            """
+            SELECT *
+            FROM scenes
+            WHERE project_id = ?
+            ORDER BY scene_number
+            """,
+            (project_id,),
+        )
+
+    try:
+        from reportlab.lib.pagesizes import LETTER
+        from reportlab.lib.utils import simpleSplit
+        from reportlab.pdfgen import canvas
+    except ImportError as error:
+        raise HTTPException(
+            500,
+            "No está disponible el exportador PDF",
+        ) from error
+
+    buffer = BytesIO()
+
+    pdf = canvas.Canvas(
+        buffer,
+        pagesize=LETTER,
+        pageCompression=0,
+    )
+
+    width, height = LETTER
+
+    # ---------------------------------------------------------
+    # Formato profesional de guion
+    # Medidas expresadas desde el borde físico de la hoja.
+    # ---------------------------------------------------------
+
+    FONT_NAME = "Courier"
+    FONT_SIZE = 12
+    LINE_HEIGHT = 12
+
+    LEFT_ACTION = 1.5 * 72
+    RIGHT_ACTION = 1.0 * 72
+
+    LEFT_CHARACTER = 3.7 * 72
+    RIGHT_CHARACTER = 1.0 * 72
+
+    LEFT_DIALOGUE = 2.5 * 72
+    RIGHT_DIALOGUE = 2.0 * 72
+
+    LEFT_PARENTHETICAL = 3.1 * 72
+    RIGHT_PARENTHETICAL = 2.4 * 72
+
+    TOP_MARGIN = 1.0 * 72
+    BOTTOM_MARGIN = 1.0 * 72
+
+    PAGE_NUMBER_Y = height - (0.5 * 72)
+
+    y = height - TOP_MARGIN
+    page_number = 1
+
+    def draw_page_number() -> None:
+        if page_number <= 1:
+            return
+
+        pdf.setFillColorRGB(0, 0, 0)
+        pdf.setFont(FONT_NAME, FONT_SIZE)
+
+        pdf.drawRightString(
+            width - RIGHT_ACTION,
+            PAGE_NUMBER_Y,
+            f"{page_number}.",
+        )
+
+    def finish_page() -> None:
+        nonlocal page_number
+
+        draw_page_number()
+        pdf.showPage()
+        page_number += 1
+
+    def new_page() -> None:
+        nonlocal y
+
+        finish_page()
+        y = height - TOP_MARGIN
+
+    def ensure_space(points_needed: float) -> None:
+        if y - points_needed < BOTTOM_MARGIN:
+            new_page()
+
+    def wrap_text(
+        text: str,
+        left: float,
+        right: float,
+    ) -> list[str]:
+        available_width = width - left - right
+
+        return simpleSplit(
+            text,
+            FONT_NAME,
+            FONT_SIZE,
+            available_width,
+        ) or [""]
+
+    def draw_wrapped(
+        text: str,
+        left: float,
+        right: float,
+    ) -> None:
+        nonlocal y
+
+        wrapped = wrap_text(
+            text,
+            left,
+            right,
+        )
+
+        ensure_space(len(wrapped) * LINE_HEIGHT)
+
+        pdf.setFont(FONT_NAME, FONT_SIZE)
+        pdf.setFillColorRGB(0, 0, 0)
+
+        for chunk in wrapped:
+            pdf.drawString(
+                left,
+                y,
+                chunk,
+            )
+            y -= LINE_HEIGHT
+
+    def draw_transition(text: str) -> None:
+        nonlocal y
+
+        rendered = text.upper()
+
+        ensure_space(LINE_HEIGHT)
+
+        pdf.setFont(FONT_NAME, FONT_SIZE)
+        pdf.setFillColorRGB(0, 0, 0)
+
+        pdf.drawRightString(
+            width - RIGHT_ACTION,
+            y,
+            rendered,
+        )
+
+        y -= LINE_HEIGHT
+
+    for scene in scenes:
+        lines = scene_lines_for_export(scene)
+
+        # El heading semántico del documento es la autoridad.
+        # No se genera aquí un "ESCENA X" artificial.
+        for line_index, line in enumerate(lines):
+            line_type = str(
+                line.get("type") or "action"
+            ).strip().lower()
+
+            text = str(
+                line.get("text") or ""
+            )
+
+            if not text.strip():
+                y -= LINE_HEIGHT
+                ensure_space(LINE_HEIGHT)
+                continue
+
+            if line_type == "heading":
+                # Un encabezado no debe quedar aislado al final
+                # de una página.
+                ensure_space(LINE_HEIGHT * 3)
+
+                draw_wrapped(
+                    text.upper(),
+                    LEFT_ACTION,
+                    RIGHT_ACTION,
+                )
+
+                y -= LINE_HEIGHT
+
+            elif line_type == "character":
+                # Mantener el personaje unido, cuando sea posible,
+                # con el comienzo de su diálogo.
+                following_types = [
+                    str(next_line.get("type") or "").lower()
+                    for next_line in lines[
+                        line_index + 1 : line_index + 3
+                    ]
+                ]
+
+                required_lines = 2
+
+                if "parenthetical" in following_types:
+                    required_lines += 1
+
+                if "dialogue" in following_types:
+                    required_lines += 1
+
+                ensure_space(
+                    required_lines * LINE_HEIGHT
+                )
+
+                draw_wrapped(
+                    text.upper(),
+                    LEFT_CHARACTER,
+                    RIGHT_CHARACTER,
+                )
+
+            elif line_type == "dialogue":
+                draw_wrapped(
+                    text,
+                    LEFT_DIALOGUE,
+                    RIGHT_DIALOGUE,
+                )
+
+                # Separación profesional después del bloque de diálogo
+                # cuando la línea siguiente vuelve a acción o heading.
+                next_type = ""
+
+                if line_index + 1 < len(lines):
+                    next_type = str(
+                        lines[line_index + 1].get("type") or ""
+                    ).strip().lower()
+
+                if next_type in {"action", "heading"}:
+                    y -= LINE_HEIGHT
+
+            elif line_type == "parenthetical":
+                draw_wrapped(
+                    text,
+                    LEFT_PARENTHETICAL,
+                    RIGHT_PARENTHETICAL,
+                )
+
+            elif line_type == "transition":
+                draw_transition(text)
+
+                y -= LINE_HEIGHT
+
+            else:
+                draw_wrapped(
+                    text,
+                    LEFT_ACTION,
+                    RIGHT_ACTION,
+                )
+
+                y -= LINE_HEIGHT
+
+        # Separación mínima entre escenas si el documento
+        # no contiene ya una línea vacía.
+        if lines:
+            y -= LINE_HEIGHT
+
+    # Guardar la última página sin crear una página vacía adicional.
+    draw_page_number()
+    pdf.save()
+    buffer.seek(0)
+
+    title = str(project["title"])
+
+    safe_name = re.sub(
+        r"[^A-Za-z0-9_-]+",
+        "_",
+        title,
+    ).strip("_") or "adumn_project"
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{safe_name}.pdf"'
+            )
+        },
+    )
 @app.get("/api/projects/{project_id}/export/pdf")
 def export_project_pdf(
     project_id: int,
@@ -2723,3 +3038,4 @@ def delete_shot(
             "status": "deleted",
             "id": shot_id,
         }
+    

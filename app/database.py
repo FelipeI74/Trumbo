@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import contextmanager
+from collections.abc import Generator
 from pathlib import Path
 
 
@@ -9,7 +10,7 @@ DB_PATH = Path(__file__).resolve().parent.parent / "trumbo.db"
 
 
 @contextmanager
-def connect() -> sqlite3.Connection:
+def connect() -> Generator[sqlite3.Connection, None, None]:
     connection = sqlite3.connect(DB_PATH)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
@@ -43,7 +44,7 @@ def column_exists(
     ).fetchall()
 
     return any(
-        column["name"] == column_name
+        column["name"].lower() == column_name.lower()
         for column in columns
     )
 
@@ -66,6 +67,15 @@ def migrate(connection: sqlite3.Connection) -> None:
             """
         )
 
+    # Agregar production_number de forma segura
+    try:
+        connection.execute(
+            "ALTER TABLE scenes ADD COLUMN production_number TEXT"
+        )
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" not in str(e).lower():
+            raise
+
 
 def initialize() -> None:
     schema = """
@@ -81,6 +91,7 @@ def initialize() -> None:
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         project_id INTEGER NOT NULL,
         scene_number INTEGER NOT NULL,
+        production_number TEXT,
         heading TEXT NOT NULL DEFAULT '',
         body TEXT NOT NULL DEFAULT '',
         semantic_lines TEXT NOT NULL DEFAULT '[]',
