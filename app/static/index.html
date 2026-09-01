@@ -13,6 +13,93 @@
     rel="stylesheet"
     href="/static/styles.css"
   >
+  <style>
+    .production-breakdown-view {
+      height: 100%;
+      overflow: auto;
+      padding: 28px 32px 48px;
+      background: #111315;
+      color: #f4f0e8;
+    }
+    .production-breakdown-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #34383d;
+    }
+    .production-breakdown-eyebrow {
+      display: block;
+      margin-bottom: 6px;
+      color: #d8a64f;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .12em;
+    }
+    .production-breakdown-header h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 650;
+    }
+    .production-breakdown-summary {
+      margin-top: 7px;
+      color: #9da3a9;
+      font-size: 13px;
+    }
+    .production-breakdown-scenes {
+      display: grid;
+      gap: 18px;
+    }
+    .production-breakdown-scene {
+      padding: 18px;
+      background: #1a1d20;
+      border: 1px solid #34383d;
+      border-radius: 8px;
+    }
+    .production-breakdown-scene-header {
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #2d3135;
+    }
+    .production-breakdown-scene-number {
+      margin-bottom: 4px;
+      color: #d8a64f;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .production-breakdown-scene-heading {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .production-breakdown-groups {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 22px;
+    }
+    .production-breakdown-group-title {
+      margin-bottom: 4px;
+      color: #8f969d;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+    }
+    .production-breakdown-group-items {
+      color: #e2e4e6;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .production-breakdown-empty {
+      color: #70767d;
+      font-size: 13px;
+    }
+    @media (max-width: 900px) {
+      .production-breakdown-groups {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
 
 <body class="inspector-collapsed" lang="es" spellcheck="true">
@@ -224,6 +311,21 @@
         ></article>
 
       </div>
+
+      <section
+        id="productionBreakdownView"
+        class="production-breakdown-view"
+        hidden
+        aria-label="Desglose de producción"
+      >
+        <header class="production-breakdown-header">
+          <span class="production-breakdown-eyebrow">DESGLOSE DE PRODUCCIÓN</span>
+          <h1>Desglose por escena</h1>
+          <div id="productionBreakdownSummary" class="production-breakdown-summary"></div>
+        </header>
+
+        <div id="productionBreakdownScenes" class="production-breakdown-scenes"></div>
+      </section>
 
       <section
         id="scheduleView"

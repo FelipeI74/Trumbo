@@ -225,12 +225,69 @@ async function loadSchedulePreview() {
 
 function setMainView(view) {
   state.activeMainView = view;
-  $("#screenplayViewport").hidden = view !== "guion";
-  $("#scheduleView").hidden = view !== "plan-rodaje";
-  $(".editor-toolbar").hidden = view === "plan-rodaje";
-  $(".scene-footer").hidden = view === "plan-rodaje";
-  $(".inspector").hidden = view === "plan-rodaje";
-  $("#characterDetailView").hidden = true;
+
+  const screenplay =
+    $("#screenplayViewport");
+
+  const breakdown =
+    $("#productionBreakdownView");
+
+  const schedule =
+    $("#scheduleView");
+
+  const toolbar =
+    $(".editor-toolbar");
+
+  const footer =
+    $(".scene-footer");
+
+  const inspector =
+    $(".inspector");
+
+  const detail =
+    $("#characterDetailView");
+
+  if (screenplay) {
+    screenplay.hidden =
+      view !== "guion";
+  }
+
+  if (breakdown) {
+    breakdown.hidden =
+      view !== "desglose";
+  }
+
+  if (schedule) {
+    schedule.hidden =
+      view !== "plan-rodaje";
+  }
+
+  const isProductionView =
+    view === "desglose" ||
+    view === "plan-rodaje";
+
+  if (toolbar) {
+    toolbar.hidden =
+      isProductionView;
+  }
+
+  if (footer) {
+    footer.hidden =
+      isProductionView;
+  }
+
+  if (inspector) {
+    inspector.hidden =
+      isProductionView;
+  }
+
+  if (detail) {
+    detail.hidden = true;
+  }
+
+  if (view === "desglose") {
+    renderProductionBreakdown();
+  }
 
   if (view === "plan-rodaje") {
     loadSchedulePreview();
@@ -3308,6 +3365,196 @@ function renderNotes(scene) {
         `
       )
       .join("");
+}
+const BREAKDOWN_CATEGORY_LABELS = {
+  character: "Personajes",
+  cast: "Personajes",
+  scene_cast: "Personajes",
+  location: "Locaciones",
+  prop: "Arte / Utilería",
+  art: "Arte / Utilería",
+  wardrobe: "Vestuario",
+  extra: "Extras",
+  extras: "Extras",
+  vehicle: "Vehículos",
+  animal: "Animales",
+  makeup: "Maquillaje",
+  fx: "VFX / SFX",
+  vfx: "VFX / SFX",
+  sfx: "VFX / SFX",
+  equipment: "Equipamiento / Necesidades especiales",
+  special_equipment:
+    "Equipamiento / Necesidades especiales",
+};
+
+const BREAKDOWN_CATEGORY_ORDER = [
+  "Personajes",
+  "Locaciones",
+  "Arte / Utilería",
+  "Vestuario",
+  "Extras",
+  "Vehículos",
+  "Animales",
+  "Maquillaje",
+  "VFX / SFX",
+  "Equipamiento / Necesidades especiales",
+];
+
+function renderProductionBreakdown() {
+  const container =
+    $("#productionBreakdownScenes");
+
+  const summary =
+    $("#productionBreakdownSummary");
+
+  if (!container || !summary) {
+    return;
+  }
+
+  const scenes =
+    state.scenes || [];
+
+  const visibleItems =
+    scenes.flatMap(scene =>
+      (scene.breakdown_items || [])
+        .filter(
+          item =>
+            item.state !== "rejected"
+        )
+    );
+
+  summary.textContent =
+    `${scenes.length} escenas · ${visibleItems.length} elementos activos`;
+
+  if (!scenes.length) {
+    container.innerHTML = `
+      <div class="production-breakdown-empty">
+        El proyecto no tiene escenas.
+      </div>
+    `;
+
+    return;
+  }
+
+  container.innerHTML =
+    scenes.map(scene => {
+
+      const groups =
+        new Map();
+
+      (scene.breakdown_items || [])
+        .forEach(item => {
+
+          if (
+            item.state === "rejected"
+          ) {
+            return;
+          }
+
+          const label =
+            BREAKDOWN_CATEGORY_LABELS[
+              item.category
+            ] ||
+            item.category ||
+            "Otros";
+
+          if (!groups.has(label)) {
+            groups.set(
+              label,
+              []
+            );
+          }
+
+          groups
+            .get(label)
+            .push(item);
+        });
+
+      const orderedLabels = [
+        ...BREAKDOWN_CATEGORY_ORDER
+          .filter(
+            label =>
+              groups.has(label)
+          ),
+
+        ...[...groups.keys()]
+          .filter(
+            label =>
+              !BREAKDOWN_CATEGORY_ORDER
+                .includes(label)
+          ),
+      ];
+
+      const groupsMarkup =
+        orderedLabels.length
+          ? orderedLabels
+              .map(label => {
+
+                const items =
+                  groups.get(label) || [];
+
+                return `
+                  <div class="production-breakdown-group">
+
+                    <div class="production-breakdown-group-title">
+                      ${escapeHtml(label)}
+                    </div>
+
+                    <div class="production-breakdown-group-items">
+                      ${
+                        items
+                          .map(
+                            item =>
+                              escapeHtml(
+                                item.name
+                              )
+                          )
+                          .join(" · ")
+                      }
+                    </div>
+
+                  </div>
+                `;
+              })
+              .join("")
+          : `
+              <div class="production-breakdown-empty">
+                Sin elementos de producción registrados.
+              </div>
+            `;
+
+      return `
+        <article class="production-breakdown-scene">
+
+          <header class="production-breakdown-scene-header">
+
+            <div class="production-breakdown-scene-number">
+              Escena ${
+                escapeHtml(
+                  scene.scene_number
+                )
+              }
+            </div>
+
+            <h2 class="production-breakdown-scene-heading">
+              ${
+                escapeHtml(
+                  scene.heading ||
+                  "Sin encabezado"
+                )
+              }
+            </h2>
+
+          </header>
+
+          <div class="production-breakdown-groups">
+            ${groupsMarkup}
+          </div>
+
+        </article>
+      `;
+    })
+    .join("");
 }
 
 function renderBreakdown(scene) {
