@@ -882,15 +882,20 @@ function renderSceneList() {
         data-scene-id="${scene.id}"
       >
 
-        <div class="scene-card-heading">
-          ${index + 1}.&nbsp;&nbsp;
-          ${
-            escapeHtml(
-              scene.heading ||
-              "Sin encabezado"
-            )
-          }
-        </div>
+       <div class="scene-card-heading">
+  ${
+    escapeHtml(
+      scene.production_number ||
+      String(index + 1)
+    )
+  }.&nbsp;&nbsp;
+  ${
+    escapeHtml(
+      scene.heading ||
+      "Sin encabezado"
+    )
+  }
+</div>
 
         <div class="scene-card-runtime">
           ${
@@ -966,10 +971,13 @@ function setActiveScene(
     });
 
   $("#sceneIdentity").textContent =
-    `ESCENA ${scene.scene_number}`;
+  `ESCENA ${scene.scene_number}`;
 
-  $("#sceneSynopsis").value =
-    scene.synopsis || "";
+$("#sceneProductionNumber").value =
+  scene.production_number || "";
+
+$("#sceneSynopsis").value =
+  scene.synopsis || "";
 
   $("#sceneRuntime").textContent =
     formatSeconds(
@@ -3052,6 +3060,41 @@ async function saveSceneNode(
   }
 }
 
+async function saveProductionNumber() {
+  const scene = activeScene();
+
+  if (!scene) {
+    return;
+  }
+
+  try {
+    const updated = await request(
+      `/api/scenes/${scene.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          production_number:
+            $("#sceneProductionNumber").value
+        }),
+      }
+    );
+
+    Object.assign(scene, updated);
+
+   Object.assign(scene, updated);
+
+$("#sceneProductionNumber").value =
+  scene.production_number || "";
+
+renderSceneList();
+} catch (error) {
+    console.error(
+      "No fue posible guardar el número de escena.",
+      error
+    );
+  }
+}
+
 function scheduleSynopsisSave() {
   const scene =
     activeScene();
@@ -4622,6 +4665,12 @@ function setupEvents() {
       "click",
       createScene
     );
+
+    $("#sceneProductionNumber")
+  .addEventListener(
+    "change",
+    saveProductionNumber
+  );
 
   $("#sceneSynopsis")
     .addEventListener(
