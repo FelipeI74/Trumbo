@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from engine.core.scene import Scene
 from engine.core.types.block_type import BlockType
 from engine.services.analyzers.event_extractor import EventExtractor
@@ -59,6 +61,8 @@ def analyze_scene_with_engine(
 
         if block_type == BlockType.CHARACTER:
             name = block.content.strip()
+            if re.fullmatch(r"\d+[A-Z]?\.?", name):
+                continue
             if name not in characters:
                 characters.append(name)
 

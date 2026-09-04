@@ -68,6 +68,26 @@ def _warm_start_day_by_scene_id(warm_start_schedule: Any) -> dict[int, int]:
     return day_by_scene_id
 
 
+def _warm_start_scene_order(warm_start_schedule: Any) -> list[int] | None:
+    days = warm_start_schedule.get("days", []) if isinstance(warm_start_schedule, dict) else warm_start_schedule
+    if not isinstance(days, list):
+        return None
+
+    scene_order: list[int] = []
+    for day in days:
+        if not isinstance(day, dict):
+            return None
+        scene_ids = day.get("scene_ids")
+        if not isinstance(scene_ids, list):
+            return None
+        for scene_id in scene_ids:
+            try:
+                scene_order.append(int(scene_id))
+            except (TypeError, ValueError):
+                return None
+    return scene_order
+
+
 def _normalized_cast_unavailability(
     cast_unavailability: dict[str, list[int]] | None,
 ) -> dict[str, set[int]]:
@@ -254,6 +274,29 @@ def generate_cp_sat_schedule(
         model.Add(day_of_scene[i] == sum(d * x[(i, d)] for d in range(n)))
         model.Add(position_of_scene[i] == sum(k * q[(i, k)] for k in range(n)))
 
+    day_scene_indexes = [
+        i
+        for i, scene in enumerate(ordered_scenes)
+        if _time_of_day_category(scene.get("time_of_day")) == "dia"
+    ]
+    night_scene_indexes = [
+        i
+        for i, scene in enumerate(ordered_scenes)
+        if _time_of_day_category(scene.get("time_of_day")) == "noche"
+    ]
+    for day_scene_index in day_scene_indexes:
+        for night_scene_index in night_scene_indexes:
+            for d in range(n):
+                model.Add(
+                    position_of_scene[day_scene_index]
+                    < position_of_scene[night_scene_index]
+                ).OnlyEnforceIf(
+                    [
+                        x[(day_scene_index, d)],
+                        x[(night_scene_index, d)],
+                    ]
+                )
+
     # The flattened sequence must group scenes by day, days in ascending order.
     day_at_position = [
         model.NewIntVar(0, n - 1, f"day_at_{k}")
@@ -425,6 +468,23 @@ def generate_cp_sat_schedule(
         for d in range(n):
             model.AddHint(x[(i, d)], int(d == hinted_day))
 
+    warm_start_order = _warm_start_scene_order(warm_start_schedule)
+    model_scene_ids = [int(scene.get("scene_id") or 0) for scene in ordered_scenes]
+    if (
+        warm_start_order is not None
+        and len(warm_start_order) == n
+        and len(set(warm_start_order)) == n
+        and set(warm_start_order) == set(model_scene_ids)
+    ):
+        position_by_scene_id = {
+            scene_id: position
+            for position, scene_id in enumerate(warm_start_order)
+        }
+        for i, scene_id in enumerate(model_scene_ids):
+            hinted_position = position_by_scene_id[scene_id]
+            for position in range(n):
+                model.AddHint(q[(i, position)], int(position == hinted_position))
+
     solver = cp_model.CpSolver()
     solver.parameters.num_search_workers = 1
     solver.parameters.random_seed = 0
@@ -432,7 +492,9 @@ def generate_cp_sat_schedule(
 
     status = solver.Solve(model)
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        raise RuntimeError("CP-SAT could not find a feasible schedule")
+        raise RuntimeError(
+            f"CP-SAT could not find a feasible schedule: {solver.StatusName(status)}"
+        )
 
     sequence_indexes = sorted(
         range(n),

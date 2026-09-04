@@ -200,6 +200,77 @@ class CpSatSpikeTests(unittest.TestCase):
         self.assertIn(schedule["solver_status"], {"OPTIMAL", "FEASIBLE"})
         self.assertEqual(set(self._flatten(schedule)), {scene["scene_id"] for scene in self.scenes})
 
+    def test_accepts_complete_valid_warm_start_permutation(self):
+        warm_start_schedule = {
+            "days": [
+                {"day": 1, "scene_ids": [5, 4]},
+                {"day": 2, "scene_ids": [3, 2]},
+                {"day": 3, "scene_ids": [1]},
+            ]
+        }
+
+        schedule = generate_cp_sat_schedule(
+            self.scenes,
+            shoot_rate_seconds=240,
+            warm_start_schedule=warm_start_schedule,
+        )
+
+        self.assertIn(schedule["solver_status"], {"OPTIMAL", "FEASIBLE"})
+        self.assertEqual(set(self._flatten(schedule)), {scene["scene_id"] for scene in self.scenes})
+
+    def test_tolerates_warm_start_with_duplicate_scene_id(self):
+        warm_start_schedule = {
+            "days": [
+                {"day": 1, "scene_ids": [1, 1]},
+                {"day": 2, "scene_ids": [2, 3]},
+                {"day": 3, "scene_ids": [4]},
+            ]
+        }
+
+        schedule = generate_cp_sat_schedule(
+            self.scenes,
+            shoot_rate_seconds=240,
+            warm_start_schedule=warm_start_schedule,
+        )
+
+        self.assertIn(schedule["solver_status"], {"OPTIMAL", "FEASIBLE"})
+        self.assertEqual(set(self._flatten(schedule)), {scene["scene_id"] for scene in self.scenes})
+
+    def test_tolerates_warm_start_missing_scene_id(self):
+        warm_start_schedule = {
+            "days": [
+                {"day": 1, "scene_ids": [1, 2]},
+                {"day": 2, "scene_ids": [3]},
+            ]
+        }
+
+        schedule = generate_cp_sat_schedule(
+            self.scenes,
+            shoot_rate_seconds=240,
+            warm_start_schedule=warm_start_schedule,
+        )
+
+        self.assertIn(schedule["solver_status"], {"OPTIMAL", "FEASIBLE"})
+        self.assertEqual(set(self._flatten(schedule)), {scene["scene_id"] for scene in self.scenes})
+
+    def test_tolerates_warm_start_with_unknown_scene_id(self):
+        warm_start_schedule = {
+            "days": [
+                {"day": 1, "scene_ids": [1, 2]},
+                {"day": 2, "scene_ids": [3, 99]},
+                {"day": 3, "scene_ids": [4, 5]},
+            ]
+        }
+
+        schedule = generate_cp_sat_schedule(
+            self.scenes,
+            shoot_rate_seconds=240,
+            warm_start_schedule=warm_start_schedule,
+        )
+
+        self.assertIn(schedule["solver_status"], {"OPTIMAL", "FEASIBLE"})
+        self.assertEqual(set(self._flatten(schedule)), {scene["scene_id"] for scene in self.scenes})
+
     def test_cast_unavailability_blocks_scene_on_day(self):
         scenes = [
             {"scene_id": 1, "script_order": 1, "location": "A", "runtime_seconds": 100, "characters": ["ANA"]},
@@ -293,6 +364,55 @@ class CpSatSpikeTests(unittest.TestCase):
                 shoot_rate_seconds=100,
                 location_unavailability={"A": [1]},
             )
+
+    def test_day_scenes_precede_night_scenes_within_jornada(self):
+        scenes = [
+            {"scene_id": 1, "script_order": 1, "location": "A", "runtime_seconds": 100, "time_of_day": "NOCHE"},
+            {"scene_id": 2, "script_order": 2, "location": "A", "runtime_seconds": 100, "time_of_day": "DÍA"},
+            {"scene_id": 3, "script_order": 3, "location": "A", "runtime_seconds": 100, "time_of_day": "NOCHE"},
+            {"scene_id": 4, "script_order": 4, "location": "A", "runtime_seconds": 100, "time_of_day": "DIA"},
+        ]
+
+        schedule = generate_cp_sat_schedule(scenes, shoot_rate_seconds=400)
+        time_by_scene_id = {scene["scene_id"]: scene["time_of_day"] for scene in scenes}
+        for day in schedule["days"]:
+            recognized_times = [
+                time_by_scene_id[scene_id]
+                for scene_id in day["scene_ids"]
+                if time_by_scene_id[scene_id] in {"DÍA", "DIA", "NOCHE"}
+            ]
+            if "NOCHE" not in recognized_times:
+                continue
+            first_night = recognized_times.index("NOCHE")
+            self.assertTrue(
+                all(value in {"DÍA", "DIA"} for value in recognized_times[:first_night])
+            )
+            self.assertTrue(all(value == "NOCHE" for value in recognized_times[first_night:]))
+
+    def test_day_day_night_night_sequence_is_accepted(self):
+        scenes = [
+            {"scene_id": 1, "script_order": 1, "location": "A", "runtime_seconds": 100, "time_of_day": "DÍA"},
+            {"scene_id": 2, "script_order": 2, "location": "A", "runtime_seconds": 100, "time_of_day": "DIA"},
+            {"scene_id": 3, "script_order": 3, "location": "A", "runtime_seconds": 100, "time_of_day": "NOCHE"},
+            {"scene_id": 4, "script_order": 4, "location": "A", "runtime_seconds": 100, "time_of_day": "NOCHE"},
+        ]
+
+        schedule = generate_cp_sat_schedule(scenes, shoot_rate_seconds=400)
+
+        self.assertIn(schedule["solver_status"], {"OPTIMAL", "FEASIBLE"})
+        self.assertEqual(self._flatten(schedule), [1, 2, 3, 4])
+
+    def test_empty_time_of_day_does_not_add_day_night_constraint(self):
+        scenes = [
+            {"scene_id": 1, "script_order": 1, "location": "A", "runtime_seconds": 100, "time_of_day": "NOCHE"},
+            {"scene_id": 2, "script_order": 2, "location": "A", "runtime_seconds": 100, "time_of_day": ""},
+            {"scene_id": 3, "script_order": 3, "location": "A", "runtime_seconds": 100, "time_of_day": "DÍA"},
+        ]
+
+        schedule = generate_cp_sat_schedule(scenes, shoot_rate_seconds=300)
+
+        self.assertIn(schedule["solver_status"], {"OPTIMAL", "FEASIBLE"})
+        self.assertEqual(set(self._flatten(schedule)), {1, 2, 3})
 
     def test_time_of_day_cost_matches_scoring(self):
         scenes = [

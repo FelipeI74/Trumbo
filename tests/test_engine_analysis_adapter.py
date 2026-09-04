@@ -31,6 +31,20 @@ def test_adapter_uses_confidence_one_for_detected_blocks() -> None:
     assert all(item["confidence"] == 1.0 for item in result["elements"])
 
 
+def test_adapter_ignores_scene_numbering_but_keeps_real_characters() -> None:
+    result = analyze_scene_with_engine(
+        scene_id=12,
+        heading="INT. CASA - DIA",
+        body="1\n1A\n1A.\nANDRÉS\nHola.\nSIMÓN\nAdelante.",
+    )
+
+    assert "1" not in result["characters"]
+    assert "1A" not in result["characters"]
+    assert "1A." not in result["characters"]
+    assert "ANDRÉS" in result["characters"]
+    assert "SIMÓN" in result["characters"]
+
+
 def test_adapter_returns_events_and_production_elements() -> None:
     result = analyze_scene_with_engine(
         scene_id=9,

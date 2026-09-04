@@ -133,8 +133,10 @@ class FrontendLoadProjectSwitchTests(unittest.TestCase):
 
         body = self.source[start:end]
 
-        self.assertIn('$(".inspector").hidden = view === "plan-rodaje";', body)
-        self.assertIn('$(".editor-toolbar").hidden = view === "plan-rodaje";', self.source)
+        self.assertIn("isProductionView", body)
+        self.assertIn("inspector.hidden =", body)
+        self.assertIn("toolbar.hidden =", body)
+        
 
     def test_carga_de_proyecto_reaplica_la_vista_principal_activa(self):
         body = self._load_project_body()

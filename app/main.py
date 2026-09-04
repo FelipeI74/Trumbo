@@ -860,6 +860,7 @@ def _build_project_scheduling_input(
             SELECT
                 id,
                 scene_number,
+                production_number,
                 heading,
                 runtime_seconds,
                 semantic_lines
@@ -899,7 +900,7 @@ def _build_project_scheduling_input(
             continue
 
         resource_key = resource_name.casefold()
-        if resource_category.casefold() in {"cast", "scene_cast"}:
+        if resource_category.casefold() in {"cast", "scene_cast", "character"}:
             seen_scene_cast = seen_scene_cast_by_scene.setdefault(
                 scene_id,
                 set(),
@@ -970,6 +971,7 @@ def _build_project_scheduling_input(
             {
                 "scene_id": scene_id,
                 "scene_number": int(scene_row["scene_number"]),
+                "production_number": scene_row["production_number"],
                 "script_order": script_order,
                 "int_ext": heading_fields["int_ext"],
                 "location": heading_fields["location"],

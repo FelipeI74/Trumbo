@@ -185,7 +185,7 @@ function renderSchedule(schedule, schedulingInput) {
               const cast = scene.scene_cast || scene.characters || [];
               return `
                 <div class="schedule-scene">
-                  <span class="schedule-scene-number">${escapeHtml(scene.scene_number ?? sceneId)}</span>
+                  <span class="schedule-scene-number">${escapeHtml(scene.production_number || scene.scene_number || sceneId)}</span>
                   <span class="schedule-scene-heading">${escapeHtml(scene.heading || scene.location || "Sin locación")}</span>
                   <span class="schedule-scene-sublocation">${escapeHtml(scene.sublocation || "—")}</span>
                   <span class="schedule-scene-int-ext">${escapeHtml(scene.int_ext || "—")}</span>
@@ -3717,12 +3717,13 @@ function renderProductionBreakdown() {
           <header class="production-breakdown-scene-header">
 
             <div class="production-breakdown-scene-number">
-              Escena ${
-                escapeHtml(
-                  scene.scene_number
-                )
-              }
-            </div>
+  Escena ${
+    escapeHtml(
+      scene.production_number ||
+      scene.scene_number
+    )
+  }
+</div>
 
             <h2 class="production-breakdown-scene-heading">
               ${

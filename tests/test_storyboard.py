@@ -118,7 +118,59 @@ class StoryboardTests(unittest.TestCase):
             )
             self.assertEqual(len(shots), 1)
 
+    def test_scene_delete_cascades_shots(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+            project, scene = self._create_project_and_scene()
+
+            shot = main.create_shot(
+                project["id"],
+                scene["id"],
+                ShotCreate(shot_type="PM"),
+            )
+
+            with database.connect() as connection:
+                connection.execute(
+                    "DELETE FROM scenes WHERE id = ?",
+                    (scene["id"],),
+                )
+                connection.commit()
+
+                remaining = connection.execute(
+                    "SELECT id FROM shots WHERE id = ?",
+                    (shot["id"],),
+                ).fetchone()
+
+            self.assertIsNone(remaining)
+
+    def test_storyboard_storage_image_roundtrip(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage = main.StoryboardStorage(
+                base_dir=tmpdir
+            )
+
+            storage_key = "1/shots/test-shot.png"
+            image_data = b"fake-png-data"
+
+            storage.save_image(
+                storage_key,
+                image_data,
+            )
+
+            loaded = storage.read_image(storage_key)
+
+            self.assertEqual(
+                loaded,
+                image_data,
+            )
+
+            deleted = storage.delete_image(storage_key)
+
+            self.assertTrue(deleted)
+
+            with self.assertRaises(FileNotFoundError):
+                storage.read_image(storage_key)
+
 
 if __name__ == "__main__":
     unittest.main()
-    

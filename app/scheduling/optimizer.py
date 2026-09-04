@@ -60,6 +60,94 @@ def _scene_cast(scene: dict[str, Any]) -> list[Any]:
     return scene.get("characters") or []
 
 
+def _time_of_day_category(value: Any) -> str:
+    normalized = str(value or "").strip().casefold()
+    return "dia" if normalized in {"dia", "día"} else normalized
+
+
+def _schedule_respects_day_night_order(
+    schedule: Any,
+    scenes: Any,
+) -> bool:
+    if not isinstance(schedule, dict) or not isinstance(scenes, list):
+        return False
+
+    try:
+        time_of_day_by_scene_id = {
+            int(scene["scene_id"]): _time_of_day_category(scene.get("time_of_day"))
+            for scene in scenes
+            if isinstance(scene, dict)
+        }
+        days = schedule.get("days", [])
+        if not isinstance(days, list):
+            return False
+
+        for day in days:
+            if not isinstance(day, dict):
+                return False
+            scene_ids = day.get("scene_ids", [])
+            if not isinstance(scene_ids, list):
+                return False
+
+            night_seen = False
+            for scene_id in scene_ids:
+                category = time_of_day_by_scene_id.get(int(scene_id), "")
+                if category == "noche":
+                    night_seen = True
+                elif category == "dia" and night_seen:
+                    return False
+    except (KeyError, TypeError, ValueError):
+        return False
+
+    return True
+
+
+def _reorder_schedule_day_night(
+    schedule: Any,
+    scenes: Any,
+) -> Any:
+    if not isinstance(schedule, dict) or not isinstance(scenes, list):
+        return schedule
+
+    try:
+        time_of_day_by_scene_id = {
+            int(scene["scene_id"]): _time_of_day_category(scene.get("time_of_day"))
+            for scene in scenes
+            if isinstance(scene, dict)
+        }
+        days = schedule.get("days", [])
+        if not isinstance(days, list):
+            return schedule
+
+        reordered_days = []
+        for day in days:
+            if not isinstance(day, dict):
+                return schedule
+            scene_ids = day.get("scene_ids", [])
+            if not isinstance(scene_ids, list):
+                return schedule
+
+            non_night_scene_ids = []
+            night_scene_ids = []
+            for scene_id in scene_ids:
+                category = time_of_day_by_scene_id.get(int(scene_id), "")
+                if category == "noche":
+                    night_scene_ids.append(scene_id)
+                else:
+                    non_night_scene_ids.append(scene_id)
+
+            reordered_days.append(
+                {
+                    **day,
+                    "scene_ids": non_night_scene_ids + night_scene_ids,
+                }
+            )
+
+        return {**schedule, "days": reordered_days}
+    except (KeyError, TypeError, ValueError):
+        return schedule
+
+
 def _schedule_respects_hard_availability(
     schedule: dict[str, Any],
     scenes: list[dict[str, Any]],
@@ -347,7 +435,7 @@ def optimize_schedule(
     sequence_weight: float = 1.0,
     search_depth: int = 20,
     engine: str = "cp_sat",
-    max_time_seconds: float = 60.0,
+    max_time_seconds: float = 10.0,
     cast_unavailability: dict[str, list[int]] | None = None,
     location_unavailability: dict[str, list[int]] | None = None,
     time_of_day_weight: float = 0.0,
@@ -372,6 +460,10 @@ def optimize_schedule(
         ):
             raise RuntimeError(
                 "Candidate schedule violates hard availability constraints"
+            )
+        if not _schedule_respects_day_night_order(candidate_result["best_schedule"], scenes):
+            raise RuntimeError(
+                "Candidate schedule violates day/night order"
             )
         return _with_engine_metadata(
             candidate_result,
@@ -405,6 +497,9 @@ def optimize_schedule(
         scenes,
         cast_unavailability,
         location_unavailability,
+    ) and _schedule_respects_day_night_order(
+        candidate_result["best_schedule"],
+        scenes,
     )
 
     try:
@@ -429,11 +524,16 @@ def optimize_schedule(
             time_of_day_weight=time_of_day_weight,
         )
 
+        cp_sat_is_valid = _schedule_respects_day_night_order(
+            cp_sat_schedule,
+            scenes,
+        )
+
         solver_status = cp_sat_schedule.get("solver_status")
         objective_value = cp_sat_schedule.get("objective_value")
         best_objective_bound = cp_sat_schedule.get("best_objective_bound")
 
-        if candidate_is_valid and candidate_score["total_score"] < score["total_score"]:
+        if candidate_is_valid and not cp_sat_is_valid:
             return _with_engine_metadata(
                 candidate_result,
                 engine="candidates",
@@ -442,6 +542,19 @@ def optimize_schedule(
                 objective_value=objective_value,
                 best_objective_bound=best_objective_bound,
             )
+
+        if candidate_is_valid and cp_sat_is_valid and candidate_score["total_score"] < score["total_score"]:
+            return _with_engine_metadata(
+                candidate_result,
+                engine="candidates",
+                fallback_used=False,
+                solver_status=solver_status,
+                objective_value=objective_value,
+                best_objective_bound=best_objective_bound,
+            )
+
+        if not cp_sat_is_valid:
+            raise RuntimeError("CP-SAT schedule violates day/night order")
 
         return {
             "best_schedule": cp_sat_schedule,
@@ -453,13 +566,45 @@ def optimize_schedule(
             "objective_value": objective_value,
             "best_objective_bound": best_objective_bound,
         }
-    except Exception:
+    except Exception as exc:
         if cast_unavailability is not None or location_unavailability is not None:
             raise RuntimeError(
                 "CP-SAT could not satisfy hard availability constraints"
             )
-        return _with_engine_metadata(
-            candidate_result,
+        fallback_schedule = _reorder_schedule_day_night(
+            candidate_result["best_schedule"],
+            scenes,
+        )
+        fallback_is_valid = _schedule_respects_hard_availability(
+            fallback_schedule,
+            scenes,
+            cast_unavailability,
+            location_unavailability,
+        ) and _schedule_respects_day_night_order(
+            fallback_schedule,
+            scenes,
+        )
+        if not fallback_is_valid:
+            raise RuntimeError(
+                "No valid fallback schedule satisfies day/night order"
+            ) from exc
+        fallback_score = score_schedule(
+            fallback_schedule.get("days", []),
+            scenes,
+            location_weight=location_weight,
+            cast_weight=cast_weight,
+            sequence_weight=sequence_weight,
+            time_of_day_weight=time_of_day_weight,
+        )
+        fallback_result = _with_engine_metadata(
+            {
+                **candidate_result,
+                "best_schedule": fallback_schedule,
+                "score": fallback_score,
+            },
             engine="fallback",
             fallback_used=True,
         )
+        fallback_result["fallback_reason"] = str(exc)
+        fallback_result["fallback_error_type"] = type(exc).__name__
+        return fallback_result
