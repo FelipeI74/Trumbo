@@ -68,3 +68,21 @@ def test_adapter_returns_events_and_production_elements() -> None:
         item["name"] == "Teléfono"
         for item in result["production_elements"]
     )
+
+
+def test_adapter_returns_extended_production_categories() -> None:
+    result = analyze_scene_with_engine(
+        scene_id=10,
+        heading="EXT. CAMPO - DÍA",
+        body="Un extra acaricia un perro junto a una grúa. Lleva maquillaje.",
+    )
+
+    categories = {
+        item["element_type"]
+        for item in result["production_elements"]
+    }
+
+    assert "extra" in categories
+    assert "animal" in categories
+    assert "equipment" in categories
+    assert "makeup" in categories

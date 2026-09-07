@@ -3184,8 +3184,8 @@ function analysisElementToBreakdownCategory(elementType) {
     fx: "fx",
     vfx: "fx",
     sfx: "fx",
-
-    equipment: "equipment",
+    special_effect: "fx",
+        equipment: "equipment",
     special_equipment: "equipment",
   };
 

@@ -44,3 +44,28 @@ def test_production_element_analyzer_detects_known_elements() -> None:
 
     assert elements[2].name == "Teléfono"
     assert elements[2].element_type == ProductionElementType.PROP
+
+
+def test_production_element_analyzer_detects_extended_categories() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content="Un extra acaricia un perro junto a una grúa. Lleva maquillaje.",
+        ),
+    ]
+
+    analyzer = ProductionElementAnalyzer()
+    elements = analyzer.extract(blocks)
+
+    categories = {
+        element.element_type
+        for element in elements
+    }
+
+    assert ProductionElementType.EXTRA in categories
+    assert ProductionElementType.ANIMAL in categories
+    assert ProductionElementType.EQUIPMENT in categories
+    assert ProductionElementType.MAKEUP in categories

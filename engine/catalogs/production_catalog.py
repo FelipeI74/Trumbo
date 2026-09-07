@@ -19,13 +19,16 @@ PRODUCTION_CATALOG = {
     "teléfono": ProductionElementType.PROP,
     "auricular": ProductionElementType.PROP,
     "vaso": ProductionElementType.PROP,
+    "vasos": ProductionElementType.PROP,
     "botella": ProductionElementType.PROP,
+    "botellas": ProductionElementType.PROP,
     "copa": ProductionElementType.PROP,
+    "copas": ProductionElementType.PROP,
     "cigarro": ProductionElementType.PROP,
     "cigarrillo": ProductionElementType.PROP,
     "encendedor": ProductionElementType.PROP,
-    "llaves": ProductionElementType.PROP,
     "llave": ProductionElementType.PROP,
+    "llaves": ProductionElementType.PROP,
     "cartera": ProductionElementType.PROP,
     "bolso": ProductionElementType.PROP,
     "mochila": ProductionElementType.PROP,
@@ -43,6 +46,48 @@ PRODUCTION_CATALOG = {
     "maleta": ProductionElementType.PROP,
     "reloj": ProductionElementType.PROP,
 
+    "caja": ProductionElementType.PROP,
+    "cajas": ProductionElementType.PROP,
+    "sartén": ProductionElementType.PROP,
+    "sarten": ProductionElementType.PROP,
+    "sartenes": ProductionElementType.PROP,
+    "huevo": ProductionElementType.PROP,
+    "huevos": ProductionElementType.PROP,
+    "vela": ProductionElementType.PROP,
+    "velas": ProductionElementType.PROP,
+    "moneda": ProductionElementType.PROP,
+    "monedas": ProductionElementType.PROP,
+    "taza": ProductionElementType.PROP,
+    "tazas": ProductionElementType.PROP,
+    "té": ProductionElementType.PROP,
+    "te": ProductionElementType.PROP,
+    "loza": ProductionElementType.PROP,
+    "cadena": ProductionElementType.PROP,
+    "cadenas": ProductionElementType.PROP,
+
+    "plato": ProductionElementType.PROP,
+    "platos": ProductionElementType.PROP,
+    "cuchillo": ProductionElementType.PROP,
+    "cuchillos": ProductionElementType.PROP,
+    "tenedor": ProductionElementType.PROP,
+    "tenedores": ProductionElementType.PROP,
+    "cuchara": ProductionElementType.PROP,
+    "cucharas": ProductionElementType.PROP,
+    "olla": ProductionElementType.PROP,
+    "ollas": ProductionElementType.PROP,
+    "tetera": ProductionElementType.PROP,
+    "cafetera": ProductionElementType.PROP,
+    "bandeja": ProductionElementType.PROP,
+    "bandejas": ProductionElementType.PROP,
+    "servilleta": ProductionElementType.PROP,
+    "servilletas": ProductionElementType.PROP,
+
+    "tv": ProductionElementType.PROP,
+    "televisor": ProductionElementType.PROP,
+    "televisores": ProductionElementType.PROP,
+    "televisión": ProductionElementType.PROP,
+    "television": ProductionElementType.PROP,
+
     # ==========================
     # FURNITURE
     # ==========================
@@ -50,6 +95,9 @@ PRODUCTION_CATALOG = {
     "mesa": ProductionElementType.FURNITURE,
     "escritorio": ProductionElementType.FURNITURE,
     "silla": ProductionElementType.FURNITURE,
+    "sillas": ProductionElementType.FURNITURE,
+    "silla plegable": ProductionElementType.FURNITURE,
+    "sillas plegables": ProductionElementType.FURNITURE,
     "sofá": ProductionElementType.FURNITURE,
     "sofa": ProductionElementType.FURNITURE,
     "sillón": ProductionElementType.FURNITURE,
@@ -58,6 +106,11 @@ PRODUCTION_CATALOG = {
     "librero": ProductionElementType.FURNITURE,
     "cama": ProductionElementType.FURNITURE,
     "velador": ProductionElementType.FURNITURE,
+    "colchón": ProductionElementType.FURNITURE,
+    "colchon": ProductionElementType.FURNITURE,
+    "colchones": ProductionElementType.FURNITURE,
+    "colchón inflable": ProductionElementType.FURNITURE,
+    "colchon inflable": ProductionElementType.FURNITURE,
 
     # ==========================
     # SET DRESSING
@@ -102,6 +155,11 @@ PRODUCTION_CATALOG = {
     "sombrero": ProductionElementType.WARDROBE,
     "uniforme": ProductionElementType.WARDROBE,
     "casco": ProductionElementType.WARDROBE,
+    "vestido": ProductionElementType.WARDROBE,
+    "traje": ProductionElementType.WARDROBE,
+    "corbata": ProductionElementType.WARDROBE,
+    "zapatos": ProductionElementType.WARDROBE,
+    "botas": ProductionElementType.WARDROBE,
 
     # ==========================
     # SPECIAL EFFECTS
@@ -113,4 +171,43 @@ PRODUCTION_CATALOG = {
     "fuego": ProductionElementType.SPECIAL_EFFECT,
     "lluvia": ProductionElementType.SPECIAL_EFFECT,
     "sangre": ProductionElementType.SPECIAL_EFFECT,
+
+    # ==========================
+    # EXTRAS
+    # ==========================
+
+    "extra": ProductionElementType.EXTRA,
+    "extras": ProductionElementType.EXTRA,
+
+    # ==========================
+    # ANIMALS
+    # ==========================
+
+    "perro": ProductionElementType.ANIMAL,
+    "perros": ProductionElementType.ANIMAL,
+    "gato": ProductionElementType.ANIMAL,
+    "gatos": ProductionElementType.ANIMAL,
+    "caballo": ProductionElementType.ANIMAL,
+    "caballos": ProductionElementType.ANIMAL,
+
+    # ==========================
+    # MAKEUP
+    # ==========================
+
+    "maquillaje": ProductionElementType.MAKEUP,
+    "prótesis": ProductionElementType.MAKEUP,
+    "protesis": ProductionElementType.MAKEUP,
+    "peluca": ProductionElementType.MAKEUP,
+    "pelucas": ProductionElementType.MAKEUP,
+
+    # ==========================
+    # EQUIPMENT
+    # ==========================
+
+    "grúa": ProductionElementType.EQUIPMENT,
+    "grua": ProductionElementType.EQUIPMENT,
+    "dron": ProductionElementType.EQUIPMENT,
+    "generador": ProductionElementType.EQUIPMENT,
+    "trípode": ProductionElementType.EQUIPMENT,
+    "tripode": ProductionElementType.EQUIPMENT,
 }

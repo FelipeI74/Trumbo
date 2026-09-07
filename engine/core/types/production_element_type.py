@@ -21,5 +21,13 @@ class ProductionElementType(str, Enum):
 
     SPECIAL_EFFECT = "special_effect"
 
+    EXTRA = "extra"
+
+    ANIMAL = "animal"
+
+    MAKEUP = "makeup"
+
+    EQUIPMENT = "equipment"
+
     UNKNOWN = "unknown"
     
