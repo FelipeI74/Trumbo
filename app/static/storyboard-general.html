@@ -494,7 +494,9 @@
 
           <div class="shot-labels">
             <div class="shot-label">
-              Escena ${escapeHtml(scene.scene_number)}
+              Escena ${escapeHtml(
+                scene.production_number || scene.scene_number
+              )}
             </div>
 
             <div class="shot-label">
@@ -569,7 +571,7 @@
 
             <div class="scene-number">
               Escena ${escapeHtml(
-                scene.scene_number
+                scene.production_number || scene.scene_number
               )}
             </div>
 

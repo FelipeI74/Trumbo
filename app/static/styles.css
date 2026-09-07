@@ -660,6 +660,19 @@ select:focus-visible,
   background: var(--accent);
 }
 
+.scene-number-label {
+  position: absolute;
+  left: -36px;
+  z-index: 10;
+  top: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+}
+
 
 /* ======================================
    LÍNEAS SEMÁNTICAS

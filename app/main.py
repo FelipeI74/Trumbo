@@ -2584,7 +2584,7 @@ def get_project_storyboard(
 
         scene_rows = connection.execute(
             """
-            SELECT id, scene_number, heading
+            SELECT id, scene_number, production_number, heading
             FROM scenes
             WHERE project_id = ?
             ORDER BY scene_number, id
@@ -2630,6 +2630,9 @@ def get_project_storyboard(
                     "scene_id": scene_row["id"],
                     "scene_number": scene_row[
                         "scene_number"
+                    ],
+                    "production_number": scene_row[
+                        "production_number"
                     ],
                     "heading": scene_row["heading"],
                     "shots": shots,

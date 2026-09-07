@@ -277,8 +277,7 @@ function setMainView(view) {
   }
 
   if (inspector) {
-    inspector.hidden =
-      isProductionView;
+    inspector.hidden = false;
   }
 
   if (detail) {
@@ -770,6 +769,18 @@ storyboardButton.dataset.sceneId =
 section.appendChild(
   storyboardButton
 );
+
+  const sceneNumberLabel = document.createElement(
+    "span"
+  );
+
+  sceneNumberLabel.className =
+    "scene-number-label";
+  sceneNumberLabel.textContent =
+    scene.production_number || scene.scene_number;
+  section.appendChild(
+    sceneNumberLabel
+  );
 
   const semanticLines =
     sceneToSemanticLines(scene);
@@ -2124,6 +2135,18 @@ section.appendChild(
   storyboardButton
 );
 
+        const sceneNumberLabel = document.createElement(
+          "span"
+        );
+
+        sceneNumberLabel.className =
+          "scene-number-label";
+        sceneNumberLabel.textContent =
+          scene.production_number || scene.scene_number;
+        section.appendChild(
+          sceneNumberLabel
+        );
+
 
         chunk.lines.forEach((line, lineIndex) => {
           normalizeLineForReconciliation(
@@ -3081,7 +3104,37 @@ async function saveProductionNumber() {
 
     Object.assign(scene, updated);
 
-   Object.assign(scene, updated);
+    const productionNumber = String(
+      $("#sceneProductionNumber").value || ""
+    ).trim();
+    const compoundNumber = productionNumber.match(
+      /^(\d+)[A-Za-z]+$/
+    );
+
+    if (compoundNumber) {
+      const sceneIndex = state.scenes.indexOf(scene);
+      const firstFollowingNumber = Number(compoundNumber[1]) + 1;
+
+      for (
+        let index = sceneIndex + 1;
+        index < state.scenes.length;
+        index += 1
+      ) {
+        const followingScene = state.scenes[index];
+        followingScene.production_number = String(
+          firstFollowingNumber + index - sceneIndex - 1
+        );
+        await request(
+          `/api/scenes/${followingScene.id}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              production_number: followingScene.production_number,
+            }),
+          }
+        );
+      }
+    }
 
 $("#sceneProductionNumber").value =
   scene.production_number || "";
@@ -4903,7 +4956,7 @@ function openStoryboardWindow(sceneId) {
   );
 
   const sceneNumber =
-    scene?.scene_number || "";
+    scene?.production_number || scene?.scene_number || "";
 
   window.open(
     `/static/storyboard.html?project=${state.project.id}&scene=${sceneId}&sceneNumber=${encodeURIComponent(sceneNumber)}&v=${Date.now()}`,
@@ -5390,7 +5443,9 @@ document
     );
 
     const sceneNumber =
-      scene?.scene_number || "";
+      scene?.production_number ||
+      scene?.scene_number ||
+      "";
 
     window.open(
       `/static/storyboard.html?project=${state.project.id}&scene=${storyboardSceneId}&sceneNumber=${encodeURIComponent(sceneNumber)}&v=${Date.now()}`,
