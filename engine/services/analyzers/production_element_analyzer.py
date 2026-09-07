@@ -37,11 +37,24 @@ class ProductionElementAnalyzer:
 
             text = block.content.lower()
 
-            for name, category in PRODUCTION_CATALOG.items():
+            for name, category in sorted(
+                PRODUCTION_CATALOG.items(),
+                key=lambda item: len(item[0]),
+                reverse=True,
+            ):
                 if not self._contains_element(text, name):
                     continue
 
                 key = name.lower()
+
+                if any(
+                    key != existing_key and re.search(
+                        rf"(?<!\w){re.escape(key)}(?!\w)",
+                        existing_key,
+                    )
+                    for existing_key in elements
+                ):
+                    continue
 
                 if key in elements:
                     continue
