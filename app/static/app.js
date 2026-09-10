@@ -3293,6 +3293,42 @@ async function syncAnalysisToBreakdown(scene, analysis) {
       });
     }
 
+    const currentAnalysisKeys = new Set(
+      candidates.map(candidate =>
+        normalizeBreakdownKey(
+          candidate.category,
+          candidate.name
+        )
+      )
+    );
+
+    for (const item of scene.breakdown_items) {
+      if (
+        item.source !== "analysis" ||
+        item.state !== "detected" ||
+        currentAnalysisKeys.has(
+          normalizeBreakdownKey(
+            item.category,
+            item.name
+          )
+        )
+      ) {
+        continue;
+      }
+
+      const updated = await request(
+        `/api/breakdown/${item.id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            state: "rejected",
+          }),
+        }
+      );
+
+      Object.assign(item, updated);
+    }
+
     const seenCandidates = new Set();
 
     for (const candidate of candidates) {
@@ -3300,6 +3336,53 @@ async function syncAnalysisToBreakdown(scene, analysis) {
         candidate.category,
         candidate.name
       );
+
+      const supersededItem = scene.breakdown_items.find(item => {
+        if (
+          item.source !== "analysis" ||
+          item.state !== "detected" ||
+          item.category !== candidate.category
+        ) {
+          return false;
+        }
+
+        const existingName = normalizeBreakdownKey(
+          "",
+          item.name
+        ).replace(/^::/, "");
+
+        return (
+          existingName !== key.replace(/^::/, "") &&
+          new RegExp(
+            `(^|\\s)${existingName.replace(
+              /[.*+?^${}()|[\]\\]/g,
+              "\\$&"
+            )}(?=\\s|$)`
+          ).test(key.replace(/^::/, ""))
+        );
+      });
+
+      if (supersededItem) {
+        const supersededKey = normalizeBreakdownKey(
+          supersededItem.category,
+          supersededItem.name
+        );
+        const updated = await request(
+          `/api/breakdown/${supersededItem.id}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              name: candidate.name,
+            }),
+          }
+        );
+
+        Object.assign(supersededItem, updated);
+        existingKeys.delete(supersededKey);
+        existingKeys.add(key);
+        seenCandidates.add(key);
+        continue;
+      }
 
       if (
         existingKeys.has(key) ||
@@ -3813,6 +3896,9 @@ function renderBreakdown(scene) {
 
   const items =
     scene?.breakdown_items?.filter(item => {
+      const isActive =
+        item.state !== "rejected";
+
       const byCategory =
         categoryFilter === "all" ||
         item.category === categoryFilter;
@@ -3821,7 +3907,7 @@ function renderBreakdown(scene) {
         stateFilter === "all" ||
         item.state === stateFilter;
 
-      return byCategory && byState;
+      return isActive && byCategory && byState;
     }) || [];
 
   if (

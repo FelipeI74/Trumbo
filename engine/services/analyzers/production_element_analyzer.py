@@ -11,14 +11,17 @@ from engine.catalogs.production_catalog import PRODUCTION_CATALOG
 from engine.core.block import Block
 from engine.core.production_element import ProductionElement
 from engine.core.types.block_type import BlockType
+from engine.core.types.production_element_type import (
+    ProductionElementType,
+)
 
 
 class ProductionElementAnalyzer:
     """
-    Detect known production elements inside ACTION blocks.
+    Detect production elements inside ACTION blocks.
 
-    The analyzer only recognizes complete words or expressions
-    contained in the production catalog.
+    Known elements are detected from the production catalog.
+    Simple object enumerations can also produce PROP candidates.
     """
 
     def extract(
@@ -48,7 +51,8 @@ class ProductionElementAnalyzer:
                 key = name.lower()
 
                 if any(
-                    key != existing_key and re.search(
+                    key != existing_key
+                    and re.search(
                         rf"(?<!\w){re.escape(key)}(?!\w)",
                         existing_key,
                     )
@@ -65,6 +69,43 @@ class ProductionElementAnalyzer:
                     element_type=category,
                 )
 
+            for candidate in self._extract_enumerated_props(text):
+                key = candidate.lower()
+
+                if key in elements:
+                    continue
+
+                shorter_keys = [
+                    existing_key
+                    for existing_key in elements
+                    if existing_key != key
+                    and re.search(
+                        rf"(?<!\w){re.escape(existing_key)}(?!\w)",
+                        key,
+                    )
+                ]
+
+                for shorter_key in shorter_keys:
+                    del elements[shorter_key]
+
+                elements[key] = ProductionElement(
+                    id=str(uuid4()),
+                    name=candidate.capitalize(),
+                    element_type=ProductionElementType.PROP,
+                )
+
+            for candidate in self._extract_indefinite_props(text):
+                key = candidate.lower()
+
+                if key in elements:
+                    continue
+
+                elements[key] = ProductionElement(
+                    id=str(uuid4()),
+                    name=candidate.capitalize(),
+                    element_type=ProductionElementType.PROP,
+                )
+
         return sorted(
             elements.values(),
             key=lambda element: element.name,
@@ -77,11 +118,97 @@ class ProductionElementAnalyzer:
     ) -> bool:
         """
         Return True only when the complete element name appears.
-
-        This prevents 'papel' from matching inside 'papeles'.
         """
 
-        pattern = rf"(?<!\w){re.escape(element_name.lower())}(?!\w)"
+        pattern = (
+            rf"(?<!\w)"
+            rf"{re.escape(element_name.lower())}"
+            rf"(?!\w)"
+        )
 
         return re.search(pattern, text) is not None
-    
+
+    def _extract_enumerated_props(
+        self,
+        text: str,
+    ) -> list[str]:
+        """
+        Detect simple object lists such as:
+
+        'un par de guantes, un martillo y una barreta de fierro'
+        """
+
+        candidates: list[str] = []
+
+        sentences = re.split(r"[.!?]+", text)
+
+        for sentence in sentences:
+            if "," not in sentence:
+                continue
+
+            parts = re.split(
+                r"\s*,\s*|\s+y\s+",
+                sentence,
+            )
+
+            tail = parts[1:]
+
+            detected: list[str] = []
+
+            for part in tail:
+                match = re.match(
+                    r"^\s*(?:un|una|unos|unas)\s+(.+?)\s*$",
+                    part,
+                )
+
+                if not match:
+                    continue
+
+                candidate = match.group(1).strip()
+
+                candidate = re.sub(
+                    r"^par\s+de\s+",
+                    "",
+                    candidate,
+                )
+
+                if candidate:
+                    detected.append(candidate)
+
+            if len(detected) >= 2:
+                candidates.extend(detected)
+
+        return candidates
+
+    def _extract_indefinite_props(
+        self,
+        text: str,
+    ) -> list[str]:
+        """
+        Detect unknown plural objects introduced by an indefinite article.
+
+        This keeps discovery independent of the production catalog while
+        avoiding common singular subject phrases.
+        """
+
+        candidates: list[str] = []
+        pattern = (
+            r"\b(?:unos|unas)\s+"
+            r"([a-záéíóúüñ]+)"
+        )
+
+        for match in re.finditer(pattern, text):
+            prefix = text[:match.start()]
+
+            if re.search(
+                r"(?:durante|por|hace)\s+$",
+                prefix,
+            ):
+                continue
+
+            candidate = match.group(1).strip()
+
+            if candidate and candidate not in candidates:
+                candidates.append(candidate)
+
+        return candidates

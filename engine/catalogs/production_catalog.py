@@ -48,6 +48,7 @@ PRODUCTION_CATALOG = {
 
     "caja": ProductionElementType.PROP,
     "cajas": ProductionElementType.PROP,
+    "caja de herramientas": ProductionElementType.PROP,
     "sartén": ProductionElementType.PROP,
     "sarten": ProductionElementType.PROP,
     "sartenes": ProductionElementType.PROP,

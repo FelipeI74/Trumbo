@@ -53,7 +53,10 @@ def test_production_element_analyzer_detects_extended_categories() -> None:
             scene_id="1",
             order=1,
             block_type=BlockType.ACTION,
-            content="Un extra acaricia un perro junto a una grúa. Lleva maquillaje.",
+            content=(
+                "Un extra acaricia un perro junto a una grúa. "
+                "Lleva maquillaje."
+            ),
         ),
     ]
 
@@ -69,3 +72,63 @@ def test_production_element_analyzer_detects_extended_categories() -> None:
     assert ProductionElementType.ANIMAL in categories
     assert ProductionElementType.EQUIPMENT in categories
     assert ProductionElementType.MAKEUP in categories
+
+
+def test_production_element_analyzer_detects_enumerated_unknown_props() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content=(
+                "Busca en una vieja caja de herramientas, "
+                "un par de guantes, un martillo "
+                "y una barreta de fierro."
+            ),
+        ),
+    ]
+
+    analyzer = ProductionElementAnalyzer()
+    elements = analyzer.extract(blocks)
+
+    names = {
+        element.name
+        for element in elements
+    }
+
+    assert "Guantes" in names
+    assert "Martillo" in names
+    assert "Barreta de fierro" in names
+
+
+def test_production_element_analyzer_detects_unknown_indefinite_props() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content=(
+                "El guardia usa unos grilletes parecidos. "
+                "Permanece allÃ­ durante unos segundos."
+            ),
+        ),
+    ]
+
+    analyzer = ProductionElementAnalyzer()
+    elements = analyzer.extract(blocks)
+
+    assert any(
+        element.name == "Grilletes"
+        and element.element_type == ProductionElementType.PROP
+        for element in elements
+    )
+    assert "Grilletes parecidos" not in {
+        element.name
+        for element in elements
+    }
+    assert "Segundos" not in {
+        element.name
+        for element in elements
+    }
