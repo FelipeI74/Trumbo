@@ -106,6 +106,18 @@ class ProductionElementAnalyzer:
                     element_type=ProductionElementType.PROP,
                 )
 
+            for candidate in self._extract_effect_candidates(text):
+                key = candidate.lower()
+
+                if key in elements:
+                    continue
+
+                elements[key] = ProductionElement(
+                    id=str(uuid4()),
+                    name=candidate,
+                    element_type=ProductionElementType.SPECIAL_EFFECT,
+                )
+
         return sorted(
             elements.values(),
             key=lambda element: element.name,
@@ -127,6 +139,48 @@ class ProductionElementAnalyzer:
         )
 
         return re.search(pattern, text) is not None
+
+    def _extract_effect_candidates(
+        self,
+        text: str,
+    ) -> list[str]:
+        """
+        Detect physical or visual effects from general action patterns.
+        """
+
+        effect_patterns = (
+            (
+                r"\b(?:romp\w*|quebr\w*|part\w*|desgarr\w*|rasg\w*|"
+                r"destruy\w*)\b",
+                "Efecto de ruptura",
+            ),
+            (
+                r"\b(?:revent\w*|revient\w*|estall\w*|explot\w*|"
+                r"(?:hacerse|hace)\s+añicos)\b",
+                "Efecto de estallido",
+            ),
+            (
+                r"\b(?:descarg\w*|electrocut\w*|corrient\w*|"
+                r"ray\w*|relámpag\w*)\b",
+                "Efecto de descarga",
+            ),
+            (
+                r"\b(?:emit\w*|desprend\w*|ilumin\w*|liber\w*|"
+                r"expuls\w*)\b",
+                "Efecto de emisión",
+            ),
+            (
+                r"\b(?:transform\w*|convert\w*|cambi\w*|derrit\w*|"
+                r"congel\w*|quem\w*|ard\w*|incendi\w*)\b",
+                "Efecto de transformación",
+            ),
+        )
+
+        return [
+            candidate
+            for pattern, candidate in effect_patterns
+            if re.search(pattern, text) is not None
+        ]
 
     def _extract_enumerated_props(
         self,

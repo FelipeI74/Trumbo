@@ -1,4 +1,4 @@
-from engine.core.block import Block
+﻿from engine.core.block import Block
 from engine.core.types.block_type import BlockType
 from engine.core.types.production_element_type import ProductionElementType
 from engine.services.analyzers.production_element_analyzer import (
@@ -132,3 +132,42 @@ def test_production_element_analyzer_detects_unknown_indefinite_props() -> None:
         element.name
         for element in elements
     }
+
+
+def test_production_element_analyzer_detects_general_effect_candidates() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content="Recibe una descarga eléctrica.",
+        ),
+        Block(
+            id="2",
+            scene_id="1",
+            order=2,
+            block_type=BlockType.ACTION,
+            content="La ampolleta revienta.",
+        ),
+        Block(
+            id="3",
+            scene_id="1",
+            order=3,
+            block_type=BlockType.ACTION,
+            content="Recibe una carta.",
+        ),
+    ]
+
+    analyzer = ProductionElementAnalyzer()
+    elements = analyzer.extract(blocks)
+
+    effect_names = {
+        element.name
+        for element in elements
+        if element.element_type == ProductionElementType.SPECIAL_EFFECT
+    }
+
+    assert "Efecto de descarga" in effect_names
+    assert "Efecto de estallido" in effect_names
+    assert "Efecto de ruptura" not in effect_names
