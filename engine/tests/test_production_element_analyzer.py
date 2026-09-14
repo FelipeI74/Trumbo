@@ -342,6 +342,220 @@ def test_production_element_analyzer_detects_extended_special_effects() -> None:
     }
 
 
+def test_production_element_analyzer_detects_bird_window_impact() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content="Un zorzal golpea contra su ventana.",
+        ),
+    ]
+
+    elements = ProductionElementAnalyzer().extract(blocks)
+
+    assert any(
+        element.name == "Impacto contra ventana"
+        and element.element_type == ProductionElementType.SPECIAL_EFFECT
+        for element in elements
+    )
+
+
+def test_production_element_analyzer_detects_lidia_fall_as_stunt() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content=(
+                "Lidia se tropieza con la botella, y cae sobre la esquina "
+                "de su escritorio, quebrándose el cuello en la caída."
+            ),
+        ),
+    ]
+
+    elements = ProductionElementAnalyzer().extract(blocks)
+
+    assert any(
+        element.name == "Caída"
+        and element.element_type == ProductionElementType.STUNT
+        for element in elements
+    )
+
+
+def test_production_element_analyzer_detects_literal_stunts() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content=(
+                "La caída ocurre tras el golpe durante la pelea. "
+                "El atropello causa un arrastre y un lanzamiento."
+            ),
+        ),
+    ]
+
+    elements = ProductionElementAnalyzer().extract(blocks)
+
+    assert {
+        element.name
+        for element in elements
+        if element.element_type == ProductionElementType.STUNT
+    } == {
+        "Arrastre",
+        "Atropello",
+        "Caída",
+        "Golpe",
+        "Lanzamiento",
+        "Pelea",
+    }
+
+
+def test_production_element_analyzer_detects_semantic_stunts() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content="El hombre cae desde el balcón.",
+        ),
+        Block(
+            id="2",
+            scene_id="1",
+            order=2,
+            block_type=BlockType.ACTION,
+            content="Sale despedido contra la pared.",
+        ),
+        Block(
+            id="3",
+            scene_id="1",
+            order=3,
+            block_type=BlockType.ACTION,
+            content="Es arrojado al suelo.",
+        ),
+        Block(
+            id="4",
+            scene_id="1",
+            order=4,
+            block_type=BlockType.ACTION,
+            content="Lo arrastran por el pasillo.",
+        ),
+        Block(
+            id="5",
+            scene_id="1",
+            order=5,
+            block_type=BlockType.ACTION,
+            content="Es atropellado frente al edificio.",
+        ),
+        Block(
+            id="6",
+            scene_id="1",
+            order=6,
+            block_type=BlockType.ACTION,
+            content="Se golpea contra el muro.",
+        ),
+    ]
+
+    elements = ProductionElementAnalyzer().extract(blocks)
+
+    assert {
+        element.name
+        for element in elements
+        if element.element_type == ProductionElementType.STUNT
+    } == {
+        "Arrastre",
+        "Atropello",
+        "Caída",
+        "Golpe",
+        "Persona arrojada",
+        "Persona despedida",
+    }
+
+
+def test_production_element_analyzer_detects_semantic_action_cases() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content="La herida del rostro comienza a sangrar.",
+        ),
+        Block(
+            id="2",
+            scene_id="1",
+            order=2,
+            block_type=BlockType.ACTION,
+            content="El cristal se rompe con un estruendo.",
+        ),
+        Block(
+            id="3",
+            scene_id="1",
+            order=3,
+            block_type=BlockType.ACTION,
+            content="Una explosión sacude el almacén.",
+        ),
+        Block(
+            id="4",
+            scene_id="1",
+            order=4,
+            block_type=BlockType.ACTION,
+            content="Una descarga eléctrica atraviesa el aire.",
+        ),
+        Block(
+            id="5",
+            scene_id="1",
+            order=5,
+            block_type=BlockType.ACTION,
+            content="El humo cubre la sala.",
+        ),
+        Block(
+            id="6",
+            scene_id="1",
+            order=6,
+            block_type=BlockType.ACTION,
+            content="El fuego crece en la habitación.",
+        ),
+        Block(
+            id="7",
+            scene_id="1",
+            order=7,
+            block_type=BlockType.ACTION,
+            content="El arnés sostiene al técnico.",
+        ),
+        Block(
+            id="8",
+            scene_id="1",
+            order=8,
+            block_type=BlockType.ACTION,
+            content="Un dron sobrevuela el patio.",
+        ),
+    ]
+
+    elements = ProductionElementAnalyzer().extract(blocks)
+
+    detected_types = {
+        element.name: element.element_type
+        for element in elements
+    }
+
+    assert detected_types == {
+        "Arnés": ProductionElementType.EQUIPMENT,
+        "Dron": ProductionElementType.EQUIPMENT,
+        "Efecto de descarga": ProductionElementType.SPECIAL_EFFECT,
+        "Efecto de ruptura": ProductionElementType.SPECIAL_EFFECT,
+        "Explosión": ProductionElementType.SPECIAL_EFFECT,
+        "Fuego": ProductionElementType.SPECIAL_EFFECT,
+        "Herida": ProductionElementType.MAKEUP,
+        "Humo": ProductionElementType.SPECIAL_EFFECT,
+    }
+
+
 def test_production_element_analyzer_detects_enumerated_unknown_props() -> None:
     blocks = [
         Block(

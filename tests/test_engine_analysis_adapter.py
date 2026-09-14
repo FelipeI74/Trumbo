@@ -86,3 +86,58 @@ def test_adapter_returns_extended_production_categories() -> None:
     assert "animal" in categories
     assert "equipment" in categories
     assert "makeup" in categories
+
+
+def test_adapter_serializes_stunt_production_elements() -> None:
+    result = analyze_scene_with_engine(
+        scene_id=11,
+        heading="EXT. CALLE - DÍA",
+        body="El personaje cae sobre el pavimento.",
+    )
+
+    assert any(
+        item["name"] == "Caída"
+        and item["element_type"] == "stunt"
+        for item in result["production_elements"]
+    )
+
+
+def test_adapter_preserves_semantic_actions_after_dialogue() -> None:
+    result = analyze_scene_with_engine(
+        scene_id=194,
+        heading="INT. OFICINA DE LIDIA - DÍA",
+        body=(
+            "LIDIA\n"
+            "No te oigo.\n"
+            "Cuando repentinamente un zorzal golpea contra su ventana.\n"
+            "Se tropieza con la botella y cae sobre el escritorio."
+        ),
+        semantic_lines=[
+            {"type": "heading", "text": "INT. OFICINA DE LIDIA - DÍA"},
+            {"type": "character", "text": "LIDIA"},
+            {"type": "dialogue", "text": "No te oigo."},
+            {
+                "type": "action",
+                "text": "Cuando repentinamente un zorzal golpea contra su ventana.",
+            },
+            {
+                "type": "action",
+                "text": "Se tropieza con la botella y cae sobre el escritorio.",
+            },
+        ],
+    )
+
+    action_lines = {
+        item["text"]
+        for item in result["elements"]
+        if item["type"] == "action"
+    }
+    production_elements = {
+        (item["name"], item["element_type"])
+        for item in result["production_elements"]
+    }
+
+    assert "Cuando repentinamente un zorzal golpea contra su ventana." in action_lines
+    assert "Se tropieza con la botella y cae sobre el escritorio." in action_lines
+    assert ("Caída", "stunt") in production_elements
+    assert ("Impacto contra ventana", "special_effect") in production_elements

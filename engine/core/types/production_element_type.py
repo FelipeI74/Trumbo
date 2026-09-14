@@ -19,6 +19,8 @@ class ProductionElementType(str, Enum):
 
     WARDROBE = "wardrobe"
 
+    STUNT = "stunt"
+
     SPECIAL_EFFECT = "special_effect"
 
     EXTRA = "extra"

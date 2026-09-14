@@ -1526,7 +1526,8 @@ def analyze_scene(
             """
             SELECT
                 heading,
-                body
+                body,
+                semantic_lines
             FROM scenes
             WHERE id = ?
             """,
@@ -1539,10 +1540,15 @@ def analyze_scene(
                 "Escena no encontrada",
             )
 
+        semantic_lines = json.loads(
+            scene["semantic_lines"] or "[]"
+        )
+
         return analyze_scene_with_engine(
             scene_id=scene_id,
             heading=scene["heading"],
             body=scene["body"],
+            semantic_lines=semantic_lines,
         )
 
 

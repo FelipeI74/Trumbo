@@ -216,6 +216,23 @@ PRODUCTION_CATALOG = {
     "pulsera": ProductionElementType.WARDROBE,
 
     # ==========================
+    # STUNTS
+    # ==========================
+
+    "caída": ProductionElementType.STUNT,
+    "caida": ProductionElementType.STUNT,
+    "golpe": ProductionElementType.STUNT,
+    "golpes": ProductionElementType.STUNT,
+    "pelea": ProductionElementType.STUNT,
+    "peleas": ProductionElementType.STUNT,
+    "atropello": ProductionElementType.STUNT,
+    "atropellos": ProductionElementType.STUNT,
+    "arrastre": ProductionElementType.STUNT,
+    "arrastres": ProductionElementType.STUNT,
+    "lanzamiento": ProductionElementType.STUNT,
+    "lanzamientos": ProductionElementType.STUNT,
+
+    # ==========================
     # SPECIAL EFFECTS
     # ==========================
 

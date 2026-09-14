@@ -3249,6 +3249,8 @@ function analysisElementToBreakdownCategory(elementType) {
 
     makeup: "makeup",
 
+    stunt: "stunt",
+
     fx: "fx",
     vfx: "fx",
     sfx: "fx",
@@ -3729,6 +3731,7 @@ const BREAKDOWN_CATEGORY_LABELS = {
   vehicle: "Vehículos",
   animal: "Animales",
   makeup: "Maquillaje",
+  stunt: "Stunts / Riesgo",
   fx: "VFX / SFX",
   vfx: "VFX / SFX",
   sfx: "VFX / SFX",
@@ -3746,6 +3749,7 @@ const BREAKDOWN_CATEGORY_ORDER = [
   "Vehículos",
   "Animales",
   "Maquillaje",
+  "Stunts / Riesgo",
   "VFX / SFX",
   "Equipamiento / Necesidades especiales",
 ];

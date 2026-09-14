@@ -118,6 +118,18 @@ class ProductionElementAnalyzer:
                     element_type=ProductionElementType.SPECIAL_EFFECT,
                 )
 
+            for candidate in self._extract_stunt_candidates(text):
+                key = candidate.lower()
+
+                if key in elements:
+                    continue
+
+                elements[key] = ProductionElement(
+                    id=str(uuid4()),
+                    name=candidate,
+                    element_type=ProductionElementType.STUNT,
+                )
+
         return sorted(
             elements.values(),
             key=lambda element: element.name,
@@ -150,6 +162,11 @@ class ProductionElementAnalyzer:
 
         effect_patterns = (
             (
+                r"\b(?:zorzal|ave|pájaro|pajaro)\b(?:\s+\w+){0,4}\s+"
+                r"(?:golpea|choca|impacta)\s+contra\s+(?:su|la|una)\s+ventana\b",
+                "Impacto contra ventana",
+            ),
+            (
                 r"\b(?:romp\w*|quebr\w*|part\w*|desgarr\w*|rasg\w*|"
                 r"destruy\w*)\b",
                 "Efecto de ruptura",
@@ -179,6 +196,32 @@ class ProductionElementAnalyzer:
         return [
             candidate
             for pattern, candidate in effect_patterns
+            if re.search(pattern, text) is not None
+        ]
+
+    def _extract_stunt_candidates(
+        self,
+        text: str,
+    ) -> list[str]:
+        """
+        Detect explicit stunt actions from controlled screenplay patterns.
+        """
+
+        stunt_patterns = (
+            (r"\b(?:cae|caen|cayó|cayo|cayeron)\b", "Caída"),
+            (
+                r"\bsale(?:n)?\s+despedido(?:s|a|as)?\b",
+                "Persona despedida",
+            ),
+            (r"\bes\s+arrojad[oa]s?\b", "Persona arrojada"),
+            (r"\blo(?:s)?\s+arrastran\b", "Arrastre"),
+            (r"\bes\s+atropellad[oa]s?\b", "Atropello"),
+            (r"\bse\s+golpea\b", "Golpe"),
+        )
+
+        return [
+            candidate
+            for pattern, candidate in stunt_patterns
             if re.search(pattern, text) is not None
         ]
 

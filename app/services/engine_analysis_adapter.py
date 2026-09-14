@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import re
+from uuid import uuid4
 
+from engine.core.block import Block
 from engine.core.scene import Scene
 from engine.core.types.block_type import BlockType
 from engine.services.analyzers.event_extractor import EventExtractor
@@ -13,6 +15,7 @@ def analyze_scene_with_engine(
     scene_id: int,
     heading: str,
     body: str,
+    semantic_lines: list[dict[str, str]] | None = None,
 ) -> dict:
     """
     Analyze a screenplay scene using the Engine parser and return the
@@ -29,10 +32,30 @@ def analyze_scene_with_engine(
         content=f"{heading}\n{body}".strip(),
     )
 
-    parser = SceneParser()
-    parsed_scene = parser.parse(scene)
-
-    blocks = parsed_scene.blocks
+    if semantic_lines:
+        blocks = [
+            Block(
+                id=str(uuid4()),
+                scene_id=str(scene_id),
+                order=index,
+                block_type=BlockType(line["type"]),
+                content=line["text"],
+            )
+            for index, line in enumerate(semantic_lines, start=1)
+            if line.get("type") in {
+                "heading",
+                "action",
+                "character",
+                "dialogue",
+                "parenthetical",
+                "transition",
+            }
+            and isinstance(line.get("text"), str)
+        ]
+    else:
+        parser = SceneParser()
+        parsed_scene = parser.parse(scene)
+        blocks = parsed_scene.blocks
 
     event_extractor = EventExtractor()
     events = event_extractor.extract(blocks)
