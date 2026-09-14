@@ -305,6 +305,9 @@ class ProductionElementAnalyzer:
 
             candidate = match.group(1).strip()
 
+            if candidate == "segundos":
+                continue
+
             if candidate and candidate not in candidates:
                 candidates.append(candidate)
 

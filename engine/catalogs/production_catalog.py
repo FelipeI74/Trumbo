@@ -126,6 +126,8 @@ PRODUCTION_CATALOG = {
     "piso": ProductionElementType.SET_DRESSING,
     "mostrador": ProductionElementType.SET_DRESSING,
     "barra": ProductionElementType.SET_DRESSING,
+    "árbol muerto": ProductionElementType.SET_DRESSING,
+    "árbol": ProductionElementType.SET_DRESSING,
 
     # ==========================
     # VEHICLES

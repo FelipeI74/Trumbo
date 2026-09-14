@@ -616,6 +616,46 @@ def test_production_element_analyzer_detects_unknown_indefinite_props() -> None:
     }
 
 
+def test_production_element_analyzer_detects_dead_tree_as_set_dressing() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content="Andrés se detiene frente a un árbol muerto.",
+        ),
+    ]
+
+    elements = ProductionElementAnalyzer().extract(blocks)
+
+    assert {
+        (element.name, element.element_type)
+        for element in elements
+    } == {
+        ("Árbol muerto", ProductionElementType.SET_DRESSING),
+    }
+
+
+def test_production_element_analyzer_ignores_temporal_seconds_as_prop() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content="Andrés se queda mirando el árbol unos segundos.",
+        ),
+    ]
+
+    elements = ProductionElementAnalyzer().extract(blocks)
+
+    assert "Segundos" not in {
+        element.name
+        for element in elements
+    }
+
+
 def test_production_element_analyzer_detects_general_effect_candidates() -> None:
     blocks = [
         Block(
