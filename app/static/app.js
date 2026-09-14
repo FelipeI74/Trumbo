@@ -3393,21 +3393,32 @@ async function syncAnalysisToBreakdown(scene, analysis) {
 
       seenCandidates.add(key);
 
-      const item = await request(
-        `/api/scenes/${scene.id}/breakdown`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            category: candidate.category,
-            name: candidate.name,
-            source: "analysis",
-            state: "detected",
-          }),
-        }
-      );
+      try {
+        const item = await request(
+          `/api/scenes/${scene.id}/breakdown`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              category: candidate.category,
+              name: candidate.name,
+              source: "analysis",
+              state: "detected",
+            }),
+          }
+        );
 
-      scene.breakdown_items.push(item);
-      existingKeys.add(key);
+        scene.breakdown_items.push(item);
+        existingKeys.add(key);
+      } catch (error) {
+        console.error(
+          "No fue posible crear el elemento detectado.",
+          {
+            name: candidate.name,
+            category: candidate.category,
+            error,
+          }
+        );
+      }
     }
 
     renderBreakdown(scene);
