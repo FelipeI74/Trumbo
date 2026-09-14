@@ -74,6 +74,274 @@ def test_production_element_analyzer_detects_extended_categories() -> None:
     assert ProductionElementType.MAKEUP in categories
 
 
+def test_production_element_analyzer_detects_wardrobe() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content="El personaje se pone un abrigo.",
+        ),
+        Block(
+            id="2",
+            scene_id="1",
+            order=2,
+            block_type=BlockType.ACTION,
+            content="El personaje usa una chaqueta.",
+        ),
+        Block(
+            id="3",
+            scene_id="1",
+            order=3,
+            block_type=BlockType.ACTION,
+            content="El personaje calza botas.",
+        ),
+    ]
+
+    analyzer = ProductionElementAnalyzer()
+    elements = analyzer.extract(blocks)
+
+    wardrobe = {
+        element.name
+        for element in elements
+        if element.element_type == ProductionElementType.WARDROBE
+    }
+
+    assert wardrobe == {"Abrigo", "Chaqueta", "Botas"}
+
+
+def test_production_element_analyzer_detects_general_breakdown_categories() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content=(
+                "Un extra llega en un auto con un perro. Lleva maquillaje, "
+                "opera un dron y hay humo mientras usa un abrigo."
+            ),
+        ),
+    ]
+
+    analyzer = ProductionElementAnalyzer()
+    elements = analyzer.extract(blocks)
+
+    detected_types = {
+        element.name: element.element_type
+        for element in elements
+    }
+
+    assert detected_types == {
+        "Abrigo": ProductionElementType.WARDROBE,
+        "Auto": ProductionElementType.VEHICLE,
+        "Dron": ProductionElementType.EQUIPMENT,
+        "Extra": ProductionElementType.EXTRA,
+        "Humo": ProductionElementType.SPECIAL_EFFECT,
+        "Maquillaje": ProductionElementType.MAKEUP,
+        "Perro": ProductionElementType.ANIMAL,
+    }
+
+
+def test_production_element_analyzer_detects_extended_wardrobe() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content="Usa una camisa y una bufanda.",
+        ),
+    ]
+
+    elements = ProductionElementAnalyzer().extract(blocks)
+
+    assert {
+        element.name: element.element_type
+        for element in elements
+    } == {
+        "Camisa": ProductionElementType.WARDROBE,
+        "Bufanda": ProductionElementType.WARDROBE,
+    }
+
+
+def test_production_element_analyzer_detects_extended_extras() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content="Un figurante cruza la calle con otros figurantes.",
+        ),
+    ]
+
+    elements = ProductionElementAnalyzer().extract(blocks)
+
+    assert {
+        element.name: element.element_type
+        for element in elements
+    } == {
+        "Figurante": ProductionElementType.EXTRA,
+        "Figurantes": ProductionElementType.EXTRA,
+    }
+
+
+def test_production_element_analyzer_detects_extended_vehicles() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content="La camioneta espera junto a la lancha y la avioneta.",
+        ),
+    ]
+
+    elements = ProductionElementAnalyzer().extract(blocks)
+
+    assert {
+        element.name: element.element_type
+        for element in elements
+    } == {
+        "Avioneta": ProductionElementType.VEHICLE,
+        "Camioneta": ProductionElementType.VEHICLE,
+        "Lancha": ProductionElementType.VEHICLE,
+    }
+
+
+def test_production_element_analyzer_detects_requested_vehicle_types() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content=(
+                "La camioneta, el camión, el jeep, el SUV, el furgón, "
+                "la furgoneta, la van, el minibús, el bus, el taxi, "
+                "la motocicleta, la moto, la bicicleta, la ambulancia, "
+                "la patrulla y el tractor esperan."
+            ),
+        ),
+    ]
+
+    elements = ProductionElementAnalyzer().extract(blocks)
+
+    detected_types = {
+        element.name: element.element_type
+        for element in elements
+    }
+
+    assert detected_types == {
+        "Ambulancia": ProductionElementType.VEHICLE,
+        "Bicicleta": ProductionElementType.VEHICLE,
+        "Bus": ProductionElementType.VEHICLE,
+        "Camioneta": ProductionElementType.VEHICLE,
+        "Camión": ProductionElementType.VEHICLE,
+        "Furgoneta": ProductionElementType.VEHICLE,
+        "Furgón": ProductionElementType.VEHICLE,
+        "Jeep": ProductionElementType.VEHICLE,
+        "Minibús": ProductionElementType.VEHICLE,
+        "Moto": ProductionElementType.VEHICLE,
+        "Motocicleta": ProductionElementType.VEHICLE,
+        "Patrulla": ProductionElementType.VEHICLE,
+        "Suv": ProductionElementType.VEHICLE,
+        "Taxi": ProductionElementType.VEHICLE,
+        "Tractor": ProductionElementType.VEHICLE,
+        "Van": ProductionElementType.VEHICLE,
+    }
+
+
+def test_production_element_analyzer_detects_extended_animals() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content="Una vaca permanece junto a varias gallinas.",
+        ),
+    ]
+
+    elements = ProductionElementAnalyzer().extract(blocks)
+
+    assert {
+        element.name: element.element_type
+        for element in elements
+    } == {
+        "Vaca": ProductionElementType.ANIMAL,
+        "Gallinas": ProductionElementType.ANIMAL,
+    }
+
+
+def test_production_element_analyzer_detects_extended_makeup() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content="Lleva una herida y una cicatriz en el rostro.",
+        ),
+    ]
+
+    elements = ProductionElementAnalyzer().extract(blocks)
+
+    assert {
+        element.name: element.element_type
+        for element in elements
+    } == {
+        "Herida": ProductionElementType.MAKEUP,
+        "Cicatriz": ProductionElementType.MAKEUP,
+    }
+
+
+def test_production_element_analyzer_detects_extended_equipment() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content="La cámara apunta al actor con un micrófono.",
+        ),
+    ]
+
+    elements = ProductionElementAnalyzer().extract(blocks)
+
+    assert {
+        element.name: element.element_type
+        for element in elements
+    } == {
+        "Cámara": ProductionElementType.EQUIPMENT,
+        "Micrófono": ProductionElementType.EQUIPMENT,
+    }
+
+
+def test_production_element_analyzer_detects_extended_special_effects() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content="La niebla cubre el muelle y ocurre una detonación.",
+        ),
+    ]
+
+    elements = ProductionElementAnalyzer().extract(blocks)
+
+    assert {
+        element.name: element.element_type
+        for element in elements
+    } == {
+        "Detonación": ProductionElementType.SPECIAL_EFFECT,
+        "Niebla": ProductionElementType.SPECIAL_EFFECT,
+    }
+
+
 def test_production_element_analyzer_detects_enumerated_unknown_props() -> None:
     blocks = [
         Block(
