@@ -925,15 +925,30 @@ function renderSceneList() {
       card.addEventListener(
         "click",
         () => {
+          const sceneId = Number(
+            card.dataset.sceneId
+          );
+
           setActiveScene(
-            Number(
-              card.dataset.sceneId
-            ),
+            sceneId,
             {
               scroll: true,
               focus: false,
             }
           );
+
+          if (state.activeMainView === "desglose") {
+            const breakdownScene = document.querySelector(
+              `.production-breakdown-scene[data-scene-id="${sceneId}"]`
+            );
+
+            if (breakdownScene) {
+              breakdownScene.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              });
+            }
+          }
         }
       );
     });
@@ -3859,7 +3874,10 @@ function renderProductionBreakdown() {
             `;
 
       return `
-        <article class="production-breakdown-scene">
+        <article
+          class="production-breakdown-scene"
+          data-scene-id="${scene.id}"
+        >
 
           <header class="production-breakdown-scene-header">
 
