@@ -14,6 +14,7 @@ from engine.core.types.block_type import BlockType
 from engine.core.types.production_element_type import (
     ProductionElementType,
 )
+from engine.services.semantic_lexicon import SemanticLexicon
 
 
 class ProductionElementAnalyzer:
@@ -23,6 +24,20 @@ class ProductionElementAnalyzer:
     Known elements are detected from the production catalog.
     Simple object enumerations can also produce PROP candidates.
     """
+
+    SEMANTIC_ELEMENT_TYPES = {
+        "VEHICLE": ProductionElementType.VEHICLE,
+        "ANIMAL": ProductionElementType.ANIMAL,
+        "WARDROBE": ProductionElementType.WARDROBE,
+        "PROP": ProductionElementType.PROP,
+        "FURNITURE": ProductionElementType.FURNITURE,
+    }
+
+    def __init__(
+        self,
+        semantic_lexicon: SemanticLexicon | None = None,
+    ) -> None:
+        self._semantic_lexicon = semantic_lexicon
 
     def extract(
         self,
@@ -130,10 +145,30 @@ class ProductionElementAnalyzer:
                     element_type=ProductionElementType.STUNT,
                 )
 
+            for candidate in self._semantic_lexicon_for(text):
+                category = self.SEMANTIC_ELEMENT_TYPES.get(candidate.family)
+                if category is None:
+                    continue
+
+                key = candidate.text.lower()
+                if key in elements:
+                    continue
+
+                elements[key] = ProductionElement(
+                    id=str(uuid4()),
+                    name=candidate.text.capitalize(),
+                    element_type=category,
+                )
+
         return sorted(
             elements.values(),
             key=lambda element: element.name,
         )
+
+    def _semantic_lexicon_for(self, text: str):
+        if self._semantic_lexicon is None:
+            self._semantic_lexicon = SemanticLexicon()
+        return self._semantic_lexicon.analyze(text)
 
     def _contains_element(
         self,
