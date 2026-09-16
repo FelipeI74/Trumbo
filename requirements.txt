@@ -3,3 +3,6 @@ uvicorn[standard]
 pydantic
 reportlab
 pyspellchecker
+ortools==9.15.6755
+stanza==1.14.0
+wn==1.1.1
