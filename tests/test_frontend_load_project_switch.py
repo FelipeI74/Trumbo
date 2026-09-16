@@ -64,12 +64,15 @@ class FrontendLoadProjectSwitchTests(unittest.TestCase):
         self.assertRegex(body, r"scene\?\.id\s*==\s*null")
         self.assertIn("mustUseLegacy = true", body)
 
-    def test_f_regresion_collapse_flujo_posterior_se_mantiene(self):
+    def test_f_collapse_solo_se_ejecuta_en_fallback_legacy(self):
         body = self._load_project_body()
 
         scene_list_idx = body.find("renderSceneList();")
         screenplay_idx = body.find("renderScreenplay();")
-        collapse_idx = body.find("await collapseLeadingHeadinglessScene();")
+        guarded_collapse = """if (!loadedFromDocument) {
+    await collapseLeadingHeadinglessScene();
+  }"""
+        collapse_idx = body.find(guarded_collapse)
         runtime_idx = body.find("await updateProjectRuntime();")
 
         self.assertGreaterEqual(scene_list_idx, 0)
@@ -81,6 +84,7 @@ class FrontendLoadProjectSwitchTests(unittest.TestCase):
         self.assertLess(screenplay_idx, collapse_idx)
         self.assertLess(collapse_idx, runtime_idx)
 
+        self.assertEqual(body.count("await collapseLeadingHeadinglessScene();"), 1)
         self.assertNotIn("reconcileScenesFromDocument()", body)
 
     def test_g_rutas_de_escritura_scene_permancen_intactas(self):

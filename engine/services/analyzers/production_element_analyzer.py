@@ -48,12 +48,27 @@ class ProductionElementAnalyzer:
         """
 
         elements: dict[str, ProductionElement] = {}
+        action_blocks = [
+            block
+            for block in blocks
+            if block.block_type == BlockType.ACTION
+        ]
+        semantic_results = (
+            self._semantic_lexicon_for_many(
+                [block.content for block in action_blocks]
+            )
+            if action_blocks
+            else []
+        )
+        action_index = 0
 
         for block in blocks:
             if block.block_type != BlockType.ACTION:
                 continue
 
             text = block.content.lower()
+            semantic_candidates = semantic_results[action_index]
+            action_index += 1
 
             for name, category in sorted(
                 PRODUCTION_CATALOG.items(),
@@ -112,6 +127,20 @@ class ProductionElementAnalyzer:
             for candidate in self._extract_indefinite_props(text):
                 key = candidate.lower()
 
+                semantic_candidate = next(
+                    (
+                        item
+                        for item in semantic_candidates
+                        if item.text.lower() == key
+                    ),
+                    None,
+                )
+                if (
+                    semantic_candidate is not None
+                    and "HUMAN" in semantic_candidate.control_families
+                ):
+                    continue
+
                 if key in elements:
                     continue
 
@@ -133,7 +162,10 @@ class ProductionElementAnalyzer:
                     element_type=ProductionElementType.SPECIAL_EFFECT,
                 )
 
-            for candidate in self._extract_stunt_candidates(text):
+            for candidate in self._extract_stunt_candidates(
+                text,
+                semantic_lexicon=self._semantic_lexicon,
+            ):
                 key = candidate.lower()
 
                 if key in elements:
@@ -145,7 +177,7 @@ class ProductionElementAnalyzer:
                     element_type=ProductionElementType.STUNT,
                 )
 
-            for candidate in self._semantic_lexicon_for(text):
+            for candidate in semantic_candidates:
                 category = self.SEMANTIC_ELEMENT_TYPES.get(candidate.family)
                 if category is None:
                     continue
@@ -165,10 +197,10 @@ class ProductionElementAnalyzer:
             key=lambda element: element.name,
         )
 
-    def _semantic_lexicon_for(self, text: str):
+    def _semantic_lexicon_for_many(self, texts: list[str]):
         if self._semantic_lexicon is None:
             self._semantic_lexicon = SemanticLexicon()
-        return self._semantic_lexicon.analyze(text)
+        return self._semantic_lexicon.analyze_many(texts)
 
     def _contains_element(
         self,
@@ -179,13 +211,38 @@ class ProductionElementAnalyzer:
         Return True only when the complete element name appears.
         """
 
-        pattern = (
-            rf"(?<!\w)"
-            rf"{re.escape(element_name.lower())}"
-            rf"(?!\w)"
-        )
+        key = element_name.lower()
+        pattern = rf"(?<!\w){re.escape(key)}(?!\w)"
+        matches = list(re.finditer(pattern, text))
+        if not matches:
+            return False
 
-        return re.search(pattern, text) is not None
+        if key == "van":
+            for match in matches:
+                if not self._is_verbal_van_context(text, match.start(), match.end()):
+                    return True
+            return False
+
+        return True
+
+    def _is_verbal_van_context(
+        self,
+        text: str,
+        start: int,
+        end: int,
+    ) -> bool:
+        """Return True when 'van' is used as verbal auxiliary instead of a vehicle noun."""
+
+        before = text[max(0, start - 18) : start]
+        after = text[end : end + 36]
+
+        if re.search(r"\b(?:se|me|te|nos|os)\s+van\b", f"{before} {text[start:end]}"):
+            return True
+
+        if re.search(r"\bvan\s+(?:a\s+)?\w+(?:ando|iendo|ado|ido|ar|er|ir)\b", f"{text[start:end]}{after}"):
+            return True
+
+        return False
 
     def _extract_effect_candidates(
         self,
@@ -237,11 +294,13 @@ class ProductionElementAnalyzer:
     def _extract_stunt_candidates(
         self,
         text: str,
+        semantic_lexicon: SemanticLexicon | None = None,
     ) -> list[str]:
         """
         Detect explicit stunt actions from controlled screenplay patterns.
         """
 
+        lexicon = semantic_lexicon or self._semantic_lexicon or SemanticLexicon()
         stunt_patterns = (
             (r"\b(?:cae|caen|cayó|cayo|cayeron)\b", "Caída"),
             (
@@ -254,11 +313,56 @@ class ProductionElementAnalyzer:
             (r"\bse\s+golpea\b", "Golpe"),
         )
 
-        return [
-            candidate
-            for pattern, candidate in stunt_patterns
-            if re.search(pattern, text) is not None
-        ]
+        candidates: list[str] = []
+        for pattern, candidate in stunt_patterns:
+            if re.search(pattern, text) is None:
+                continue
+            if candidate == "Caída" and not self._is_animate_subject_fall(
+                text,
+                semantic_lexicon=lexicon,
+            ):
+                continue
+            candidates.append(candidate)
+        return candidates
+
+    def _is_animate_subject_fall(
+        self,
+        text: str,
+        semantic_lexicon: SemanticLexicon,
+    ) -> bool:
+        """Return True when the subject of a fall is animate enough to produce a stunt."""
+
+        pipeline = semantic_lexicon._get_shared_pipeline()
+        document = semantic_lexicon._get_shared_pipeline().__call__([
+            __import__("stanza").Document([], text=text)
+        ])[0]
+
+        for sentence in document.sentences:
+            for word in sentence.words:
+                if word.lemma is None:
+                    continue
+                if word.lemma.lower() not in {"caer", "cae", "caen", "cayó", "cayo", "cayeron"}:
+                    continue
+
+                for candidate in sentence.words:
+                    if candidate.head != word.id:
+                        continue
+                    if candidate.deprel not in {"nsubj", "nsubj:pass"}:
+                        continue
+
+                    if candidate.upos in {"PRON"}:
+                        return True
+                    if candidate.upos == "PROPN":
+                        if candidate.text and candidate.text[:1].isupper():
+                            return True
+                    if candidate.upos == "NOUN":
+                        lemma = candidate.lemma or candidate.text
+                        if semantic_lexicon.is_animate_lemma(lemma):
+                            return True
+                    if candidate.text and candidate.text[:1].isupper():
+                        return True
+
+        return False
 
     def _extract_enumerated_props(
         self,

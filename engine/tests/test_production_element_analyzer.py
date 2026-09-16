@@ -1,9 +1,88 @@
-﻿from engine.core.block import Block
+﻿from types import SimpleNamespace
+
+from engine.core.block import Block
 from engine.core.types.block_type import BlockType
 from engine.core.types.production_element_type import ProductionElementType
 from engine.services.analyzers.production_element_analyzer import (
     ProductionElementAnalyzer,
 )
+
+
+def test_production_element_analyzer_batches_semantic_action_blocks() -> None:
+    class BatchSemanticLexicon:
+        def __init__(self) -> None:
+            self.calls: list[list[str]] = []
+
+        def analyze_many(self, texts: list[str]):
+            self.calls.append(texts)
+            return [
+                [SimpleNamespace(text="vehiculo-nuevo", family="VEHICLE")],
+                [SimpleNamespace(text="animal-nuevo", family="ANIMAL")],
+            ]
+
+    semantic_lexicon = BatchSemanticLexicon()
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content="Primera acción.",
+        ),
+        Block(
+            id="2",
+            scene_id="1",
+            order=2,
+            block_type=BlockType.DIALOGUE,
+            content="No se analiza.",
+        ),
+        Block(
+            id="3",
+            scene_id="1",
+            order=3,
+            block_type=BlockType.ACTION,
+            content="Segunda acción.",
+        ),
+    ]
+
+    elements = ProductionElementAnalyzer(semantic_lexicon).extract(blocks)
+
+    assert semantic_lexicon.calls == [["Primera acción.", "Segunda acción."]]
+    assert {
+        element.name: element.element_type
+        for element in elements
+    } == {
+        "Animal-nuevo": ProductionElementType.ANIMAL,
+        "Vehiculo-nuevo": ProductionElementType.VEHICLE,
+    }
+
+
+def test_production_element_analyzer_vetoes_human_indefinite_prop() -> None:
+    class HumanSemanticLexicon:
+        def analyze_many(self, texts: list[str]):
+            return [
+                [
+                    SimpleNamespace(
+                        text="personas",
+                        family="UNKNOWN",
+                        control_families=frozenset({"HUMAN"}),
+                    )
+                ]
+            ]
+
+    elements = ProductionElementAnalyzer(HumanSemanticLexicon()).extract(
+        [
+            Block(
+                id="1",
+                scene_id="1",
+                order=1,
+                block_type=BlockType.ACTION,
+                content="Unas personas caminan.",
+            )
+        ]
+    )
+
+    assert elements == []
 
 
 def test_production_element_analyzer_detects_known_elements() -> None:
@@ -211,6 +290,37 @@ def test_production_element_analyzer_detects_extended_vehicles() -> None:
     }
 
 
+def test_production_element_analyzer_ignores_verbal_van_but_keeps_vehicle_van() -> None:
+    verbal_blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content="Los coágulos de leche se van desarmando.",
+        )
+    ]
+    verbal_elements = ProductionElementAnalyzer().extract(verbal_blocks)
+    assert all(element.name != "Van" for element in verbal_elements)
+
+    vehicle_blocks = [
+        Block(
+            id="2",
+            scene_id="1",
+            order=2,
+            block_type=BlockType.ACTION,
+            content="La van gris espera junto a la puerta.",
+        )
+    ]
+    vehicle_elements = ProductionElementAnalyzer().extract(vehicle_blocks)
+    vehicle_detected = {
+        element.name: element.element_type
+        for element in vehicle_elements
+    }
+
+    assert vehicle_detected["Van"] == ProductionElementType.VEHICLE
+
+
 def test_production_element_analyzer_detects_requested_vehicle_types() -> None:
     blocks = [
         Block(
@@ -362,6 +472,26 @@ def test_production_element_analyzer_detects_bird_window_impact() -> None:
     )
 
 
+def test_production_element_analyzer_ignores_fall_of_non_animate_subject() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content="La leche cae al suelo y se derrama.",
+        ),
+    ]
+
+    elements = ProductionElementAnalyzer().extract(blocks)
+
+    assert not any(
+        element.name == "Caída"
+        and element.element_type == ProductionElementType.STUNT
+        for element in elements
+    )
+
+
 def test_production_element_analyzer_detects_lidia_fall_as_stunt() -> None:
     blocks = [
         Block(
@@ -381,6 +511,26 @@ def test_production_element_analyzer_detects_lidia_fall_as_stunt() -> None:
     assert any(
         element.name == "Caída"
         and element.element_type == ProductionElementType.STUNT
+        for element in elements
+    )
+
+
+def test_production_element_analyzer_detects_perro_as_animal() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="1",
+            order=1,
+            block_type=BlockType.ACTION,
+            content="El perro corre por el patio.",
+        ),
+    ]
+
+    elements = ProductionElementAnalyzer().extract(blocks)
+
+    assert any(
+        element.name == "Perro"
+        and element.element_type == ProductionElementType.ANIMAL
         for element in elements
     )
 

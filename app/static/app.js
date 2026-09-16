@@ -3218,6 +3218,10 @@ function scheduleSceneAnalysis(
 }
 
 const breakdownAnalysisSyncing = new Set();
+const breakdownAnalysisWaiters = new Map();
+const breakdownAnalysisLoading = new Set();
+const breakdownAnalysisSynced = new Set();
+const breakdownAnalysisRetried = new Set();
 
 function normalizeBreakdownKey(category, name) {
   return `${String(category || "").trim().toLowerCase()}::${String(name || "").trim().toLowerCase()}`;
@@ -3262,11 +3266,19 @@ function analysisElementToBreakdownCategory(elementType) {
   return categoryMap[type] || type;
 }
 
-async function syncAnalysisToBreakdown(scene, analysis) {
+async function syncAnalysisToBreakdown(
+  scene,
+  analysis,
+  options = {}
+) {
   if (!scene?.id || !analysis) return;
 
   if (breakdownAnalysisSyncing.has(scene.id)) {
-    return;
+    return new Promise(resolve => {
+      const waiters = breakdownAnalysisWaiters.get(scene.id) || [];
+      waiters.push(resolve);
+      breakdownAnalysisWaiters.set(scene.id, waiters);
+    });
   }
 
   breakdownAnalysisSyncing.add(scene.id);
@@ -3438,11 +3450,14 @@ async function syncAnalysisToBreakdown(scene, analysis) {
       }
     }
 
-    renderBreakdown(scene);
+    if (options.render !== false) {
+      renderBreakdown(scene);
+    }
 
     if (state.activeMainView === "desglose") {
       renderProductionBreakdown();
     }
+    return true;
   } catch (error) {
     console.error(
       "No fue posible sincronizar el reconocimiento con el desglose.",
@@ -3450,7 +3465,57 @@ async function syncAnalysisToBreakdown(scene, analysis) {
     );
   } finally {
     breakdownAnalysisSyncing.delete(scene.id);
+    const waiters = breakdownAnalysisWaiters.get(scene.id) || [];
+    breakdownAnalysisWaiters.delete(scene.id);
+    waiters.forEach(resolve => resolve(false));
   }
+}
+
+function ensureBreakdownAnalysisSync(scene) {
+  if (!scene?.id || !state.project?.id) {
+    return;
+  }
+
+  const key = `${state.project.id}:${scene.id}`;
+
+  if (
+    breakdownAnalysisSynced.has(key) ||
+    breakdownAnalysisLoading.has(key)
+  ) {
+    return;
+  }
+
+  breakdownAnalysisLoading.add(key);
+
+  request(`/api/scenes/${scene.id}/analysis`)
+    .then(analysis =>
+      syncAnalysisToBreakdown(
+        scene,
+        analysis,
+        { render: false }
+      )
+    )
+    .then(synced => {
+      if (synced === false) {
+        if (!breakdownAnalysisRetried.has(key)) {
+          breakdownAnalysisRetried.add(key);
+          setTimeout(() => ensureBreakdownAnalysisSync(scene), 0);
+        }
+        return;
+      }
+
+      breakdownAnalysisSynced.add(key);
+      renderProductionBreakdown();
+    })
+    .catch(error => {
+      console.error(
+        "No fue posible sincronizar el análisis del desglose.",
+        error
+      );
+    })
+    .finally(() => {
+      breakdownAnalysisLoading.delete(key);
+    });
 }
 
 async function analyzeActiveScene() {
@@ -3763,6 +3828,10 @@ function renderProductionBreakdown() {
 
   if (!container || !summary) {
     return;
+  }
+
+  for (const scene of state.scenes || []) {
+    ensureBreakdownAnalysisSync(scene);
   }
 
   const scenes =
@@ -4382,6 +4451,9 @@ async function loadProjects(
   state.project = null;
   state.scenes = [];
   state.activeSceneId = null;
+  breakdownAnalysisLoading.clear();
+  breakdownAnalysisSynced.clear();
+  breakdownAnalysisRetried.clear();
 
   $("#projectTitle")
     .value = "";
@@ -4393,6 +4465,10 @@ async function loadProjects(
 async function loadProject(
   projectId
 ) {
+  breakdownAnalysisLoading.clear();
+  breakdownAnalysisSynced.clear();
+  breakdownAnalysisRetried.clear();
+
   let loadedFromDocument = false;
   let mustUseLegacy = false;
 
@@ -4528,7 +4604,9 @@ async function loadProject(
     renderNoActiveScene();
   }
 
-  await collapseLeadingHeadinglessScene();
+  if (!loadedFromDocument) {
+    await collapseLeadingHeadinglessScene();
+  }
 
   await updateProjectRuntime();
 
