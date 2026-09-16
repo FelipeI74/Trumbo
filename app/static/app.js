@@ -2984,6 +2984,10 @@ async function saveSceneNode(
   const sceneId =
     Number(sceneNode.dataset.sceneId);
 
+  if (state.savingScenes.has(sceneId)) {
+    return;
+  }
+
   const scene = state.scenes.find(
     item => item.id === sceneId
   );
@@ -3083,11 +3087,21 @@ async function saveSceneNode(
       );
     }
   } finally {
+    const hasNewerRevision =
+      saveRevision <
+      currentSceneRevision(sceneId);
+
     state.savingScenes.delete(sceneId);
 
-    const isLatestRevision =
-      saveRevision ===
-      currentSceneRevision(sceneId);
+    if (hasNewerRevision) {
+      await saveSceneById(
+        sceneId,
+        currentSceneRevision(sceneId)
+      );
+      return;
+    }
+
+    const isLatestRevision = true;
 
     if (
       sceneId === state.activeSceneId &&
