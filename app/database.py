@@ -14,6 +14,7 @@ def connect() -> Generator[sqlite3.Connection, None, None]:
     connection = sqlite3.connect(DB_PATH)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA busy_timeout = 5000")
 
     try:
         yield connection
