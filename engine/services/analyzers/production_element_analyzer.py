@@ -332,22 +332,28 @@ class ProductionElementAnalyzer:
     ) -> bool:
         """Return True when the subject of a fall is animate enough to produce a stunt."""
 
-        pipeline = semantic_lexicon._get_shared_pipeline()
         document = semantic_lexicon._get_shared_pipeline().__call__([
             __import__("stanza").Document([], text=text)
         ])[0]
 
         for sentence in document.sentences:
+            words_by_id = {word.id: word for word in sentence.words}
             for word in sentence.words:
                 if word.lemma is None:
                     continue
                 if word.lemma.lower() not in {"caer", "cae", "caen", "cayó", "cayo", "cayeron"}:
                     continue
 
+                subject_heads = {word.id}
+                subject_verb = word
+                while subject_verb.deprel == "conj" and subject_verb.head in words_by_id:
+                    subject_verb = words_by_id[subject_verb.head]
+                    subject_heads.add(subject_verb.id)
+
                 for candidate in sentence.words:
-                    if candidate.head != word.id:
+                    if candidate.head not in subject_heads:
                         continue
-                    if candidate.deprel not in {"nsubj", "nsubj:pass"}:
+                    if candidate.deprel not in {"nsubj", "nsubj:pass", "expl:pv"}:
                         continue
 
                     if candidate.upos in {"PRON"}:
@@ -357,7 +363,10 @@ class ProductionElementAnalyzer:
                             return True
                     if candidate.upos == "NOUN":
                         lemma = candidate.lemma or candidate.text
-                        if semantic_lexicon.is_animate_lemma(lemma):
+                        if (
+                            lemma.lower() == "personaje"
+                            or semantic_lexicon.is_animate_lemma(lemma)
+                        ):
                             return True
                     if candidate.text and candidate.text[:1].isupper():
                         return True

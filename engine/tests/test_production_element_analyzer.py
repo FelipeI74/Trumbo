@@ -472,14 +472,14 @@ def test_production_element_analyzer_detects_bird_window_impact() -> None:
     )
 
 
-def test_production_element_analyzer_ignores_fall_of_non_animate_subject() -> None:
+def test_production_element_analyzer_ignores_bottle_fall_as_stunt() -> None:
     blocks = [
         Block(
             id="1",
             scene_id="1",
             order=1,
             block_type=BlockType.ACTION,
-            content="La leche cae al suelo y se derrama.",
+            content="La botella cae.",
         ),
     ]
 
@@ -492,17 +492,14 @@ def test_production_element_analyzer_ignores_fall_of_non_animate_subject() -> No
     )
 
 
-def test_production_element_analyzer_detects_lidia_fall_as_stunt() -> None:
+def test_production_element_analyzer_detects_coordinated_fall_as_stunt() -> None:
     blocks = [
         Block(
             id="1",
             scene_id="1",
             order=1,
             block_type=BlockType.ACTION,
-            content=(
-                "Lidia se tropieza con la botella, y cae sobre la esquina "
-                "de su escritorio, quebrándose el cuello en la caída."
-            ),
+            content="Se tropieza con la botella y cae sobre el escritorio.",
         ),
     ]
 
@@ -572,7 +569,7 @@ def test_production_element_analyzer_detects_semantic_stunts() -> None:
             scene_id="1",
             order=1,
             block_type=BlockType.ACTION,
-            content="El hombre cae desde el balcón.",
+            content="El personaje cae sobre el pavimento.",
         ),
         Block(
             id="2",
