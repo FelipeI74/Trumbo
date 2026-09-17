@@ -67,14 +67,14 @@ def migrate(connection: sqlite3.Connection) -> None:
             """
         )
 
-    # Agregar production_number de forma segura
-    try:
+    if not column_exists(
+        connection,
+        "scenes",
+        "production_number",
+    ):
         connection.execute(
             "ALTER TABLE scenes ADD COLUMN production_number TEXT"
         )
-    except sqlite3.OperationalError as e:
-        if "duplicate column name" not in str(e).lower():
-            raise
 
 
 def initialize() -> None:
