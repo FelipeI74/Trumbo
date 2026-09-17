@@ -280,6 +280,73 @@ class ProjectDocumentEndpointTests(unittest.TestCase):
                 "El proyecto aún no tiene un documento generado. Guarda una escena para crearlo.",
             )
 
+    def test_11_inserted_document_scene_does_not_steal_existing_scene_data(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+            project, first, second = self._create_project_with_two_scenes()
+
+            with database.connect() as connection:
+                document_id = connection.execute(
+                    "SELECT id FROM documents WHERE project_id = ?",
+                    (project["id"],),
+                ).fetchone()["id"]
+
+                connection.execute(
+                    """
+                    UPDATE document_lines
+                    SET position = position + 2
+                    WHERE document_id = ? AND position >= 2
+                    """,
+                    (document_id,),
+                )
+                connection.executemany(
+                    """
+                    INSERT INTO document_lines(
+                        uuid,
+                        document_id,
+                        position,
+                        type,
+                        text,
+                        source_scene_id,
+                        source_line_index
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    [
+                        (
+                            "inserted-scene-heading",
+                            document_id,
+                            2,
+                            "heading",
+                            "INT. PARQUE - TARDE",
+                            None,
+                            None,
+                        ),
+                        (
+                            "inserted-scene-action",
+                            document_id,
+                            3,
+                            "action",
+                            "LUCIA camina.",
+                            None,
+                            None,
+                        ),
+                    ],
+                )
+
+            derived_scenes = main.get_project_document(project["id"])["derived_scenes"]
+
+            self.assertEqual(len(derived_scenes), 3)
+            self.assertEqual(derived_scenes[0]["id"], first["id"])
+            self.assertEqual(derived_scenes[1]["id"], None)
+            self.assertEqual(derived_scenes[2]["id"], second["id"])
+            self.assertEqual(derived_scenes[0]["notes"][0]["body"], "Nota escena 1")
+            self.assertEqual(derived_scenes[0]["breakdown_items"][0]["name"], "Llave")
+            self.assertIsNone(derived_scenes[1]["synopsis"])
+            self.assertIsNone(derived_scenes[1]["runtime_seconds"])
+            self.assertEqual(derived_scenes[1]["notes"], [])
+            self.assertEqual(derived_scenes[1]["breakdown_items"], [])
+
 
 if __name__ == "__main__":
     unittest.main()
