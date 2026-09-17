@@ -4894,11 +4894,11 @@ function setupEvents() {
         $("#screenplayViewport").hidden = true;
         $("#characterDetailView").hidden = false;
         $("#characterDetailView").innerHTML = `
-          <h2>${name}</h2>
-          ${category ? `<p>Categoría: ${category}</p>` : ""}
-          <p>Primera aparición: escena ${firstScene}</p>
-          <p>Cantidad de escenas: ${sceneCount}</p>
-          <p>Números de escena: ${sceneNumbers}</p>
+          <h2>${escapeHtml(name)}</h2>
+          ${category ? `<p>Categoría: ${escapeHtml(category)}</p>` : ""}
+          <p>Primera aparición: escena ${escapeHtml(firstScene)}</p>
+          <p>Cantidad de escenas: ${escapeHtml(sceneCount)}</p>
+          <p>Números de escena: ${escapeHtml(sceneNumbers)}</p>
         `;
       }
     );
