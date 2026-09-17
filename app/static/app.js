@@ -5226,15 +5226,10 @@ function renderStoryboardShots(shots) {
           type="button"
           class="storyboard-shot-item"
           data-shot-id="${shot.id}"
-          <button
-  type="button"
-  class="storyboard-shot-item"
-  data-shot-id="${shot.id}"
-  draggable="true"
->
+          draggable="true"
         >
           Plano ${index + 1}
-          · ${shot.shot_type || "Sin tipo"}
+          · ${escapeHtml(shot.shot_type || "Sin tipo")}
         </button>
       `
     )
