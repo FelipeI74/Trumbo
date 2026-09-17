@@ -2642,6 +2642,27 @@ async def upload_shot_image(
                 "Cuerpo de petición vacío",
             )
 
+        if len(image_bytes) > 10 * 1024 * 1024:
+            raise HTTPException(
+                400,
+                "La imagen supera el tamaño máximo de 10 MB",
+            )
+
+        valid_image_signature = (
+            image_bytes.startswith(b"\x89PNG\r\n\x1a\n")
+            or image_bytes.startswith(b"\xff\xd8\xff")
+            or (
+                image_bytes.startswith(b"RIFF")
+                and image_bytes[8:12] == b"WEBP"
+            )
+        )
+
+        if not valid_image_signature:
+            raise HTTPException(
+                400,
+                "Formato de imagen no compatible",
+            )
+
         storage_key = (
             f"{project_id}/shots/"
             f"{shot_id}.png"

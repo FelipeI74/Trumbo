@@ -1,7 +1,10 @@
+import asyncio
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
+
+from fastapi import HTTPException
 
 import app.database as database
 import app.main as main
@@ -170,6 +173,51 @@ class StoryboardTests(unittest.TestCase):
 
             with self.assertRaises(FileNotFoundError):
                 storage.read_image(storage_key)
+
+    def test_upload_shot_image_rejects_non_image_data(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+            project, scene = self._create_project_and_scene()
+            shot = main.create_shot(
+                project["id"],
+                scene["id"],
+                ShotCreate(shot_type="PM"),
+            )
+            request = type(
+                "RequestStub",
+                (),
+                {"body": AsyncMock(return_value=b"not-an-image")},
+            )()
+
+            with self.assertRaises(HTTPException) as context:
+                asyncio.run(
+                    main.upload_shot_image(project["id"], shot["id"], request)
+                )
+
+            self.assertEqual(context.exception.status_code, 400)
+
+    def test_upload_shot_image_rejects_images_over_10_mb(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+            project, scene = self._create_project_and_scene()
+            shot = main.create_shot(
+                project["id"],
+                scene["id"],
+                ShotCreate(shot_type="PM"),
+            )
+            image_data = b"\x89PNG\r\n\x1a\n" + b"x" * (10 * 1024 * 1024)
+            request = type(
+                "RequestStub",
+                (),
+                {"body": AsyncMock(return_value=image_data)},
+            )()
+
+            with self.assertRaises(HTTPException) as context:
+                asyncio.run(
+                    main.upload_shot_image(project["id"], shot["id"], request)
+                )
+
+            self.assertEqual(context.exception.status_code, 400)
 
 
 if __name__ == "__main__":
