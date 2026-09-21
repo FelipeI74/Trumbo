@@ -15,6 +15,8 @@ const state = {
   analysisTimer: null,
 
   activeLine: null,
+  lineSelectionDrag: null,
+  suppressLineSelectionClick: false,
   isRendering: false,
   isHydratingScenesFromDocument: false,
   isReconcilingScenes: false,
@@ -706,6 +708,16 @@ function createLine(type = "action", text = "") {
   line.addEventListener(
     "click",
     handleLineFocus
+  );
+
+  line.addEventListener(
+    "mousedown",
+    handleLineSelectionMouseDown
+  );
+
+  line.addEventListener(
+    "mouseenter",
+    handleLineSelectionMouseEnter
   );
 
   line.addEventListener(
@@ -1746,19 +1758,26 @@ function handleLineFocus(event) {
 
   state.activeLine = line;
 
-  document
-    .querySelectorAll(
-      ".script-line.selected-line"
-    )
-    .forEach(node => {
-      node.classList.remove(
-        "selected-line"
-      );
-    });
+  const preserveSelection =
+    state.suppressLineSelectionClick;
 
-  line.classList.add(
-    "selected-line"
-  );
+  state.suppressLineSelectionClick = false;
+
+  if (!preserveSelection) {
+    document
+      .querySelectorAll(
+        ".script-line.selected-line"
+      )
+      .forEach(node => {
+        node.classList.remove(
+          "selected-line"
+        );
+      });
+
+    line.classList.add(
+      "selected-line"
+    );
+  }
 
   syncLineTypeSelector();
 
@@ -1780,6 +1799,67 @@ function handleLineFocus(event) {
       }
     );
   }
+}
+
+function handleLineSelectionMouseDown(event) {
+  state.lineSelectionDrag = {
+    start: event.currentTarget,
+    current: event.currentTarget,
+    moved: false,
+  };
+
+  document
+    .querySelectorAll(
+      ".script-line.selected-line"
+    )
+    .forEach(node => {
+      node.classList.remove(
+        "selected-line"
+      );
+    });
+}
+
+function handleLineSelectionMouseEnter(event) {
+  const drag =
+    state.lineSelectionDrag;
+
+  if (!drag || !(event.buttons & 1)) {
+    return;
+  }
+
+  drag.current = event.currentTarget;
+  drag.moved = drag.current !== drag.start;
+
+  if (drag.moved) {
+    event.preventDefault();
+    window.getSelection()?.removeAllRanges();
+  }
+
+  const lines = allDocumentLines(
+    $("#screenplayEditor")
+  );
+  const startIndex = lines.indexOf(drag.start);
+  const currentIndex = lines.indexOf(drag.current);
+
+  if (startIndex === -1 || currentIndex === -1) {
+    return;
+  }
+
+  const rangeStart = Math.min(
+    startIndex,
+    currentIndex
+  );
+  const rangeEnd = Math.max(
+    startIndex,
+    currentIndex
+  );
+
+  lines.forEach((line, index) => {
+    line.classList.toggle(
+      "selected-line",
+      index >= rangeStart && index <= rangeEnd
+    );
+  });
 }
 
 function markPendingStructuralReconcile(line) {
@@ -5631,6 +5711,22 @@ document.addEventListener("mousemove", event => {
 
   storyboardOverlay.style.top =
     `${event.clientY - storyboardDragOffsetY}px`;
+});
+
+document.addEventListener("mouseup", () => {
+  if (
+    state.lineSelectionDrag?.moved
+  ) {
+    state.suppressLineSelectionClick = true;
+  }
+
+  state.lineSelectionDrag = null;
+});
+
+document.addEventListener("selectstart", event => {
+  if (state.lineSelectionDrag?.moved) {
+    event.preventDefault();
+  }
 });
 
 document.addEventListener("mouseup", () => {
