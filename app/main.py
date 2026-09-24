@@ -1606,7 +1606,14 @@ def add_breakdown_item(
     scene_id: int,
     payload: BreakdownItemCreate,
 ) -> dict:
+    category = payload.category.strip()
+    name = payload.name.strip()
+    source = payload.source.strip()
+    state = normalize_breakdown_state(payload.state)
+    
     with connect() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+
         scene_exists = connection.execute(
             """
             SELECT 1
@@ -1622,6 +1629,26 @@ def add_breakdown_item(
                 "Escena no encontrada",
             )
 
+        existing_item = connection.execute(
+            """
+            SELECT *
+            FROM breakdown_items
+            WHERE scene_id = ?
+              AND category = ?
+              AND name = ?
+            ORDER BY id
+            LIMIT 1
+            """,
+            (
+                scene_id,
+                category,
+                name,
+            ),
+        ).fetchone()
+       
+        if existing_item is not None:
+            return dict(existing_item)
+
         cursor = connection.execute(
             """
             INSERT INTO breakdown_items(
@@ -1635,12 +1662,10 @@ def add_breakdown_item(
             """,
             (
                 scene_id,
-                payload.category.strip(),
-                payload.name.strip(),
-                payload.source.strip(),
-                normalize_breakdown_state(
-                    payload.state
-                ),
+                category,
+                name,
+                source,
+                state,
             ),
         )
 
@@ -1654,8 +1679,6 @@ def add_breakdown_item(
         ).fetchone()
 
         return dict(item)
-
-
 @app.patch("/api/breakdown/{item_id}")
 def update_breakdown_item(
     item_id: int,

@@ -1,4 +1,3 @@
-
 const state = {
   projects: [],
   project: null,
@@ -402,8 +401,6 @@ function removeLegacySemanticLines(sceneId) {
   }
 }
 
- 
-
 function inferLineType(text, previousType = null) {
   const value = String(text || "").trim();
 
@@ -416,9 +413,9 @@ function inferLineType(text, previousType = null) {
       : "action";
   }
 
- if (isHeadingPrefixText(value)) {
+  if (isHeadingPrefixText(value)) {
     return "heading";
-}
+  }
 
   if (
     value.startsWith("(") &&
@@ -672,6 +669,7 @@ function sceneToSemanticLines(scene) {
 
   return result;
 }
+
 function createLine(type = "action", text = "") {
   const line = document.createElement("div");
 
@@ -756,31 +754,31 @@ function createSceneNode(scene) {
   section.dataset.sceneNumber =
     String(scene.scene_number);
 
-const storyboardButton = document.createElement(
-  "button"
-);
+  const storyboardButton = document.createElement(
+    "button"
+  );
 
-storyboardButton.type = "button";
-storyboardButton.className =
-  "scene-storyboard-button";
-storyboardButton.textContent = "Storyboard";
-storyboardButton.title =
-  "Abrir Storyboard de esta escena";
-storyboardButton.dataset.sceneId =
-  String(scene.id);
+  storyboardButton.type = "button";
+  storyboardButton.className =
+    "scene-storyboard-button";
+  storyboardButton.textContent = "Storyboard";
+  storyboardButton.title =
+    "Abrir Storyboard de esta escena";
+  storyboardButton.dataset.sceneId =
+    String(scene.id);
   storyboardButton.addEventListener(
-  "click",
-  event => {
-    event.preventDefault();
-    event.stopPropagation();
+    "click",
+    event => {
+      event.preventDefault();
+      event.stopPropagation();
 
-    openStoryboardWindow(scene.id);
-  }
-);
+      openStoryboardWindow(scene.id);
+    }
+  );
 
-section.appendChild(
-  storyboardButton
-);
+  section.appendChild(
+    storyboardButton
+  );
 
   const sceneNumberLabel = document.createElement(
     "span"
@@ -879,6 +877,19 @@ function renderScreenplay() {
       focus: false,
     }
   );
+}
+
+let sceneListRenderTimer = null;
+
+function scheduleSceneListRender(delay = 200) {
+  if (sceneListRenderTimer) {
+    clearTimeout(sceneListRenderTimer);
+  }
+
+  sceneListRenderTimer = setTimeout(() => {
+    sceneListRenderTimer = null;
+    renderSceneList();
+  }, delay);
 }
 
 function renderSceneList() {
@@ -1011,11 +1022,11 @@ function setActiveScene(
   $("#sceneIdentity").textContent =
   `ESCENA ${scene.scene_number}`;
 
-$("#sceneProductionNumber").value =
-  scene.production_number || "";
+  $("#sceneProductionNumber").value =
+    scene.production_number || "";
 
-$("#sceneSynopsis").value =
-  scene.synopsis || "";
+  $("#sceneSynopsis").value =
+    scene.synopsis || "";
 
   $("#sceneRuntime").textContent =
     formatSeconds(
@@ -1050,6 +1061,7 @@ $("#sceneSynopsis").value =
     );
   }
 }
+
 function getLineType(line) {
   return line?.dataset.type || "action";
 }
@@ -1959,25 +1971,6 @@ function normalizeLineForReconciliation(
   }
 }
 
-function placeCaretAtEnd(element) {
-  const selection =
-    window.getSelection();
-
-  const range =
-    document.createRange();
-
-  range.selectNodeContents(
-    element
-  );
-
-  range.collapse(false);
-
-  selection.removeAllRanges();
-  selection.addRange(range);
-
-  element.focus();
-}
-
 function handleHeadingTab(line) {
   const text =
     (line.textContent || "").trimEnd();
@@ -2034,10 +2027,12 @@ function deriveSceneChunksFromDocument(lines) {
       String(line.textContent || "").trim();
 
     if (isCompleteHeadingText(text)) {
-      setLineType(line, "heading", {
-        preserveCaret: false,
-        skipSceneSplit: true,
-      });
+      if (getLineType(line) !== "heading") {
+        setLineType(line, "heading", {
+          preserveCaret: false,
+          skipSceneSplit: true,
+        });
+      }
 
       if (currentChunk) {
         chunks.push(currentChunk);
@@ -2203,32 +2198,33 @@ async function reconcileScenesFromDocument() {
           String(
             scene.scene_number
           );
-         const storyboardButton = document.createElement(
-  "button"
-);
 
-storyboardButton.type = "button";
-storyboardButton.className =
-  "scene-storyboard-button";
-storyboardButton.textContent = "Storyboard";
-storyboardButton.title =
-  "Abrir Storyboard de esta escena";
-storyboardButton.dataset.sceneId =
-  String(scene.id);
+        const storyboardButton = document.createElement(
+          "button"
+        );
 
-storyboardButton.addEventListener(
-  "click",
-  event => {
-    event.preventDefault();
-    event.stopPropagation();
+        storyboardButton.type = "button";
+        storyboardButton.className =
+          "scene-storyboard-button";
+        storyboardButton.textContent = "Storyboard";
+        storyboardButton.title =
+          "Abrir Storyboard de esta escena";
+        storyboardButton.dataset.sceneId =
+          String(scene.id);
 
-    openStoryboardWindow(scene.id);
-  }
-);
+        storyboardButton.addEventListener(
+          "click",
+          event => {
+            event.preventDefault();
+            event.stopPropagation();
 
-section.appendChild(
-  storyboardButton
-);
+            openStoryboardWindow(scene.id);
+          }
+        );
+
+        section.appendChild(
+          storyboardButton
+        );
 
         const sceneNumberLabel = document.createElement(
           "span"
@@ -2241,7 +2237,6 @@ section.appendChild(
         section.appendChild(
           sceneNumberLabel
         );
-
 
         chunk.lines.forEach((line, lineIndex) => {
           normalizeLineForReconciliation(
@@ -2368,65 +2363,65 @@ function handleLineKeydown(event) {
     return;
   }
 
- if (event.key === "Tab") {
-  event.preventDefault();
+  if (event.key === "Tab") {
+    event.preventDefault();
 
-  if (
-    type === "action" &&
-    !event.shiftKey &&
-    (line.textContent || "").trim()
-  ) {
-    const cueLine =
-      insertLineAfter(
-        line,
-        "character",
-        ""
+    if (
+      type === "action" &&
+      !event.shiftKey &&
+      (line.textContent || "").trim()
+    ) {
+      const cueLine =
+        insertLineAfter(
+          line,
+          "character",
+          ""
+        );
+
+      focusLine(
+        cueLine,
+        true
       );
 
+      scheduleSceneSave(
+        line.closest(".script-scene")
+      );
+
+      return;
+    }
+
+    // En un encabezado, TAB construye la ruta:
+    // INT. LOCACIÓN - SUBLOCACIÓN - DÍA
+    if (
+      type === "heading" &&
+      !event.shiftKey
+    ) {
+      handleHeadingTab(line);
+
+      scheduleSceneSave(
+        line.closest(".script-scene")
+      );
+
+      return;
+    }
+
+    const nextType =
+      event.shiftKey
+        ? TAB_BACKWARD[type]
+        : TAB_FORWARD[type];
+
+    setLineType(
+      line,
+      nextType || "action"
+    );
+
     focusLine(
-      cueLine,
+      line,
       true
     );
 
-    scheduleSceneSave(
-      line.closest(".script-scene")
-    );
-
     return;
   }
-
-  // En un encabezado, TAB construye la ruta:
-  // INT. LOCACIÓN - SUBLOCACIÓN - DÍA
-  if (
-    type === "heading" &&
-    !event.shiftKey
-  ) {
-    handleHeadingTab(line);
-
-    scheduleSceneSave(
-      line.closest(".script-scene")
-    );
-
-    return;
-  }
-
-  const nextType =
-    event.shiftKey
-      ? TAB_BACKWARD[type]
-      : TAB_FORWARD[type];
-
-  setLineType(
-    line,
-    nextType || "action"
-  );
-
-  focusLine(
-    line,
-    true
-  );
-
-  return;
-}
 
   if (event.key === "Enter") {
     event.preventDefault();
@@ -2699,6 +2694,7 @@ function handleLineInput(event) {
     );
   }
 }
+
 function handleLinePaste(event) {
   event.preventDefault();
 
@@ -2902,7 +2898,7 @@ function updateSceneHeadingFromDom(
       ""
     ).trim();
 
-  renderSceneList();
+  scheduleSceneListRender();
 }
 
 function maybeCollapseSceneWithoutHeading(sceneNode) {
@@ -2939,6 +2935,7 @@ function renumberScenesLocally() {
     }
   );
 }
+
 function serializeSceneNode(sceneNode) {
   const lines = lineElements(sceneNode);
 
@@ -3031,10 +3028,9 @@ function scheduleSceneSave(sceneNode) {
     sceneId,
     timer
   );
-
   if (sceneId === state.activeSceneId) {
-    scheduleSceneAnalysis(850);
-  }
+  scheduleSceneAnalysis(850);
+}
 }
 
 async function saveSceneById(
@@ -3087,6 +3083,36 @@ async function saveSceneNode(
     sceneId === state.activeSceneId
       ? $("#sceneSynopsis").value
       : scene.synopsis || "";
+
+  const currentSemanticLines =
+    normalizeSemanticLines(
+      scene.semantic_lines
+    );
+
+  const isUnchanged =
+    (serialized.heading || "") ===
+      (scene.heading || "") &&
+    (serialized.body || "") ===
+      (scene.body || "") &&
+    (synopsis || "") ===
+      (scene.synopsis || "") &&
+    JSON.stringify(serialized.semantic_lines) ===
+      JSON.stringify(currentSemanticLines);
+
+  if (isUnchanged) {
+    const isLatestRevision =
+      saveRevision ===
+      currentSceneRevision(sceneId);
+
+    if (
+      sceneId === state.activeSceneId &&
+      isLatestRevision
+    ) {
+      setSaveState("Guardado", "saved");
+    }
+
+    return;
+  }
 
   state.savingScenes.add(sceneId);
 
@@ -3245,11 +3271,11 @@ async function saveProductionNumber() {
       }
     }
 
-$("#sceneProductionNumber").value =
-  scene.production_number || "";
+    $("#sceneProductionNumber").value =
+      scene.production_number || "";
 
-renderSceneList();
-} catch (error) {
+    renderSceneList();
+  } catch (error) {
     console.error(
       "No fue posible guardar el número de escena.",
       error
@@ -3460,53 +3486,6 @@ async function syncAnalysisToBreakdown(
         candidate.name
       );
 
-      const supersededItem = scene.breakdown_items.find(item => {
-        if (
-          item.source !== "analysis" ||
-          item.state !== "detected" ||
-          item.category !== candidate.category
-        ) {
-          return false;
-        }
-
-        const existingName = normalizeBreakdownKey(
-          "",
-          item.name
-        ).replace(/^::/, "");
-
-        return (
-          existingName !== key.replace(/^::/, "") &&
-          new RegExp(
-            `(^|\\s)${existingName.replace(
-              /[.*+?^${}()|[\]\\]/g,
-              "\\$&"
-            )}(?=\\s|$)`
-          ).test(key.replace(/^::/, ""))
-        );
-      });
-
-      if (supersededItem) {
-        const supersededKey = normalizeBreakdownKey(
-          supersededItem.category,
-          supersededItem.name
-        );
-        const updated = await request(
-          `/api/breakdown/${supersededItem.id}`,
-          {
-            method: "PATCH",
-            body: JSON.stringify({
-              name: candidate.name,
-            }),
-          }
-        );
-
-        Object.assign(supersededItem, updated);
-        existingKeys.delete(supersededKey);
-        existingKeys.add(key);
-        seenCandidates.add(key);
-        continue;
-      }
-
       if (
         existingKeys.has(key) ||
         seenCandidates.has(key)
@@ -3646,13 +3625,13 @@ async function analyzeActiveScene() {
     }
 
     await syncAnalysisToBreakdown(
-  scene,
-  analysis
-);
+      scene,
+      analysis
+    );
 
-renderScriptAnalysis(
-  analysis
-);
+    renderScriptAnalysis(
+      analysis
+    );
   } catch (error) {
     if (
       scene.id === state.activeSceneId
@@ -3877,6 +3856,7 @@ function renderNotes(scene) {
       )
       .join("");
 }
+
 const BREAKDOWN_CATEGORY_LABELS = {
   character: "Personajes",
   cast: "Personajes",
@@ -3922,10 +3902,6 @@ function renderProductionBreakdown() {
 
   if (!container || !summary) {
     return;
-  }
-
-  for (const scene of state.scenes || []) {
-    ensureBreakdownAnalysisSync(scene);
   }
 
   const scenes =
@@ -4394,6 +4370,7 @@ async function addBreakdownItem() {
     );
   }
 }
+
 async function createProject() {
   const title =
     window.prompt(
@@ -5011,11 +4988,11 @@ function setupEvents() {
       createScene
     );
 
-    $("#sceneProductionNumber")
-  .addEventListener(
-    "change",
-    saveProductionNumber
-  );
+  $("#sceneProductionNumber")
+    .addEventListener(
+      "change",
+      saveProductionNumber
+    );
 
   $("#sceneSynopsis")
     .addEventListener(
@@ -5191,20 +5168,20 @@ function setupEvents() {
   }
 
   window.addEventListener(
-  "beforeunload",
-  event => {
-    const hasPendingChanges =
-      state.saveTimers.size > 0 ||
-      state.savingScenes.size > 0;
+    "beforeunload",
+    event => {
+      const hasPendingChanges =
+        state.saveTimers.size > 0 ||
+        state.savingScenes.size > 0;
 
-    if (!hasPendingChanges) {
-      return;
+      if (!hasPendingChanges) {
+        return;
+      }
+
+      event.preventDefault();
+      event.returnValue = "";
     }
-
-    event.preventDefault();
-    event.returnValue = "";
-  }
-);
+  );
 }
 
 setupTabs();
@@ -5231,6 +5208,7 @@ loadProjects()
     });
   });
 }
+
 let storyboardSceneId = null;
 let storyboardShots = [];
 let storyboardShotId = null;
@@ -5256,7 +5234,6 @@ function openStoryboardWindow(sceneId) {
   );
 }
 
-
 function openStoryboard(sceneId) {
   const overlay =
     document.getElementById("storyboardOverlay");
@@ -5270,19 +5247,20 @@ function openStoryboard(sceneId) {
 
   storyboardSceneId = Number(sceneId);
 
-const scene = state.scenes.find(
-  item => Number(item.id) === storyboardSceneId
-);
+  const scene = state.scenes.find(
+    item => Number(item.id) === storyboardSceneId
+  );
 
-if (title) {
-  title.textContent = scene
-    ? `Escena ${scene.scene_number}`
-    : "Escena";
+  if (title) {
+    title.textContent = scene
+      ? `Escena ${scene.scene_number}`
+      : "Escena";
+  }
+
+  overlay.hidden = false;
+  loadStoryboardShots();
 }
 
-overlay.hidden = false;
-loadStoryboardShots();
-}
 function renderStoryboardShots(shots) {
   const list =
     document.getElementById("storyboardShotList");
@@ -5315,6 +5293,7 @@ function renderStoryboardShots(shots) {
     )
     .join("");
 }
+
 function selectStoryboardShot(shotId) {
   const shot = storyboardShots.find(
     item => item.id === shotId
@@ -5347,6 +5326,7 @@ function selectStoryboardShot(shotId) {
   document.getElementById("shotNotesInput").value =
     shot.notes || "";
 }
+
 async function saveStoryboardShotMetadata() {
   if (!storyboardShotId || !state.project?.id) {
     return;
@@ -5387,6 +5367,7 @@ async function saveStoryboardShotMetadata() {
     );
   }
 }
+
 async function loadStoryboardShots() {
   if (!storyboardSceneId || !state.project?.id) {
     return;
@@ -5405,6 +5386,7 @@ async function loadStoryboardShots() {
     );
   }
 }
+
 async function createStoryboardShot() {
   if (!storyboardSceneId || !state.project?.id) {
     return;
@@ -5425,13 +5407,13 @@ async function createStoryboardShot() {
     );
     await loadStoryboardShots();
     console.log(
-  "Plano creado:",
-  shot
-);
+      "Plano creado:",
+      shot
+    );
 
-await loadStoryboardShots();
+    await loadStoryboardShots();
 
-selectStoryboardShot(shot.id);
+    selectStoryboardShot(shot.id);
 
   } catch (error) {
     console.error(
@@ -5440,6 +5422,7 @@ selectStoryboardShot(shot.id);
     );
   }
 }
+
 async function deleteStoryboardShot() {
   if (!storyboardShotId || !state.project?.id) {
     return;
@@ -5498,8 +5481,8 @@ document.addEventListener("click", event => {
     event.stopPropagation();
 
     openStoryboardWindow(
-  storyboardButton.dataset.sceneId
-);
+      storyboardButton.dataset.sceneId
+    );
 
     return;
   }
@@ -5514,29 +5497,29 @@ document.addEventListener("click", event => {
 
     return;
   }
-const shotButton =
-  event.target.closest(".storyboard-shot-item");
+  const shotButton =
+    event.target.closest(".storyboard-shot-item");
 
-if (shotButton) {
-  event.preventDefault();
-  event.stopPropagation();
+  if (shotButton) {
+    event.preventDefault();
+    event.stopPropagation();
 
-  selectStoryboardShot(
-    shotButton.dataset.shotId
-  );
+    selectStoryboardShot(
+      shotButton.dataset.shotId
+    );
 
-  return;
-}
-if (
-  event.target.closest("#deleteStoryboardShotButton")
-) {
-  event.preventDefault();
-  event.stopPropagation();
+    return;
+  }
+  if (
+    event.target.closest("#deleteStoryboardShotButton")
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
 
-  deleteStoryboardShot();
+    deleteStoryboardShot();
 
-  return;
-}
+    return;
+  }
   if (
     event.target.closest("#newShotButton")
   ) {
@@ -5546,6 +5529,7 @@ if (
     createStoryboardShot();
   }
 }, true);
+
 [
   "shotTypeInput",
   "shotMovementInput",
@@ -5559,6 +5543,7 @@ if (
       saveStoryboardShotMetadata
     );
 });
+
 let draggedStoryboardShotId = null;
 
 document.addEventListener("dragstart", event => {
@@ -5623,17 +5608,17 @@ document.addEventListener("drop", async event => {
   }
 
   const rect =
-  targetButton.getBoundingClientRect();
+    targetButton.getBoundingClientRect();
 
-const insertAfter =
-  event.clientY >
-  rect.top + rect.height / 2;
+  const insertAfter =
+    event.clientY >
+    rect.top + rect.height / 2;
 
-if (insertAfter) {
-  targetButton.after(draggedButton);
-} else {
-  targetButton.before(draggedButton);
-}
+  if (insertAfter) {
+    targetButton.after(draggedButton);
+  } else {
+    targetButton.before(draggedButton);
+  }
 
   const shotIds = [
     ...document.querySelectorAll(
@@ -5664,6 +5649,7 @@ if (insertAfter) {
     draggedStoryboardShotId = null;
   }
 });
+
 const storyboardOverlay =
   document.getElementById("storyboardOverlay");
 
@@ -5732,6 +5718,7 @@ document.addEventListener("selectstart", event => {
 document.addEventListener("mouseup", () => {
   storyboardDragging = false;
 });
+
 document
   .getElementById("openStoryboardWindowButton")
   ?.addEventListener("click", event => {
@@ -5755,4 +5742,3 @@ document
       "width=1200,height=800,resizable=yes,scrollbars=yes"
     );
   });
-  

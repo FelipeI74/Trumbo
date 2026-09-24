@@ -1,6 +1,7 @@
 import asyncio
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
@@ -276,6 +277,259 @@ class ProductivityFeaturesTests(unittest.TestCase):
 
             self.assertEqual(len(listed), 1)
             self.assertEqual(listed[0]["id"], created["id"])
+
+    def test_breakdown_item_does_not_duplicate_same_scene_category_and_name(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+
+            project = main.create_project(
+                ProjectCreate(title="Desglose idempotente", format="feature")
+            )
+
+            scene = main.create_scene(
+                project["id"],
+                SceneCreate(
+                    heading="INT. TALLER - DIA",
+                    body="Hay una barreta de fierro.",
+                ),
+            )
+
+            first = main.add_breakdown_item(
+                scene["id"],
+                BreakdownItemCreate(
+                    category="prop",
+                    name="Barreta de fierro",
+                    source="analysis",
+                    state="detected",
+                ),
+            )
+
+            second = main.add_breakdown_item(
+                scene["id"],
+                BreakdownItemCreate(
+                    category="prop",
+                    name="Barreta de fierro",
+                    source="analysis",
+                    state="detected",
+                ),
+            )
+
+            self.assertEqual(first["id"], second["id"])
+
+            with database.connect() as connection:
+                count = connection.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM breakdown_items
+                    WHERE scene_id = ?
+                      AND category = ?
+                      AND name = ?
+                    """,
+                    (
+                        scene["id"],
+                        "prop",
+                        "Barreta de fierro",
+                    ),
+                ).fetchone()[0]
+
+            self.assertEqual(count, 1)  
+
+    def test_breakdown_item_preserves_confirmed_state_on_duplicate(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+
+            project = main.create_project(
+                ProjectCreate(title="Desglose confirmado", format="feature")
+            )
+
+            scene = main.create_scene(
+                project["id"],
+                SceneCreate(
+                    heading="INT. TALLER - DIA",
+                    body="Hay una barreta de fierro.",
+                ),
+            )
+
+            created = main.add_breakdown_item(
+                scene["id"],
+                BreakdownItemCreate(
+                    category="prop",
+                    name="Barreta de fierro",
+                    source="analysis",
+                    state="detected",
+                ),
+            )
+
+            main.update_breakdown_item(
+                created["id"],
+                BreakdownItemUpdate(state="confirmed"),
+            )
+
+            repeated = main.add_breakdown_item(
+                scene["id"],
+                BreakdownItemCreate(
+                    category="prop",
+                    name="Barreta de fierro",
+                    source="analysis",
+                    state="detected",
+                ),
+            )
+
+            self.assertEqual(repeated["id"], created["id"])
+            self.assertEqual(repeated["state"], "confirmed")
+
+    def test_breakdown_item_allows_same_name_in_different_category(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+
+            project = main.create_project(
+                ProjectCreate(title="Desglose categorias", format="feature")
+            )
+
+            scene = main.create_scene(
+                project["id"],
+                SceneCreate(
+                    heading="INT. TALLER - DIA",
+                    body="Hay una caja.",
+                ),
+            )
+
+            first = main.add_breakdown_item(
+                scene["id"],
+                BreakdownItemCreate(
+                    category="prop",
+                    name="Caja",
+                    source="analysis",
+                    state="detected",
+                ),
+            )
+
+            second = main.add_breakdown_item(
+                scene["id"],
+                BreakdownItemCreate(
+                    category="furniture",
+                    name="Caja",
+                    source="analysis",
+                    state="detected",
+                ),
+            )
+
+            self.assertNotEqual(first["id"], second["id"])
+
+            listed = main.list_scene_breakdown(
+                scene["id"],
+                category=None,
+                state=None,
+            )
+
+            matching = [
+                item
+                for item in listed
+                if item["name"] == "Caja"
+            ]
+
+            self.assertEqual(len(matching), 2)
+
+    def test_breakdown_item_does_not_duplicate_under_concurrency(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+
+            project = main.create_project(
+                ProjectCreate(title="Desglose concurrente", format="feature")
+            )
+
+            scene = main.create_scene(
+                project["id"],
+                SceneCreate(
+                    heading="INT. TALLER - DIA",
+                    body="Hay una barreta de fierro.",
+                ),
+            )
+
+            def add_same_item():
+                return main.add_breakdown_item(
+                    scene["id"],
+                    BreakdownItemCreate(
+                        category="prop",
+                        name="Barreta de fierro",
+                        source="analysis",
+                        state="detected",
+                    ),
+                )
+
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                results = list(
+                    executor.map(
+                        lambda _: add_same_item(),
+                        range(5),
+                    )
+                )
+
+            ids = {item["id"] for item in results}
+
+            self.assertEqual(len(ids), 1)
+
+            with database.connect() as connection:
+                count = connection.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM breakdown_items
+                    WHERE scene_id = ?
+                      AND category = ?
+                      AND name = ?
+                    """,
+                    (
+                        scene["id"],
+                        "prop",
+                        "Barreta de fierro",
+                    ),
+                ).fetchone()[0]
+
+            self.assertEqual(count, 1)
+
+    def test_breakdown_item_preserves_rejected_state_on_duplicate(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+
+            project = main.create_project(
+                ProjectCreate(title="Desglose rechazado", format="feature")
+            )
+
+            scene = main.create_scene(
+                project["id"],
+                SceneCreate(
+                    heading="INT. TALLER - DIA",
+                    body="Hay una barreta de fierro.",
+                ),
+            )
+
+            created = main.add_breakdown_item(
+                scene["id"],
+                BreakdownItemCreate(
+                    category="prop",
+                    name="Barreta de fierro",
+                    source="analysis",
+                    state="detected",
+                ),
+            )
+
+            main.update_breakdown_item(
+                created["id"],
+                BreakdownItemUpdate(state="rejected"),
+            )
+
+            repeated = main.add_breakdown_item(
+                scene["id"],
+                BreakdownItemCreate(
+                    category="prop",
+                    name="Barreta de fierro",
+                    source="analysis",
+                    state="detected",
+                ),
+            )
+
+            self.assertEqual(repeated["id"], created["id"])
+            self.assertEqual(repeated["state"], "rejected")
 
     def test_export_csv_excludes_transitions_from_characters(self):
         with tempfile.TemporaryDirectory() as tmpdir:
