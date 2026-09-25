@@ -93,13 +93,13 @@ const LINE_TYPE_SELECTOR_OPTIONS = [
 const $ = selector => document.querySelector(selector);
 
 const HEADING_PREFIX_REGEX =
-  /^(INT\.|EXT\.)\s*/i;
+  /^(INT\.|EXT\.|INT\/EXT\.|I\/E\.)\s*/i;
 
 const HEADING_TOKEN_ONLY_REGEX =
-  /^(INT\.|EXT\.)$/i;
+  /^(INT\.|EXT\.|INT\/EXT\.|I\/E\.)$/i;
 
 const HEADING_COMPLETE_REGEX =
-  /^(INT\.|EXT\.)\s*.+/i;
+  /^(INT\.|EXT\.|INT\/EXT\.|I\/E\.)\s*.+/i;
 
 const TRANSITION_IN_REGEX =
   /^FADE IN:$/i;
@@ -163,6 +163,431 @@ function formatSeconds(total = 0) {
 
   return `${minutes}:${seconds}`;
 }
+
+/* =====================================================================
+ * Autocompletado de línea (encabezados y personajes)
+ * ---------------------------------------------------------------------
+ * Muestra una lista flotante debajo de la línea mientras se escribe.
+ * Se navega con ↑ ↓, se acepta con Enter/Tab, se cierra con Escape.
+ * Nunca modifica el texto sin elección del usuario.
+ * ===================================================================== */
+
+(function injectLineSuggestStyles() {
+  const style = document.createElement("style");
+  style.textContent = `
+    .adumn-line-suggest {
+      position: absolute;
+      z-index: 9999;
+      background: #ffffff;
+      color: #111111;
+      border: 1px solid #cccccc;
+      border-radius: 4px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+      max-height: 220px;
+      overflow-y: auto;
+      font-family: inherit;
+      font-size: 13px;
+      min-width: 160px;
+      padding: 4px 0;
+      user-select: none;
+    }
+    .adumn-line-suggest[hidden] {
+      display: none;
+    }
+    .adumn-line-suggest-item {
+      padding: 5px 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .adumn-line-suggest-item.active,
+    .adumn-line-suggest-item:hover {
+      background: #f0f0f0;
+    }
+  `;
+  (document.head || document.documentElement).appendChild(style);
+})();
+
+let lineSuggestEl = null;
+
+const lineSuggestState = {
+  line: null,
+  items: [],
+  index: 0,
+};
+
+function ensureLineSuggestEl() {
+  if (lineSuggestEl) {
+    return lineSuggestEl;
+  }
+
+  lineSuggestEl = document.createElement("div");
+  lineSuggestEl.className = "adumn-line-suggest";
+  lineSuggestEl.hidden = true;
+
+  lineSuggestEl.addEventListener(
+    "mousedown",
+    event => {
+      const item = event.target.closest("[data-suggest-index]");
+
+      if (!item) {
+        return;
+      }
+
+      event.preventDefault();
+      lineSuggestState.index = Number(item.dataset.suggestIndex);
+      applyLineSuggestion();
+    }
+  );
+
+  (document.body || document.documentElement).appendChild(lineSuggestEl);
+
+  return lineSuggestEl;
+}
+
+function getKnownLocationsFromScenes() {
+  const set = new Set();
+
+  for (const scene of state.scenes || []) {
+    const heading = String(scene.heading || "").trim();
+
+    if (!heading) {
+      continue;
+    }
+
+    const stripped = heading.replace(
+      /^(INT\.|EXT\.|INT\/EXT\.|I\/E\.)\s*/i,
+      ""
+    );
+
+    const parts = stripped.split(/\s*-\s*/);
+
+    for (const part of parts) {
+      const cleaned = part.trim();
+
+      if (cleaned && cleaned.length < 40) {
+        set.add(cleaned.toUpperCase());
+      }
+    }
+  }
+
+  return [...set].sort();
+}
+
+function getKnownCharactersFromScenes() {
+  const set = new Set();
+
+  for (const scene of state.scenes || []) {
+    const lines = Array.isArray(scene.semantic_lines)
+      ? scene.semantic_lines
+      : [];
+
+    for (const line of lines) {
+      if (!line || line.type !== "character") {
+        continue;
+      }
+
+        const name = String(line.text || "")
+        .replace(/\s*\(.*$/, "")
+        .trim();
+
+      if (name) {
+        set.add(name.toUpperCase());
+      }
+    }
+  }
+
+  return [...set].sort();
+}
+
+function computeSuggestionsFor(line) {
+  const type = getLineType(line);
+  const text = String(line.textContent || "").toUpperCase();
+
+  if (type === "heading") {
+    const fixed = [
+      "INT.",
+      "EXT.",
+      "INT/EXT.",
+      "I/E.",
+      "DÍA",
+      "NOCHE",
+      "AMANECER",
+      "ATARDECER",
+      "TARDE",
+    ];
+
+    const locations = getKnownLocationsFromScenes();
+    const all = [...fixed, ...locations];
+
+    const tokens = text.split(/\s+/).filter(Boolean);
+    const last = tokens[tokens.length - 1] || "";
+
+    if (!last) {
+      return all.slice(0, 10);
+    }
+
+    return all
+      .filter(
+        suggestion =>
+          suggestion.toUpperCase().startsWith(last) &&
+          suggestion.toUpperCase() !== last
+      )
+      .slice(0, 8);
+  }
+
+     if (type === "character") {
+    const characters = getKnownCharactersFromScenes();
+
+    // El autocompletado actúa solo sobre el nombre del personaje.
+    // Si el usuario ya abrió un paréntesis —(VO), (O.S.), (CONT'D),
+    // o cualquier otro atributo— no se muestran más sugerencias.
+    // Así, escribir un atributo no interfiere con el nombre, y
+    // presionar Enter crea la siguiente línea en lugar de aceptar
+    // una sugerencia por accidente.
+    const parenIndex = text.indexOf("(");
+
+    if (parenIndex >= 0) {
+      return [];
+    }
+
+    const namePart = text.trim();
+
+    if (!namePart) {
+      return characters.slice(0, 10);
+    }
+
+    return characters
+      .filter(
+        character =>
+          character.startsWith(namePart) &&
+          character !== namePart
+      )
+      .slice(0, 8);
+  }
+
+  return [];
+}
+
+function renderLineSuggestions() {
+  if (!lineSuggestEl) {
+    return;
+  }
+
+  lineSuggestEl.innerHTML = lineSuggestState.items
+    .map(
+      (item, index) => `
+        <div
+          class="adumn-line-suggest-item${
+            index === lineSuggestState.index ? " active" : ""
+          }"
+          data-suggest-index="${index}"
+        >
+          ${escapeHtml(item)}
+        </div>
+      `
+    )
+    .join("");
+}
+
+function positionLineSuggestions(line) {
+  if (!lineSuggestEl || !line) {
+    return;
+  }
+
+  const rect = line.getBoundingClientRect();
+
+  lineSuggestEl.style.left =
+    `${rect.left + window.scrollX}px`;
+
+  lineSuggestEl.style.top =
+    `${rect.bottom + window.scrollY + 4}px`;
+}
+
+function showLineSuggestions(line) {
+  if (!line) {
+    hideLineSuggestions();
+    return;
+  }
+
+  const items = computeSuggestionsFor(line);
+
+  if (!items.length) {
+    hideLineSuggestions();
+    return;
+  }
+
+  ensureLineSuggestEl();
+
+  lineSuggestState.line = line;
+  lineSuggestState.items = items;
+  lineSuggestState.index = 0;
+
+  renderLineSuggestions();
+  positionLineSuggestions(line);
+
+  lineSuggestEl.hidden = false;
+}
+
+function hideLineSuggestions() {
+  if (lineSuggestEl) {
+    lineSuggestEl.hidden = true;
+  }
+
+  lineSuggestState.line = null;
+  lineSuggestState.items = [];
+  lineSuggestState.index = 0;
+}
+
+function moveLineSuggestions(delta) {
+  if (!lineSuggestState.items.length) {
+    return;
+  }
+
+  const length = lineSuggestState.items.length;
+
+  lineSuggestState.index =
+    (lineSuggestState.index + delta + length) % length;
+
+  renderLineSuggestions();
+}
+
+function getCaretOffsetWithin(line) {
+  const selection = window.getSelection();
+
+  if (
+    !selection ||
+    !selection.rangeCount ||
+    !line
+  ) {
+    return (line?.textContent || "").length;
+  }
+
+  const range = selection.getRangeAt(0);
+
+  if (!line.contains(range.startContainer)) {
+    return (line.textContent || "").length;
+  }
+
+  const probe = document.createRange();
+
+  probe.selectNodeContents(line);
+  probe.setEnd(range.startContainer, range.startOffset);
+
+  return probe.toString().length;
+}
+
+function applyLineSuggestion() {
+  const line = lineSuggestState.line;
+  const suggestion =
+    lineSuggestState.items[lineSuggestState.index];
+
+  if (!line || !suggestion) {
+    hideLineSuggestions();
+    return false;
+  }
+
+  const type = getLineType(line);
+  const fullText = String(line.textContent || "");
+
+  let newText;
+
+    if (type === "character") {
+    // Conservar todo lo que el usuario haya escrito desde el primer "(",
+    // esté cerrado o no. Solo se reemplaza el nombre del personaje.
+    const parenIndex = fullText.indexOf("(");
+
+    if (parenIndex >= 0) {
+      const suffix = fullText.slice(parenIndex).trim();
+      newText = `${suggestion} ${suffix}`;
+    } else {
+      newText = suggestion;
+    }
+  } else if (type === "heading") {
+    // Reemplazar únicamente el segmento que se está escribiendo:
+    // después del prefijo INT./EXT./INT\/EXT./I\/E. y después del último " - ".
+    const cursor = getCaretOffsetWithin(line);
+    const before = fullText.slice(0, cursor);
+    const after = fullText.slice(cursor);
+
+    const prefixMatch = before.match(
+      /^(INT\.|EXT\.|INT\/EXT\.|I\/E\.)\s+/i
+    );
+    const afterPrefixIndex = prefixMatch
+      ? prefixMatch[0].length
+      : 0;
+
+    const afterPrefix = before.slice(afterPrefixIndex);
+    const lastSepMatch = afterPrefix.match(/.*\s-\s/);
+    const segmentStart = lastSepMatch
+      ? afterPrefixIndex + lastSepMatch[0].length
+      : afterPrefixIndex;
+
+    newText =
+      before.slice(0, segmentStart) +
+      suggestion +
+      after;
+  } else {
+    const cursor = getCaretOffsetWithin(line);
+    const before = fullText.slice(0, cursor);
+    const after = fullText.slice(cursor);
+
+    const beforeMatch = before.match(/\S*$/);
+    const currentWordBefore = beforeMatch ? beforeMatch[0] : "";
+    const beforeWithoutWord = before.slice(
+      0,
+      before.length - currentWordBefore.length
+    );
+
+    newText = beforeWithoutWord + suggestion + after;
+  }
+
+  line.textContent = newText;
+  placeCaretAtEnd(line);
+
+  hideLineSuggestions();
+
+  const sceneNode = line.closest(".script-scene");
+
+  // Mismas actualizaciones que una edición normal:
+  // heading en memoria, delimitador, reconciliación diferida y guardado.
+  updateSceneHeadingFromDom(sceneNode);
+
+  scheduleSceneSave(sceneNode);
+
+  const delimiterChanged = syncLineDelimiterState(line);
+
+  if (delimiterChanged) {
+    markPendingStructuralReconcile(line);
+  }
+
+  return true;
+}
+
+document.addEventListener(
+  "mousedown",
+  event => {
+    if (!lineSuggestEl || lineSuggestEl.hidden) {
+      return;
+    }
+
+    if (lineSuggestEl.contains(event.target)) {
+      return;
+    }
+
+    const line = lineSuggestState.line;
+
+    if (line && line.contains(event.target)) {
+      return;
+    }
+
+    hideLineSuggestions();
+  },
+  true
+);
+
+/* =====================================================================
+ * Fin del autocompletado de línea
+ * ===================================================================== */
 
 function scheduleSceneLookup(schedulingInput) {
   return new Map(
@@ -996,6 +1421,8 @@ function setActiveScene(
   }
 
   state.activeSceneId = scene.id;
+
+  hideLineSuggestions();
 
   document
     .querySelectorAll(".script-scene")
@@ -1890,6 +2317,8 @@ function handleLineBlur(event) {
   const nextTarget =
     event.relatedTarget;
 
+  hideLineSuggestions();
+
   if (
     state.lineTypeSelectorPointerDown ||
     nextTarget?.id ===
@@ -1975,10 +2404,10 @@ function handleHeadingTab(line) {
   const text =
     (line.textContent || "").trimEnd();
 
-  // Después de INT., EXT., INT/EXT., etc.,
+  // Después de INT., EXT., INT/EXT., I/E., etc.,
   // TAB agrega un espacio y deja el cursor al final.
   if (
-    /^(INT\.|EXT\.)$/i.test(
+    /^(INT\.|EXT\.|INT\/EXT\.|I\/E\.)$/i.test(
       text
     )
   ) {
@@ -2352,6 +2781,123 @@ function handleLineKeydown(event) {
   const type =
     getLineType(line);
 
+  // --- Navegación del autocompletado (encabezados / personajes) ---
+    if (
+    lineSuggestEl &&
+    !lineSuggestEl.hidden &&
+    lineSuggestState.line === line &&
+    lineSuggestState.items.length
+  ) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      moveLineSuggestions(1);
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      moveLineSuggestions(-1);
+      return;
+    }
+
+    if (
+      (event.key === "Enter" && !event.shiftKey) ||
+      (event.key === "Tab" && !event.shiftKey)
+    ) {
+      event.preventDefault();
+
+      const typeBefore = getLineType(line);
+      const applied = applyLineSuggestion();
+
+      // Si la línea era un personaje, después de aceptar la
+      // sugerencia se crea una línea de diálogo debajo, lista
+      // para escribir.
+      if (applied && typeBefore === "character") {
+        const sceneNode = line.closest(".script-scene");
+
+        if (sceneNode) {
+          const dialogueLine = insertLineAfter(
+            line,
+            "dialogue",
+            ""
+          );
+
+          focusLine(dialogueLine, true);
+          scheduleSceneSave(sceneNode);
+        }
+      }
+
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      hideLineSuggestions();
+      return;
+    }
+  }
+
+  // --- Copiar selección múltiple ---
+  if (
+    (event.ctrlKey || event.metaKey) &&
+    !event.shiftKey &&
+    !event.altKey &&
+    event.key.toLowerCase() === "c"
+  ) {
+    const selected = [
+      ...document.querySelectorAll(
+        ".script-line.selected-line"
+      ),
+    ];
+
+    if (selected.length > 1) {
+      event.preventDefault();
+
+      const text = selected
+        .map(item => item.textContent || "")
+        .join("\n");
+
+      const fallbackCopy = () => {
+        const helper = document.createElement("textarea");
+        helper.value = text;
+        helper.style.position = "fixed";
+        helper.style.opacity = "0";
+        document.body.appendChild(helper);
+        helper.select();
+
+        try {
+          document.execCommand("copy");
+        } catch (error) {
+          console.error(
+            "No fue posible copiar la selección.",
+            error
+          );
+        }
+
+        document.body.removeChild(helper);
+      };
+
+      if (
+        navigator.clipboard &&
+        typeof navigator.clipboard.writeText === "function"
+      ) {
+        navigator.clipboard
+          .writeText(text)
+          .catch(error => {
+            console.error(
+              "No fue posible copiar la selección con navigator.clipboard.",
+              error
+            );
+            fallbackCopy();
+          });
+      } else {
+        fallbackCopy();
+      }
+
+      return;
+    }
+  }
+
   if (
     (event.ctrlKey || event.metaKey) &&
     !event.shiftKey &&
@@ -2363,67 +2909,86 @@ function handleLineKeydown(event) {
     return;
   }
 
-  if (event.key === "Tab") {
+     if (event.key === "Tab") {
     event.preventDefault();
 
-    if (
-      type === "action" &&
-      !event.shiftKey &&
-      (line.textContent || "").trim()
-    ) {
-      const cueLine =
-        insertLineAfter(
-          line,
-          "character",
-          ""
-        );
+    const sceneNode = line.closest(".script-scene");
 
-      focusLine(
-        cueLine,
-        true
-      );
+    if (!sceneNode) {
+      return;
+    }
 
-      scheduleSceneSave(
-        line.closest(".script-scene")
-      );
+    // Shift+Tab cancela el Tab anterior: si la línea actual es
+    // un personaje vacío, se elimina y el foco vuelve a la anterior.
+    if (event.shiftKey) {
+      if (
+        getLineType(line) === "character" &&
+        !(line.textContent || "").trim()
+      ) {
+        const siblings = lineElements(sceneNode);
+
+        if (siblings.length > 1) {
+          const previous = line.previousElementSibling;
+
+          line.remove();
+
+          if (
+            previous &&
+            previous.classList.contains("script-line")
+          ) {
+            focusLine(previous, true);
+          }
+
+          scheduleSceneSave(sceneNode);
+        }
+      }
 
       return;
     }
 
-    // En un encabezado, TAB construye la ruta:
+    const hasContent = !!(line.textContent || "").trim();
+    const currentType = getLineType(line);
+
+    // En un encabezado, Tab construye la estructura:
     // INT. LOCACIÓN - SUBLOCACIÓN - DÍA
-    if (
-      type === "heading" &&
-      !event.shiftKey
-    ) {
+    if (currentType === "heading") {
       handleHeadingTab(line);
-
-      scheduleSceneSave(
-        line.closest(".script-scene")
-      );
-
+      scheduleSceneSave(sceneNode);
       return;
     }
 
-    const nextType =
-      event.shiftKey
-        ? TAB_BACKWARD[type]
-        : TAB_FORWARD[type];
+    // Línea vacía que no es personaje: se convierte en personaje
+    // para escribir el cue directamente.
+    if (!hasContent && currentType !== "character") {
+      setLineType(line, "character", {
+        preserveCaret: true,
+        skipSceneSplit: true,
+      });
 
-    setLineType(
+      focusLine(line, true);
+      scheduleSceneSave(sceneNode);
+      return;
+    }
+
+    // Personaje vacío: no hay nada que hacer.
+    if (!hasContent && currentType === "character") {
+      return;
+    }
+
+    // Cualquier otra línea con contenido: se crea un personaje
+    // debajo, listo para escribir el cue.
+    const cueLine = insertLineAfter(
       line,
-      nextType || "action"
+      "character",
+      ""
     );
 
-    focusLine(
-      line,
-      true
-    );
+    focusLine(cueLine, true);
+    scheduleSceneSave(sceneNode);
 
     return;
   }
-
-  if (event.key === "Enter") {
+   if (event.key === "Enter") {
     event.preventDefault();
 
     if (event.shiftKey) {
@@ -2692,6 +3257,18 @@ function handleLineInput(event) {
     markPendingStructuralReconcile(
       line
     );
+  }
+
+  // --- Autocompletado según el tipo actual ---
+  const finalType = getLineType(line);
+
+  if (
+    finalType === "heading" ||
+    finalType === "character"
+  ) {
+    showLineSuggestions(line);
+  } else {
+    hideLineSuggestions();
   }
 }
 
@@ -3028,9 +3605,10 @@ function scheduleSceneSave(sceneNode) {
     sceneId,
     timer
   );
+
   if (sceneId === state.activeSceneId) {
-  scheduleSceneAnalysis(850);
-}
+    scheduleSceneAnalysis(850);
+  }
 }
 
 async function saveSceneById(
@@ -5399,16 +5977,6 @@ async function createStoryboardShot() {
         method: "POST",
         body: JSON.stringify({}),
       }
-    );
-
-    console.log(
-      "Plano creado:",
-      shot
-    );
-    await loadStoryboardShots();
-    console.log(
-      "Plano creado:",
-      shot
     );
 
     await loadStoryboardShots();
