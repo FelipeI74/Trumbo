@@ -344,19 +344,17 @@ class ProductionElementAnalyzer:
                 if word.lemma.lower() not in {"caer", "cae", "caen", "cayó", "cayo", "cayeron"}:
                     continue
 
-                subject_heads = {word.id}
                 subject_verb = word
                 while subject_verb.deprel == "conj" and subject_verb.head in words_by_id:
                     subject_verb = words_by_id[subject_verb.head]
-                    subject_heads.add(subject_verb.id)
 
                 for candidate in sentence.words:
-                    if candidate.head not in subject_heads:
+                    if candidate.head != subject_verb.id:
                         continue
-                    if candidate.deprel not in {"nsubj", "nsubj:pass", "expl:pv"}:
+                    if candidate.deprel not in {"nsubj", "nsubj:pass"}:
                         continue
 
-                    if candidate.upos in {"PRON"}:
+                    if candidate.upos == "PRON":
                         return True
                     if candidate.upos == "PROPN":
                         if candidate.text and candidate.text[:1].isupper():
@@ -368,8 +366,17 @@ class ProductionElementAnalyzer:
                             or semantic_lexicon.is_animate_lemma(lemma)
                         ):
                             return True
-                    if candidate.text and candidate.text[:1].isupper():
-                        return True
+
+                if (
+                    subject_verb.lemma
+                    and subject_verb.lemma.lower() in {"tropezar", "tropezarse"}
+                    and any(
+                        candidate.head == subject_verb.id
+                        and candidate.deprel == "expl:pv"
+                        for candidate in sentence.words
+                    )
+                ):
+                    return True
 
         return False
 

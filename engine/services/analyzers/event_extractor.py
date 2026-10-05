@@ -7,9 +7,12 @@ Extracts structured events from screenplay blocks.
 import re
 from uuid import uuid4
 
+import stanza
+
 from engine.core.block import Block
 from engine.core.event import Event
 from engine.core.types.block_type import BlockType
+from engine.services.semantic_lexicon import SemanticLexicon
 
 
 class EventExtractor:
@@ -19,6 +22,9 @@ class EventExtractor:
     This first version uses deterministic rules.
     It does not use AI.
     """
+
+    def __init__(self) -> None:
+        self._semantic_lexicon = SemanticLexicon()
 
     def extract(
         self,
@@ -40,7 +46,6 @@ class EventExtractor:
             sentences = self._split_sentences(
                 block.content
             )
-
             for sentence in sentences:
                 subject, verb, object_value = (
                     self._extract_action_parts(
@@ -105,6 +110,47 @@ class EventExtractor:
         cleaned = sentence.strip().rstrip(
             ".!?"
         )
+
+        document = self._semantic_lexicon._get_shared_pipeline()(
+            [stanza.Document([], text=cleaned)]
+        )[0]
+        parsed_sentence = next(iter(document.sentences), None)
+        if parsed_sentence is not None:
+            words = parsed_sentence.words
+            subject_words = [
+                word
+                for word in words
+                if word.upos == "PROPN"
+                and word.deprel in {"nsubj", "nsubj:pass", "root"}
+            ]
+            if subject_words:
+                subject_ids = {
+                    word.id
+                    for word in words
+                    if any(
+                        word.id == subject_word.id
+                        or (
+                            word.deprel == "flat"
+                            and word.head == subject_word.id
+                        )
+                        for subject_word in subject_words
+                    )
+                }
+                subject = " ".join(
+                    word.text
+                    for word in words
+                    if word.id in subject_ids
+                )
+                verb = next(
+                    (
+                        word.text
+                        for word in words
+                        if word.upos in {"VERB", "AUX"}
+                    ),
+                    cleaned.split()[1] if len(cleaned.split()) > 1 else None,
+                )
+                if subject.casefold() != cleaned.split()[0].casefold():
+                    return subject, verb, None
 
         words = cleaned.split()
 

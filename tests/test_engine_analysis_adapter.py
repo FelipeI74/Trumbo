@@ -141,3 +141,38 @@ def test_adapter_preserves_semantic_actions_after_dialogue() -> None:
     assert "Se tropieza con la botella y cae sobre el escritorio." in action_lines
     assert ("Caída", "stunt") in production_elements
     assert ("Impacto contra ventana", "special_effect") in production_elements
+
+
+def test_adapter_combines_character_blocks_and_action_proper_names_once() -> None:
+    result = analyze_scene_with_engine(
+        scene_id=40,
+        heading="INT. PASILLO RADIO - DIA",
+        body=(
+            "De él baja Guillermo Ravest, con un ejemplar del diario. "
+            "Marta ve a Guillermo Ravest junto a la puerta. "
+            "La caja cae al suelo."
+        ),
+        semantic_lines=[
+            {"type": "heading", "text": "INT. PASILLO RADIO - DIA"},
+            {"type": "character", "text": "MARTA"},
+            {
+                "type": "action",
+                "text": "De él baja Guillermo Ravest, con un ejemplar del diario.",
+            },
+            {
+                "type": "action",
+                "text": "Marta ve a Guillermo Ravest junto a la puerta.",
+            },
+            {"type": "action", "text": "La caja cae al suelo."},
+        ],
+    )
+
+    normalized_characters = [
+        name.casefold()
+        for name in result["characters"]
+    ]
+    assert "marta" in normalized_characters
+    assert "guillermo ravest" in normalized_characters
+    assert normalized_characters.count("guillermo ravest") == 1
+    assert "la" not in normalized_characters
+    assert "caja" not in normalized_characters

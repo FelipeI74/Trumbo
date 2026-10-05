@@ -881,6 +881,7 @@ def _build_project_scheduling_input(
             JOIN scenes
                 ON scenes.id = breakdown_items.scene_id
             WHERE scenes.project_id = ?
+              AND breakdown_items.state != 'rejected'
             ORDER BY scenes.scene_number, breakdown_items.name
             """,
             (project_id,),
@@ -2686,10 +2687,14 @@ async def upload_shot_image(
                 "Formato de imagen no compatible",
             )
 
-        storage_key = (
-            f"{project_id}/shots/"
-            f"{shot_id}.png"
-        )
+        if image_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+            extension = "png"
+        elif image_bytes.startswith(b"\xff\xd8\xff"):
+            extension = "jpg"
+        else:
+            extension = "webp"
+
+        storage_key = f"{project_id}/shots/{shot_id}.{extension}"
 
         try:
             storage_service.save_image(
@@ -2761,10 +2766,14 @@ def get_shot_image(
                 "Archivo no disponible",
             )
 
-        return Response(
-            content=data,
-            media_type="image/png",
-        )
+        media_type = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".webp": "image/webp",
+        }.get(Path(row["storage_key"]).suffix.lower(), "application/octet-stream")
+
+        return Response(content=data, media_type=media_type)
 @app.post(
     "/api/projects/{project_id}/scenes/{scene_id}/reorder"
 )
@@ -2779,6 +2788,30 @@ def reorder_shots(
             project_id,
             scene_id,
         )
+
+        active_shot_ids = {
+            row["id"]
+            for row in connection.execute(
+                """
+                SELECT id
+                FROM shots
+                WHERE project_id = ?
+                  AND scene_id = ?
+                  AND is_archived = 0
+                """,
+                (project_id, scene_id),
+            ).fetchall()
+        }
+        requested_shot_ids = payload.shot_ids
+        if (
+            len(requested_shot_ids) != len(active_shot_ids)
+            or len(set(requested_shot_ids)) != len(requested_shot_ids)
+            or set(requested_shot_ids) != active_shot_ids
+        ):
+            raise HTTPException(
+                400,
+                "El orden debe incluir exactamente una vez todos los planos activos de la escena",
+            )
 
         now = get_utc_now_iso()
 

@@ -185,6 +185,46 @@ class DocumentDualWriteTests(unittest.TestCase):
             self.assertEqual(after[0]["text"], "INT. CASA DE PEDRO - NOCHE")
             self._assert_project_parity(project["id"])
 
+    def test_non_heading_lines_with_heading_prefix_keep_scene_parity(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+            project = main.create_project(
+                ProjectCreate(title="Prefijos en líneas", format="feature")
+            )
+            scene = main.create_scene(
+                project["id"],
+                SceneCreate(
+                    heading="INT. CASA - DIA",
+                    body="Acción normal",
+                    semantic_lines=[
+                        {"type": "heading", "text": "INT. CASA - DIA"},
+                        {"type": "action", "text": "Acción normal"},
+                    ],
+                ),
+            )
+
+            for line_type, text in (
+                ("action", "INT. detalle de acción"),
+                ("dialogue", "EXT. frase de diálogo"),
+                ("parenthetical", "INT. indicación parentética"),
+            ):
+                with self.subTest(line_type=line_type):
+                    lines = [
+                        {"type": "heading", "text": "INT. CASA - DIA"},
+                        {"type": line_type, "text": text},
+                    ]
+                    main.update_scene(
+                        scene["id"],
+                        SceneUpdate(
+                            body=text,
+                            semantic_lines=lines,
+                        ),
+                    )
+
+                    document = main.get_project_document(project["id"])
+                    self.assertEqual(len(document["derived_scenes"]), 1)
+                    self._assert_project_parity(project["id"])
+
     def test_5_6_delete_and_renumber_keep_survivor_uuids_and_positions(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             self._prepare_empty_database(tmpdir)

@@ -1,5 +1,8 @@
 from engine.core.event import Event
+from engine.core.block import Block
+from engine.core.types.block_type import BlockType
 from engine.services.analyzers.character_extractor import CharacterExtractor
+from engine.services.analyzers.event_extractor import EventExtractor
 
 
 def test_character_extractor_groups_events_by_character() -> None:
@@ -57,3 +60,23 @@ def test_character_extractor_groups_events_by_character() -> None:
 
     assert enrique.event_count == 1
     assert enrique.first_scene_id == "24"
+
+
+def test_character_extractor_detects_proper_name_mentioned_in_action() -> None:
+    blocks = [
+        Block(
+            id="1",
+            scene_id="40",
+            order=1,
+            block_type=BlockType.ACTION,
+            content="De él baja Guillermo Ravest, con un ejemplar del diario El Siglo bajo el brazo.",
+        ),
+    ]
+
+    events = EventExtractor().extract(blocks)
+    characters = CharacterExtractor().extract(events)
+
+    assert any(
+        item.character.name == "Guillermo Ravest"
+        for item in characters
+    )

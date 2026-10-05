@@ -103,6 +103,8 @@ class SemanticLexicon:
                         word, words
                     ):
                         continue
+                    if self._is_locative_frente(word, words):
+                        continue
                     family, control_families = self._classify_lemma_with_controls(
                         word.lemma
                     )
@@ -116,6 +118,18 @@ class SemanticLexicon:
                     )
             results.append(candidates)
         return results
+
+    @staticmethod
+    def _is_locative_frente(word: Any, words: list[Any]) -> bool:
+        if word.lemma.casefold() != "frente":
+            return False
+
+        return any(
+            dependent.head == word.id
+            and dependent.deprel in {"case", "fixed"}
+            and dependent.lemma.casefold() == "a"
+            for dependent in words
+        )
 
     @staticmethod
     def _is_lexicalized_case_part(word: Any, words: list[Any]) -> bool:

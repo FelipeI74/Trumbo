@@ -492,6 +492,46 @@ def test_production_element_analyzer_ignores_bottle_fall_as_stunt() -> None:
     )
 
 
+def test_production_element_analyzer_does_not_classify_frente_as_animal() -> None:
+    elements = ProductionElementAnalyzer().extract(
+        [
+            Block(
+                id="1",
+                scene_id="1",
+                order=1,
+                block_type=BlockType.ACTION,
+                content="Llega frente al acceso.",
+            ),
+        ]
+    )
+
+    assert not any(
+        element.name.casefold() == "frente"
+        and element.element_type == ProductionElementType.ANIMAL
+        for element in elements
+    )
+
+
+def test_production_element_analyzer_ignores_diary_fall_as_stunt() -> None:
+    elements = ProductionElementAnalyzer().extract(
+        [
+            Block(
+                id="1",
+                scene_id="1",
+                order=1,
+                block_type=BlockType.ACTION,
+                content="Se le resbala el diario y cae al suelo.",
+            ),
+        ]
+    )
+
+    assert not any(
+        element.name == "Caída"
+        and element.element_type == ProductionElementType.STUNT
+        for element in elements
+    )
+
+
 def test_production_element_analyzer_detects_coordinated_fall_as_stunt() -> None:
     blocks = [
         Block(

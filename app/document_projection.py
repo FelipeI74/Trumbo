@@ -201,7 +201,7 @@ def derive_scenes_from_document_lines(lines: list[dict[str, Any]]) -> dict[str, 
             "source_scene_id": line.get("source_scene_id"),
         }
 
-        if is_complete_scene_heading_text(text):
+        if line_type == "heading" and is_complete_scene_heading_text(text):
             if current_chunk is not None:
                 chunks.append(current_chunk)
             current_chunk = [normalized]

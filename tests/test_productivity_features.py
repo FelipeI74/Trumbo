@@ -145,6 +145,40 @@ class ProductivityFeaturesTests(unittest.TestCase):
             self.assertEqual(scheduled_scene["scene_cast"], ["MARTA", "PEDRO"])
             self.assertEqual(scheduled_scene["resources"], ["Llave"])
 
+    def test_scheduling_input_excludes_rejected_breakdown_items(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+            project = main.create_project(
+                ProjectCreate(title="Estados en scheduling", format="feature")
+            )
+            scene = main.create_scene(
+                project["id"],
+                SceneCreate(heading="INT. CASA - DIA", body="Hay tres objetos."),
+            )
+
+            for name, item_state in (
+                ("Detección", "detected"),
+                ("Confirmado", "confirmed"),
+                ("Rechazado", "rejected"),
+            ):
+                main.add_breakdown_item(
+                    scene["id"],
+                    BreakdownItemCreate(
+                        category="prop",
+                        name=name,
+                        source="analysis",
+                        state=item_state,
+                    ),
+                )
+
+            scheduled_scene = main.get_project_scheduling_input(
+                project["id"]
+            )["scenes"][0]
+
+            self.assertIn("Detección", scheduled_scene["resources"])
+            self.assertIn("Confirmado", scheduled_scene["resources"])
+            self.assertNotIn("Rechazado", scheduled_scene["resources"])
+
     def test_schedule_preview_uses_productive_optimizer_contract(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             self._prepare_empty_database(tmpdir)
@@ -333,6 +367,44 @@ class ProductivityFeaturesTests(unittest.TestCase):
                 ).fetchone()[0]
 
             self.assertEqual(count, 1)  
+
+    def test_breakdown_item_deduplicates_name_case_insensitively(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+            project = main.create_project(
+                ProjectCreate(title="Desglose mayúsculas", format="feature")
+            )
+            scene = main.create_scene(
+                project["id"],
+                SceneCreate(heading="INT. TALLER - DIA"),
+            )
+
+            items = [
+                main.add_breakdown_item(
+                    scene["id"],
+                    BreakdownItemCreate(
+                        category="prop",
+                        name=name,
+                        source="analysis",
+                        state="detected",
+                    ),
+                )
+                for name in ("Llave", "llave", "LLAVE")
+            ]
+
+            self.assertEqual(len({item["id"] for item in items}), 3)
+
+            with database.connect() as connection:
+                count = connection.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM breakdown_items
+                    WHERE scene_id = ? AND category = ?
+                    """,
+                    (scene["id"], "prop"),
+                ).fetchone()[0]
+
+            self.assertEqual(count, 3)
 
     def test_breakdown_item_preserves_confirmed_state_on_duplicate(self):
         with tempfile.TemporaryDirectory() as tmpdir:

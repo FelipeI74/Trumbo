@@ -3,12 +3,16 @@ from __future__ import annotations
 import re
 from uuid import uuid4
 
+import stanza
+
 from engine.core.block import Block
 from engine.core.scene import Scene
 from engine.core.types.block_type import BlockType
+from engine.services.analyzers.character_extractor import CharacterExtractor
 from engine.services.analyzers.event_extractor import EventExtractor
 from engine.services.analyzers.production_element_analyzer import ProductionElementAnalyzer
 from engine.services.parsers.scene_parser import SceneParser
+from engine.services.semantic_lexicon import SemanticLexicon
 
 
 def analyze_scene_with_engine(
@@ -59,6 +63,7 @@ def analyze_scene_with_engine(
 
     event_extractor = EventExtractor()
     events = event_extractor.extract(blocks)
+    event_characters = CharacterExtractor().extract(events)
 
     production_element_analyzer = ProductionElementAnalyzer()
     production_elements = production_element_analyzer.extract(blocks)
@@ -73,6 +78,7 @@ def analyze_scene_with_engine(
     }
 
     characters: list[str] = []
+    character_keys: set[str] = set()
     elements: list[dict] = []
 
     for block in blocks:
@@ -86,8 +92,10 @@ def analyze_scene_with_engine(
             name = block.content.strip()
             if re.fullmatch(r"\d+[A-Z]?\.?", name):
                 continue
-            if name not in characters:
+            key = name.casefold()
+            if key not in character_keys:
                 characters.append(name)
+                character_keys.add(key)
 
         elements.append(
             {
@@ -97,6 +105,52 @@ def analyze_scene_with_engine(
                 "confidence": 1.0,
             }
         )
+
+    if event_characters:
+        pipeline = SemanticLexicon._get_shared_pipeline()
+        event_documents = pipeline(
+            [
+                stanza.Document([], text=event.summary)
+                for event in events
+            ]
+        )
+        events_by_subject: dict[str, list[tuple[object, object]]] = {}
+        for event, document in zip(events, event_documents):
+            if event.subject:
+                events_by_subject.setdefault(
+                    event.subject.strip().casefold(),
+                    [],
+                ).append((event, document))
+
+        for statistic in event_characters:
+            name = statistic.character.name.strip()
+            key = name.casefold()
+            if key in character_keys:
+                continue
+
+            subject_tokens = name.split()
+            is_proper_name = False
+            for _, document in events_by_subject.get(key, []):
+                words = [
+                    word
+                    for sentence in document.sentences
+                    for word in sentence.words
+                ]
+                for start in range(len(words) - len(subject_tokens) + 1):
+                    span = words[start : start + len(subject_tokens)]
+                    if (
+                        [word.text.casefold() for word in span]
+                        == [token.casefold() for token in subject_tokens]
+                        and all(word.upos == "PROPN" for word in span)
+                    ):
+                        is_proper_name = True
+                        break
+                if is_proper_name:
+                    break
+
+            if is_proper_name:
+                characters.append(name)
+                character_keys.add(key)
 
     return {
         "counts": counts,

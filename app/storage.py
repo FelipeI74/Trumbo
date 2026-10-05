@@ -24,7 +24,7 @@ class StoryboardStorage:
         clean_key = storage_key.lstrip("/\\")
         target_path = (self.base_dir / clean_key).resolve()
 
-        if not str(target_path).startswith(str(self.base_dir)):
+        if not target_path.is_relative_to(self.base_dir):
             raise SecurityError(f"Intento de Path Traversal detectado: {storage_key}")
 
         return target_path
