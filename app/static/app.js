@@ -16,6 +16,12 @@ const state = {
   activeLine: null,
   lineSelectionDrag: null,
   suppressLineSelectionClick: false,
+  scheduleRequestToken: 0,
+  scheduleProjectId: null,
+  scheduleShootRateSeconds: 420,
+  scheduleOrderDirty: false,
+  scheduleOrderBusy: false,
+  scheduleLoaded: false,
   isRendering: false,
   isHydratingScenesFromDocument: false,
   isReconcilingScenes: false,
@@ -598,9 +604,10 @@ function scheduleSceneLookup(schedulingInput) {
 function renderSchedule(schedule, schedulingInput) {
   const sceneById = scheduleSceneLookup(schedulingInput);
   const days = schedule?.best_schedule?.days || [];
-  $("#scheduleDays").innerHTML = days.length
+  const scheduleDays = $("#scheduleDays");
+  scheduleDays.innerHTML = days.length
     ? days.map(day => `
-        <article class="schedule-day">
+        <article class="schedule-day" data-day="${escapeHtml(day.day)}">
           <div class="schedule-day-header">
             <h2>Jornada ${day.day}</h2>
             <span>Duración guion <strong>${formatSeconds(day.runtime_seconds)}</strong></span>
@@ -610,7 +617,7 @@ function renderSchedule(schedule, schedulingInput) {
               const scene = sceneById.get(sceneId) || {};
               const cast = scene.scene_cast || scene.characters || [];
               return `
-                <div class="schedule-scene">
+                <div class="schedule-scene" draggable="true" data-scene-id="${escapeHtml(sceneId)}">
                   <span class="schedule-scene-number">${escapeHtml(scene.production_number || scene.scene_number || sceneId)}</span>
                   <span class="schedule-scene-heading">${escapeHtml(scene.heading || scene.location || "Sin locación")}</span>
                   <span class="schedule-scene-sublocation">${escapeHtml(scene.sublocation || "—")}</span>
@@ -626,6 +633,106 @@ function renderSchedule(schedule, schedulingInput) {
         </article>
       `).join("")
     : '<div class="empty">No hay jornadas para este proyecto.</div>';
+
+  let draggedScene = null;
+
+  scheduleDays.ondragstart = event => {
+    draggedScene = event.target.closest(".schedule-scene");
+    if (!draggedScene) return;
+    event.dataTransfer.setData(
+      "text/plain",
+      draggedScene.dataset.sceneId
+    );
+    event.dataTransfer.effectAllowed = "move";
+  };
+
+  scheduleDays.ondragover = event => {
+    const targetScene = event.target.closest(".schedule-scene");
+    if (
+      !draggedScene ||
+      !targetScene ||
+      draggedScene.parentElement !== targetScene.parentElement
+    ) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  };
+
+  scheduleDays.ondrop = event => {
+    const targetScene = event.target.closest(".schedule-scene");
+    if (
+      !draggedScene ||
+      !targetScene ||
+      draggedScene === targetScene ||
+      draggedScene.parentElement !== targetScene.parentElement
+    ) {
+      return;
+    }
+    event.preventDefault();
+    const insertAfter =
+      event.clientY >
+      targetScene.getBoundingClientRect().top +
+        targetScene.offsetHeight / 2;
+    const scenes = [
+      ...draggedScene.parentElement.children,
+    ];
+    const originalOrder = scenes.map(
+      scene => Number(scene.dataset.sceneId)
+    );
+    const draggedIndex = scenes.indexOf(draggedScene);
+    const targetIndex = scenes.indexOf(targetScene);
+    scenes.splice(draggedIndex, 1);
+    const insertIndex =
+      targetIndex + (insertAfter ? 1 : 0) -
+      (draggedIndex < targetIndex ? 1 : 0);
+    scenes.splice(insertIndex, 0, draggedScene);
+
+    let nightSeen = false;
+    const hasDayAfterNight = scenes.some(card => {
+      const timeOfDay = String(
+        sceneById.get(Number(card.dataset.sceneId))?.time_of_day || ""
+      )
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+
+      if (timeOfDay === "noche") {
+        nightSeen = true;
+      }
+
+      return timeOfDay === "dia" && nightSeen;
+    });
+
+    if (hasDayAfterNight) {
+      $("#scheduleStatus").textContent =
+        "Las escenas de noche deben quedar al final de la jornada";
+      return;
+    }
+
+    if (
+      scenes.every(
+        (scene, index) =>
+          Number(scene.dataset.sceneId) === originalOrder[index]
+      )
+    ) {
+      return;
+    }
+
+    targetScene.parentElement.insertBefore(
+      draggedScene,
+      insertAfter ? targetScene.nextSibling : targetScene
+    );
+    $("#scheduleStatus").textContent =
+      "Orden modificado, aún no guardado";
+    state.scheduleOrderDirty = true;
+    updateScheduleOrderButtons();
+  };
+
+  scheduleDays.ondragend = () => {
+    draggedScene = null;
+  };
 }
 
 async function loadSchedulePreview() {
@@ -633,19 +740,156 @@ async function loadSchedulePreview() {
     return;
   }
 
+  const projectId = Number(state.project.id);
+  const requestToken = ++state.scheduleRequestToken;
+  state.scheduleProjectId = projectId;
+  state.scheduleShootRateSeconds = 420;
   const status = $("#scheduleStatus");
   status.textContent = "Generando plan...";
 
   try {
     const [schedule, schedulingInput] = await Promise.all([
-      request(`/api/projects/${state.project.id}/schedule-preview`),
-      request(`/api/projects/${state.project.id}/scheduling-input`),
+      request(`/api/projects/${projectId}/schedule-preview`),
+      request(`/api/projects/${projectId}/scheduling-input`),
     ]);
+    if (
+      requestToken !== state.scheduleRequestToken ||
+      Number(state.project?.id) !== projectId
+    ) {
+      return;
+    }
+
     renderSchedule(schedule, schedulingInput);
+    state.scheduleOrderDirty = false;
+    state.scheduleLoaded = true;
+    updateScheduleOrderButtons();
     status.textContent = "Plan actualizado";
   } catch (error) {
     console.error(error);
-    status.textContent = "No fue posible generar el plan.";
+    if (
+      requestToken !== state.scheduleRequestToken ||
+      Number(state.project?.id) !== projectId
+    ) {
+      return;
+    }
+    status.textContent =
+      error.message || "No fue posible generar el plan.";
+  }
+}
+
+function updateScheduleOrderButtons() {
+  const saveButton = $("#saveScheduleOrderButton");
+  const resetButton = $("#resetScheduleOrderButton");
+  if (saveButton) {
+    saveButton.disabled =
+      state.scheduleOrderBusy || !state.scheduleOrderDirty;
+  }
+  if (resetButton) {
+    resetButton.disabled =
+      state.scheduleOrderBusy || !state.scheduleLoaded;
+  }
+}
+
+function readManualScheduleDays() {
+  return [
+    ...$("#scheduleDays").querySelectorAll(".schedule-day"),
+  ].map(day => ({
+    day: Number(day.dataset.day),
+    scene_ids: [
+      ...day.querySelectorAll(".schedule-scene"),
+    ].map(scene => Number(scene.dataset.sceneId)),
+  }));
+}
+
+async function saveScheduleManualOrder() {
+  const projectId = state.scheduleProjectId;
+  if (!projectId || !state.scheduleOrderDirty || state.scheduleOrderBusy) {
+    return;
+  }
+
+  const requestToken = ++state.scheduleRequestToken;
+  state.scheduleOrderBusy = true;
+  updateScheduleOrderButtons();
+
+  try {
+    await request(
+      `/api/projects/${projectId}/schedule-manual-order`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          days: readManualScheduleDays(),
+          shoot_rate_seconds: state.scheduleShootRateSeconds,
+        }),
+      }
+    );
+
+    if (
+      requestToken !== state.scheduleRequestToken ||
+      Number(state.project?.id) !== projectId
+    ) {
+      return;
+    }
+
+    state.scheduleOrderDirty = false;
+    state.scheduleOrderBusy = false;
+    updateScheduleOrderButtons();
+    await loadSchedulePreview();
+  } catch (error) {
+    console.error(error);
+    if (
+      requestToken !== state.scheduleRequestToken ||
+      Number(state.project?.id) !== projectId
+    ) {
+      return;
+    }
+
+    state.scheduleOrderBusy = false;
+    updateScheduleOrderButtons();
+    $("#scheduleStatus").textContent =
+      error.message || "No fue posible guardar el orden manual.";
+  }
+}
+
+async function resetScheduleManualOrder() {
+  const projectId = state.scheduleProjectId;
+  if (!projectId || state.scheduleOrderBusy) {
+    return;
+  }
+
+  const requestToken = ++state.scheduleRequestToken;
+  state.scheduleOrderBusy = true;
+  updateScheduleOrderButtons();
+
+  try {
+    await request(
+      `/api/projects/${projectId}/schedule-manual-order`,
+      { method: "DELETE" }
+    );
+
+    if (
+      requestToken !== state.scheduleRequestToken ||
+      Number(state.project?.id) !== projectId
+    ) {
+      return;
+    }
+
+    state.scheduleOrderDirty = false;
+    state.scheduleOrderBusy = false;
+    updateScheduleOrderButtons();
+    await loadSchedulePreview();
+  } catch (error) {
+    console.error(error);
+    if (
+      requestToken !== state.scheduleRequestToken ||
+      Number(state.project?.id) !== projectId
+    ) {
+      return;
+    }
+
+    state.scheduleOrderBusy = false;
+    updateScheduleOrderButtons();
+    $("#scheduleStatus").textContent =
+      error.message || "No fue posible restaurar el plan calculado.";
   }
 }
 
@@ -5114,6 +5358,13 @@ async function loadProjects(
 async function loadProject(
   projectId
 ) {
+  state.scheduleRequestToken += 1;
+  state.scheduleOrderDirty = false;
+  state.scheduleOrderBusy = false;
+  state.scheduleLoaded = false;
+  state.scheduleProjectId = Number(projectId);
+  updateScheduleOrderButtons();
+
   breakdownAnalysisLoading.clear();
   breakdownAnalysisSynced.clear();
   breakdownAnalysisRetried.clear();
@@ -5607,6 +5858,22 @@ function setupEvents() {
       "click",
       loadSchedulePreview
     );
+
+  if (!$("#saveScheduleOrderButton").dataset.listenerRegistered) {
+    $("#saveScheduleOrderButton").dataset.listenerRegistered = "true";
+    $("#saveScheduleOrderButton").addEventListener(
+      "click",
+      saveScheduleManualOrder
+    );
+  }
+
+  if (!$("#resetScheduleOrderButton").dataset.listenerRegistered) {
+    $("#resetScheduleOrderButton").dataset.listenerRegistered = "true";
+    $("#resetScheduleOrderButton").addEventListener(
+      "click",
+      resetScheduleManualOrder
+    );
+  }
 
   $("#breakdownFilterCategory")
     .addEventListener(

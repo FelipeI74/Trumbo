@@ -115,6 +115,16 @@ class ShotReorderRequest(BaseModel):
     shot_ids: list[str] = Field(default_factory=list)
 
 
+class ScheduleManualDay(BaseModel):
+    day: int = Field(ge=1)
+    scene_ids: list[int]
+
+
+class ScheduleManualOrder(BaseModel):
+    days: list[ScheduleManualDay] = Field(default_factory=list)
+    shoot_rate_seconds: int = Field(default=420, gt=0)
+
+
 class ShotOut(ShotBase):
     id: str
     project_id: int

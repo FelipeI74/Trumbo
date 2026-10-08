@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter
 import csv
 from datetime import datetime, timezone
+import hashlib
 from io import BytesIO, StringIO
 import json
 from pathlib import Path
@@ -33,6 +34,7 @@ from .schemas import (
     ProjectUpdate,
     SceneCreate,
     SceneUpdate,
+    ScheduleManualOrder,
     ShotCreate,
     ShotOut,
     ShotReorderRequest,
@@ -997,19 +999,217 @@ def get_project_scheduling_input(
     )
 
 
+def _schedule_input_fingerprint(
+    scenes: list[dict],
+    shoot_rate_seconds: int,
+) -> str:
+    serialized = json.dumps(
+        {
+            "scenes": scenes,
+            "shoot_rate_seconds": shoot_rate_seconds,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(serialized).hexdigest()
+
+
+def _validate_manual_schedule_days(
+    manual_days: Any,
+    calculated_days: Any,
+    scenes: list[dict],
+) -> list[dict[str, Any]] | None:
+    if not isinstance(manual_days, list) or not isinstance(calculated_days, list):
+        return None
+    if len(manual_days) != len(calculated_days):
+        return None
+
+    validated_days: list[dict[str, Any]] = []
+    all_seen: set[int] = set()
+    for manual_day, calculated_day in zip(manual_days, calculated_days):
+        if not isinstance(manual_day, dict) or not isinstance(calculated_day, dict):
+            return None
+
+        day_number = manual_day.get("day")
+        scene_ids = manual_day.get("scene_ids")
+        calculated_ids = calculated_day.get("scene_ids")
+        if (
+            isinstance(day_number, bool)
+            or not isinstance(day_number, int)
+            or day_number != calculated_day.get("day")
+            or not isinstance(scene_ids, list)
+            or not isinstance(calculated_ids, list)
+            or any(isinstance(scene_id, bool) or not isinstance(scene_id, int) for scene_id in scene_ids)
+        ):
+            return None
+
+        if (
+            len(scene_ids) != len(set(scene_ids))
+            or set(scene_ids) != set(calculated_ids)
+            or any(scene_id in all_seen for scene_id in scene_ids)
+        ):
+            return None
+
+        all_seen.update(scene_ids)
+        validated_days.append(
+            {
+                "day": day_number,
+                "scene_ids": scene_ids,
+            }
+        )
+
+    time_by_scene_id = {
+        int(scene["scene_id"]): str(scene.get("time_of_day") or "")
+        for scene in scenes
+    }
+    for day in validated_days:
+        night_seen = False
+        for scene_id in day["scene_ids"]:
+            time_of_day = str(
+                time_by_scene_id.get(scene_id, "")
+            ).strip().casefold()
+            if time_of_day == "noche":
+                night_seen = True
+            elif time_of_day in {"dia", "día"} and night_seen:
+                return None
+
+    return validated_days
+
+
 @app.get("/api/projects/{project_id}/schedule-preview")
 def get_project_schedule_preview(
     project_id: int,
-    shoot_rate_seconds: int = Query(420),
+    shoot_rate_seconds: int = 420,
 ) -> dict:
     scheduling_input = _build_project_scheduling_input(
         project_id
     )
 
-    return optimize_schedule(
+    calculated = optimize_schedule(
         scheduling_input["scenes"],
         shoot_rate_seconds=shoot_rate_seconds,
     )
+    fingerprint = _schedule_input_fingerprint(
+        scheduling_input["scenes"],
+        shoot_rate_seconds,
+    )
+
+    with connect() as connection:
+        stored = connection.execute(
+            """
+            SELECT days_json, input_fingerprint
+            FROM schedule_manual_orders
+            WHERE project_id = ?
+            """,
+            (project_id,),
+        ).fetchone()
+
+    if stored is None or stored["input_fingerprint"] != fingerprint:
+        return calculated
+
+    try:
+        manual_days = json.loads(stored["days_json"])
+    except (json.JSONDecodeError, TypeError):
+        return calculated
+
+    validated_days = _validate_manual_schedule_days(
+        manual_days,
+        calculated.get("best_schedule", {}).get("days"),
+        scheduling_input["scenes"],
+    )
+    if validated_days is None:
+        return calculated
+
+    return {
+        **calculated,
+        "best_schedule": {
+            **calculated["best_schedule"],
+            "days": [
+                {
+                    **calculated_day,
+                    "scene_ids": manual_day["scene_ids"],
+                }
+                for calculated_day, manual_day in zip(
+                    calculated["best_schedule"]["days"],
+                    validated_days,
+                )
+            ],
+        },
+    }
+
+
+@app.put("/api/projects/{project_id}/schedule-manual-order")
+def save_project_schedule_manual_order(
+    project_id: int,
+    payload: ScheduleManualOrder,
+) -> dict:
+    scheduling_input = _build_project_scheduling_input(project_id)
+    calculated = optimize_schedule(
+        scheduling_input["scenes"],
+        shoot_rate_seconds=payload.shoot_rate_seconds,
+    )
+    manual_days = [day.model_dump() for day in payload.days]
+    validated_days = _validate_manual_schedule_days(
+        manual_days,
+        calculated.get("best_schedule", {}).get("days"),
+        scheduling_input["scenes"],
+    )
+    if validated_days is None:
+        raise HTTPException(
+            400,
+            "El orden manual debe conservar jornadas y escenas, sin duplicados y con DÍA antes de NOCHE",
+        )
+
+    fingerprint = _schedule_input_fingerprint(
+        scheduling_input["scenes"],
+        payload.shoot_rate_seconds,
+    )
+    days_json = json.dumps(
+        validated_days,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    with connect() as connection:
+        connection.execute(
+            """
+            INSERT INTO schedule_manual_orders(
+                project_id,
+                days_json,
+                input_fingerprint,
+                updated_at
+            )
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(project_id) DO UPDATE SET
+                days_json = excluded.days_json,
+                input_fingerprint = excluded.input_fingerprint,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (project_id, days_json, fingerprint),
+        )
+
+    return {"status": "ok", "days": validated_days}
+
+
+@app.delete("/api/projects/{project_id}/schedule-manual-order")
+def delete_project_schedule_manual_order(
+    project_id: int,
+) -> dict:
+    with connect() as connection:
+        project = connection.execute(
+            "SELECT 1 FROM projects WHERE id = ?",
+            (project_id,),
+        ).fetchone()
+        if project is None:
+            raise HTTPException(404, "Proyecto no encontrado")
+
+        connection.execute(
+            "DELETE FROM schedule_manual_orders WHERE project_id = ?",
+            (project_id,),
+        )
+
+    return {"status": "deleted", "project_id": project_id}
 
 
 @app.get("/api/projects/{project_id}/document")

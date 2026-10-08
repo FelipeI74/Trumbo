@@ -144,6 +144,14 @@ def initialize() -> None:
         FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS schedule_manual_orders (
+        project_id INTEGER PRIMARY KEY,
+        days_json TEXT NOT NULL,
+        input_fingerprint TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS document_lines (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         uuid TEXT NOT NULL UNIQUE,

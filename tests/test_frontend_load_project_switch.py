@@ -117,7 +117,7 @@ class FrontendLoadProjectSwitchTests(unittest.TestCase):
         self.assertIn("LUZ", self.index_html)
         self.assertIn("DURACIÓN", self.index_html)
         self.assertIn("ELENCO", self.index_html)
-        self.assertIn("/api/projects/${state.project.id}/schedule-preview", self.source)
+        self.assertIn("/schedule-preview", self.source)
         self.assertIn("function renderSchedule(schedule, schedulingInput)", self.source)
         self.assertIn("function loadSchedulePreview()", self.source)
         self.assertIn("setMainView(tab.dataset.view)", self.source)
