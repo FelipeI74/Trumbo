@@ -25,6 +25,10 @@ from .document_store import sync_project_document_from_scenes
 from .domain import estimate_runtime, format_seconds, screenplay_summary
 from .scheduling.optimizer import optimize_schedule
 from .services.engine_analysis_adapter import analyze_scene_with_engine
+from .services.gemini_service import (
+    GeminiServiceError,
+    analyze_scene_with_gemini,
+)
 from .storage import SecurityError, StoryboardStorage
 from .schemas import (
     BreakdownItemCreate,
@@ -609,6 +613,79 @@ def get_project(
             "project": dict(project),
             "scenes": scenes,
         }
+
+
+@app.get("/api/projects/{project_id}/reports/breakdown")
+def get_project_breakdown_report(project_id: int) -> dict:
+    with connect() as connection:
+        project = connection.execute(
+            "SELECT id, title FROM projects WHERE id = ?",
+            (project_id,),
+        ).fetchone()
+        if project is None:
+            raise HTTPException(404, "Proyecto no encontrado")
+
+        scene_rows = connection.execute(
+            """
+            SELECT *
+            FROM scenes
+            WHERE project_id = ?
+            ORDER BY scene_number, id
+            """,
+            (project_id,),
+        ).fetchall()
+
+        scenes = []
+        totals = {"confirmed": 0, "detected": 0, "by_category": {}}
+        for scene_row in scene_rows:
+            scene = scene_with_metadata(connection, scene_row)
+            unique_resources = {}
+            for item in scene["breakdown_items"]:
+                item_state = item["state"]
+                if item_state not in {"confirmed", "detected"}:
+                    continue
+
+                category = str(item["category"] or "").strip()
+                name = str(item["name"] or "").strip()
+                if not category or not name:
+                    continue
+
+                key = (category.casefold(), name.casefold())
+                existing = unique_resources.get(key)
+                if existing is None or (
+                    existing["state"] == "detected"
+                    and item_state == "confirmed"
+                ):
+                    unique_resources[key] = {
+                        "category": category,
+                        "name": name,
+                        "state": item_state,
+                    }
+
+            resources = list(unique_resources.values())
+            for item in resources:
+                totals[item["state"]] += 1
+                totals["by_category"][item["category"]] = (
+                    totals["by_category"].get(item["category"], 0) + 1
+                )
+
+            scenes.append(
+                {
+                    "scene_id": scene["id"],
+                    "scene_number": scene["scene_number"],
+                    "production_number": scene["production_number"],
+                    "heading": scene["heading"],
+                    "runtime_seconds": scene["runtime_seconds"],
+                    "resources": resources,
+                }
+            )
+
+    return {
+        "project": {"id": project["id"], "title": project["title"]},
+        "total_scenes": len(scenes),
+        "totals": totals,
+        "scenes": scenes,
+    }
 
 
 @app.get("/api/projects/{project_id}/characters")
@@ -1751,6 +1828,48 @@ def analyze_scene(
             body=scene["body"],
             semantic_lines=semantic_lines,
         )
+
+
+@app.post("/api/scenes/{scene_id}/gemini-analysis")
+def analyze_scene_gemini(
+    scene_id: int,
+) -> dict:
+    with connect() as connection:
+        scene = connection.execute(
+            """
+            SELECT
+                heading,
+                body
+            FROM scenes
+            WHERE id = ?
+            """,
+            (scene_id,),
+        ).fetchone()
+
+        if scene is None:
+            raise HTTPException(
+                404,
+                "Escena no encontrada",
+            )
+
+        heading = scene["heading"] or ""
+        body = scene["body"] or ""
+
+    try:
+        suggestions = analyze_scene_with_gemini(
+            heading=heading,
+            body=body,
+        )
+    except GeminiServiceError as err:
+        raise HTTPException(
+            status_code=502,
+            detail=str(err),
+        )
+
+    return {
+        "scene_id": scene_id,
+        "suggestions": suggestions,
+    }
 
 
 @app.post("/api/scenes/{scene_id}/notes")
