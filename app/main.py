@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from collections import Counter
 import csv
@@ -22,7 +22,7 @@ from .document_projection import (
     derive_scenes_from_document_lines,
 )
 from .document_store import sync_project_document_from_scenes
-from .domain import estimate_runtime, format_seconds, screenplay_summary
+from .domain import estimate_runtime, format_seconds, parse_character_cue, screenplay_summary
 from .scheduling.optimizer import optimize_schedule
 from .services.engine_analysis_adapter import analyze_scene_with_engine
 from .services.gemini_service import (
@@ -728,23 +728,24 @@ def list_project_characters(
             if line.get("type") != "character":
                 continue
 
-            name = str(line.get("text") or "").strip()
-            key = name.casefold()
+            for personaje in parse_character_cue(line.get("text") or ""):
+                name = personaje["name"]
+                key = name.casefold()
 
-            if not name or key in seen_in_scene:
-                continue
+                if not name or key in seen_in_scene:
+                    continue
 
-            seen_in_scene.add(key)
-            character = grouped.setdefault(
-                key,
-                {
-                    "name": name,
-                    "scene_numbers": [],
-                },
-            )
+                seen_in_scene.add(key)
+                character = grouped.setdefault(
+                    key,
+                    {
+                        "name": name,
+                        "scene_numbers": [],
+                    },
+                )
 
-            if scene_number not in character["scene_numbers"]:
-                character["scene_numbers"].append(scene_number)
+                if scene_number not in character["scene_numbers"]:
+                    character["scene_numbers"].append(scene_number)
 
     characters = [
         {
@@ -1022,6 +1023,7 @@ def _build_project_scheduling_input(
         )
         seen_characters: set[str] = set()
         characters: list[str] = []
+        voice_over_characters: list[str] = []
 
         for line in deserialize_semantic_lines(
             scene_row["semantic_lines"]
@@ -1029,14 +1031,18 @@ def _build_project_scheduling_input(
             if line.get("type") != "character":
                 continue
 
-            name = str(line.get("text") or "").strip()
-            key = name.casefold()
+            for personaje in parse_character_cue(line.get("text") or ""):
+                name = personaje["name"]
+                key = name.casefold()
 
-            if not name or key in seen_characters:
-                continue
+                if not name or key in seen_characters:
+                    continue
 
-            seen_characters.add(key)
-            characters.append(name)
+                seen_characters.add(key)
+                characters.append(name)
+
+                if personaje["is_voice_over"]:
+                    voice_over_characters.append(name)
 
         scene_cast = list(characters)
         seen_scene_cast = {name.strip().casefold() for name in scene_cast}
@@ -1059,6 +1065,7 @@ def _build_project_scheduling_input(
                 "time_of_day": heading_fields["time_of_day"],
                 "runtime_seconds": int(scene_row["runtime_seconds"] or 0),
                 "characters": characters,
+                "voice_over_characters": voice_over_characters,
                 "scene_cast": scene_cast,
                 "resources": resources_by_scene.get(scene_id, []),
             }
