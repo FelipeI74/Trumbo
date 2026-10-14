@@ -22,7 +22,7 @@ from .document_projection import (
     derive_scenes_from_document_lines,
 )
 from .document_store import sync_project_document_from_scenes
-from .domain import estimate_runtime, format_seconds, parse_character_cue, screenplay_summary
+from .domain import estimate_runtime, format_seconds, parse_character_cue, resolve_character_alias, screenplay_summary
 from .scheduling.optimizer import optimize_schedule
 from .services.engine_analysis_adapter import analyze_scene_with_engine
 from .services.gemini_service import (
@@ -718,6 +718,19 @@ def list_project_characters(
             (project_id,),
         ).fetchall()
 
+        alias_rows = connection.execute(
+            """
+            SELECT alias_name, primary_name
+            FROM character_aliases
+            WHERE project_id = ?
+            """,
+            (project_id,),
+        ).fetchall()
+
+        aliases_map = {
+            row["alias_name"].casefold(): row["primary_name"]
+            for row in alias_rows
+        }
     grouped: dict[str, dict] = {}
 
     for scene in scene_rows:
@@ -729,7 +742,7 @@ def list_project_characters(
                 continue
 
             for personaje in parse_character_cue(line.get("text") or ""):
-                name = personaje["name"]
+                name = resolve_character_alias(personaje["name"], aliases_map)
                 key = name.casefold()
 
                 if not name or key in seen_in_scene:

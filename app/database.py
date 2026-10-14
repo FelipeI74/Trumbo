@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import sqlite3
 from contextlib import contextmanager
@@ -193,6 +193,20 @@ def initialize() -> None:
 
     CREATE INDEX IF NOT EXISTS idx_shots_project_scene_archived_order
         ON shots(project_id, scene_id, is_archived, sort_order);
+
+    CREATE TABLE IF NOT EXISTS character_aliases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        primary_name TEXT NOT NULL,
+        alias_name TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        UNIQUE(project_id, alias_name)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_character_aliases_project
+        ON character_aliases(project_id);
+
     """
 
     with connect() as connection:

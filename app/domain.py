@@ -252,3 +252,34 @@ def parse_character_cue(text: str) -> list[dict]:
         })
 
     return results
+
+
+# --- Resolucion de aliases de personajes ----------------------------------
+
+def resolve_character_alias(name: str, aliases_map: dict) -> str:
+    """
+    Dado un nombre de personaje, devuelve su nombre primario si hay un alias
+    registrado. Si no hay alias, devuelve el nombre tal cual.
+
+    Parametros:
+        name: nombre tal como aparece en el guion.
+        aliases_map: dict de alias_name (casefold) -> primary_name.
+
+    Ejemplo:
+        aliases_map = {"don felipe": "FELIPE AMADO"}
+        resolve_character_alias("DON FELIPE", aliases_map)
+        -> "FELIPE AMADO"
+        resolve_character_alias("FELIPE AMADO", aliases_map)
+        -> "FELIPE AMADO"
+        resolve_character_alias("MARTA", aliases_map)
+        -> "MARTA"
+    """
+    if not name:
+        return name
+
+    key = name.strip().casefold()
+    primary = aliases_map.get(key)
+    if primary is not None:
+        return primary
+
+    return name
