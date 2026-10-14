@@ -183,3 +183,72 @@ def estimate_runtime(text: str) -> RuntimeEstimate:
 def format_seconds(seconds: int) -> str:
     minutes, remaining = divmod(max(0, seconds), 60)
     return f"{minutes:02d}:{remaining:02d}"
+
+
+# --- Parsing de lineas 'character' del guion ------------------------------
+
+_VO_INDICATORS_RE = re.compile(
+    r"\(\s*(?:V\.?\s*O\.?|O\.?\s*S\.?)\s*\)",
+    re.IGNORECASE,
+)
+
+_ANY_PARENTHETICAL_RE = re.compile(
+    r"\([^)]*\)",
+)
+
+_CHARACTER_CUE_SEPARATORS_RE = re.compile(
+    r"[/&,]",
+)
+
+
+def parse_character_cue(text: str) -> list[dict]:
+    """
+    Convierte el texto de una linea 'character' en una lista de personajes.
+
+    Devuelve una lista de dicts con:
+      - name: nombre limpio del personaje.
+      - is_voice_over: True si tenia (V.O.), (VO), (O.S.) o (OS) anexado.
+
+    Reglas:
+    - Separa nombres combinados por '/', '&' o ','.
+    - NO separa por guion: 'FRED - BARNEY' es un solo personaje.
+    - Detecta voice-over con los parenteticos (V.O.), (VO), (O.S.), (OS),
+      con o sin puntos, con o sin espacios internos, mayusculas o minusculas.
+    - Otros parenteticos como (CONT'D) o (CONTINUING) se descartan sin marcar VO.
+    - Deduplica por nombre en case-insensitive, manteniendo el orden.
+    """
+    if not text or not text.strip():
+        return []
+
+    raw_parts = _CHARACTER_CUE_SEPARATORS_RE.split(text)
+
+    results: list[dict] = []
+    seen: set[str] = set()
+
+    for raw_part in raw_parts:
+        part = raw_part.strip()
+        if not part:
+            continue
+
+        is_voice_over = False
+
+        if _VO_INDICATORS_RE.search(part):
+            is_voice_over = True
+
+        name = _ANY_PARENTHETICAL_RE.sub("", part)
+        name = re.sub(r"\s+", " ", name).strip()
+
+        if not name:
+            continue
+
+        key = name.casefold()
+        if key in seen:
+            continue
+
+        seen.add(key)
+        results.append({
+            "name": name,
+            "is_voice_over": is_voice_over,
+        })
+
+    return results
