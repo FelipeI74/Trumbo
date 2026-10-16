@@ -128,7 +128,7 @@ _HEADING_PREFIX_RE = re.compile(
 )
 
 _HEADING_SPLIT_RE = re.compile(
-    r"\s*[-–]\s*"
+    r"\s+[-–—]\s+"
 )
 
 _KNOWN_TIME_OF_DAY = frozenset({
