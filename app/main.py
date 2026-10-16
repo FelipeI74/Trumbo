@@ -33,6 +33,7 @@ from .storage import SecurityError, StoryboardStorage
 from .schemas import (
     BreakdownItemCreate,
     BreakdownItemUpdate,
+    CharacterAliasList,
     NoteCreate,
     ProjectCreate,
     ProjectUpdate,
@@ -772,6 +773,148 @@ def list_project_characters(
     characters.sort(key=lambda character: character["name"].casefold())
 
     return {"characters": characters}
+
+
+@app.get("/api/projects/{project_id}/character-aliases")
+def list_project_character_aliases(
+    project_id: int,
+) -> dict:
+    with connect() as connection:
+        project_exists = connection.execute(
+            """
+            SELECT 1
+            FROM projects
+            WHERE id = ?
+            """,
+            (project_id,),
+        ).fetchone()
+
+        if project_exists is None:
+            raise HTTPException(
+                404,
+                "Proyecto no encontrado",
+            )
+
+        alias_rows = connection.execute(
+            """
+            SELECT primary_name, alias_name
+            FROM character_aliases
+            WHERE project_id = ?
+            ORDER BY primary_name, alias_name
+            """,
+            (project_id,),
+        ).fetchall()
+
+    return {
+        "project_id": project_id,
+        "aliases": [
+            {
+                "primary_name": row["primary_name"],
+                "alias_name": row["alias_name"],
+            }
+            for row in alias_rows
+        ],
+    }
+
+
+@app.put("/api/projects/{project_id}/character-aliases")
+def replace_project_character_aliases(
+    project_id: int,
+    payload: CharacterAliasList,
+) -> dict:
+    # Validar duplicados en el payload antes de tocar la base de datos
+    seen_alias_keys: set[str] = set()
+    normalized_entries: list[dict] = []
+
+    for entry in payload.aliases:
+        primary = entry.primary_name.strip()
+        alias = entry.alias_name.strip()
+
+        if not primary or not alias:
+            raise HTTPException(
+                400,
+                "Los nombres de personaje no pueden estar vacios",
+            )
+
+        if primary.casefold() == alias.casefold():
+            raise HTTPException(
+                400,
+                f"El alias '{alias}' es igual al nombre principal",
+            )
+
+        alias_key = alias.casefold()
+        if alias_key in seen_alias_keys:
+            raise HTTPException(
+                400,
+                f"Alias duplicado en la peticion: '{alias}'",
+            )
+        seen_alias_keys.add(alias_key)
+
+        normalized_entries.append(
+            {
+                "primary_name": primary,
+                "alias_name": alias,
+            }
+        )
+
+    with connect() as connection:
+        project_exists = connection.execute(
+            """
+            SELECT 1
+            FROM projects
+            WHERE id = ?
+            """,
+            (project_id,),
+        ).fetchone()
+
+        if project_exists is None:
+            raise HTTPException(
+                404,
+                "Proyecto no encontrado",
+            )
+
+        connection.execute(
+            "DELETE FROM character_aliases WHERE project_id = ?",
+            (project_id,),
+        )
+
+        for entry in normalized_entries:
+            connection.execute(
+                """
+                INSERT INTO character_aliases(
+                    project_id,
+                    primary_name,
+                    alias_name
+                )
+                VALUES (?, ?, ?)
+                """,
+                (
+                    project_id,
+                    entry["primary_name"],
+                    entry["alias_name"],
+                ),
+            )
+
+        alias_rows = connection.execute(
+            """
+            SELECT primary_name, alias_name
+            FROM character_aliases
+            WHERE project_id = ?
+            ORDER BY primary_name, alias_name
+            """,
+            (project_id,),
+        ).fetchall()
+
+    return {
+        "project_id": project_id,
+        "aliases": [
+            {
+                "primary_name": row["primary_name"],
+                "alias_name": row["alias_name"],
+            }
+            for row in alias_rows
+        ],
+    }
 
 
 @app.get("/api/projects/{project_id}/locations")

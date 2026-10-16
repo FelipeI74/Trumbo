@@ -137,3 +137,11 @@ class ShotOut(ShotBase):
     created_at: str
     updated_at: str
     
+
+class CharacterAliasEntry(BaseModel):
+    primary_name: str = Field(min_length=1, max_length=200)
+    alias_name: str = Field(min_length=1, max_length=200)
+
+
+class CharacterAliasList(BaseModel):
+    aliases: list[CharacterAliasEntry] = Field(default_factory=list)
