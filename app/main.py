@@ -1021,6 +1021,7 @@ def list_project_resources(
             JOIN scenes
                 ON scenes.id = breakdown_items.scene_id
             WHERE scenes.project_id = ?
+              AND breakdown_items.state != 'rejected'
             ORDER BY scenes.scene_number, breakdown_items.name, breakdown_items.category
             """,
             (project_id,),
@@ -2746,11 +2747,13 @@ def export_project_csv(
             item["name"]
             for item in breakdown
             if item.get("category") == "prop"
+            and item.get("state") != "rejected"
         ]
         wardrobe = [
             item["name"]
             for item in breakdown
             if item.get("category") == "wardrobe"
+            and item.get("state") != "rejected"
         ]
 
         notes_text = " | ".join(
