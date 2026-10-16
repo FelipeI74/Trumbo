@@ -1321,7 +1321,7 @@ def _validate_manual_schedule_days(
 @app.get("/api/projects/{project_id}/schedule-preview")
 def get_project_schedule_preview(
     project_id: int,
-    shoot_rate_seconds: int = 420,
+    shoot_rate_seconds: int = Query(default=420, gt=0, le=3600),
 ) -> dict:
     scheduling_input = _build_project_scheduling_input(
         project_id
