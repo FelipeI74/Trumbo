@@ -1124,6 +1124,20 @@ def _build_project_scheduling_input(
             (project_id,),
         ).fetchall()
 
+        alias_rows = connection.execute(
+            """
+            SELECT alias_name, primary_name
+            FROM character_aliases
+            WHERE project_id = ?
+            """,
+            (project_id,),
+        ).fetchall()
+
+        aliases_map = {
+            row["alias_name"].casefold(): row["primary_name"]
+            for row in alias_rows
+        }
+
     resources_by_scene: dict[int, list[str]] = {}
     seen_resources_by_scene: dict[int, set[str]] = {}
     scene_cast_by_scene: dict[int, list[str]] = {}
@@ -1189,7 +1203,7 @@ def _build_project_scheduling_input(
                 continue
 
             for personaje in parse_character_cue(line.get("text") or ""):
-                name = personaje["name"]
+                name = resolve_character_alias(personaje["name"], aliases_map)
                 key = name.casefold()
 
                 if not name or key in seen_characters:
@@ -1204,11 +1218,12 @@ def _build_project_scheduling_input(
         scene_cast = list(characters)
         seen_scene_cast = {name.strip().casefold() for name in scene_cast}
         for name in scene_cast_by_scene.get(scene_id, []):
-            key = name.strip().casefold()
+            resolved = resolve_character_alias(name, aliases_map)
+            key = resolved.strip().casefold()
             if not key or key in seen_scene_cast:
                 continue
             seen_scene_cast.add(key)
-            scene_cast.append(name)
+            scene_cast.append(resolved)
 
         scenes.append(
             {
@@ -1321,8 +1336,14 @@ def _validate_manual_schedule_days(
 @app.get("/api/projects/{project_id}/schedule-preview")
 def get_project_schedule_preview(
     project_id: int,
-    shoot_rate_seconds: int = Query(default=420, gt=0, le=3600),
+    shoot_rate_seconds: int = 420,
 ) -> dict:
+    if shoot_rate_seconds <= 0 or shoot_rate_seconds > 3600:
+        raise HTTPException(
+            422,
+            "shoot_rate_seconds debe estar entre 1 y 3600",
+        )
+
     scheduling_input = _build_project_scheduling_input(
         project_id
     )
