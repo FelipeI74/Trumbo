@@ -4277,19 +4277,19 @@ async function syncAnalysisToBreakdown(
     );
 
     for (const item of scene.breakdown_items) {
+      const itemKey = normalizeBreakdownKey(
+        item.category,
+        item.name
+      );
+
       if (
         item.source !== "analysis" ||
-        item.state !== "detected" ||
-        currentAnalysisKeys.has(
-          normalizeBreakdownKey(
-            item.category,
-            item.name
-          )
-        )
+        item.state === "confirmed" ||
+        currentAnalysisKeys.has(itemKey)
       ) {
         continue;
       }
-
+      
       const updated = await request(
         `/api/breakdown/${item.id}`,
         {

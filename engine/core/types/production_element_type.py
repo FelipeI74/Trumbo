@@ -11,6 +11,8 @@ class ProductionElementType(str, Enum):
 
     PROP = "prop"
 
+    CHARACTER = "character"
+
     SET_DRESSING = "set_dressing"
 
     FURNITURE = "furniture"
