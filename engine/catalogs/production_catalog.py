@@ -341,4 +341,62 @@ PRODUCTION_CATALOG = {
     "cable": ProductionElementType.EQUIPMENT,
     "arnés": ProductionElementType.EQUIPMENT,
     "arnes": ProductionElementType.EQUIPMENT,
+    # --- Ampliación: props tecnológicos ---
+    "tablet": ProductionElementType.PROP,
+    "tablets": ProductionElementType.PROP,
+    "checklist": ProductionElementType.PROP,
+    "checklists": ProductionElementType.PROP,
+    "cargador": ProductionElementType.PROP,
+    "cargadores": ProductionElementType.PROP,
+
+    # --- Ampliación: contenedores y equipaje ---
+    "caja fuerte": ProductionElementType.PROP,
+    "cajas fuertes": ProductionElementType.PROP,
+    "maletín": ProductionElementType.PROP,
+    "maletin": ProductionElementType.PROP,
+    "maletines": ProductionElementType.PROP,
+    "bolso": ProductionElementType.PROP,
+    "bolsos": ProductionElementType.PROP,
+
+    # --- Ampliación: armamento y munición ---
+    "revolver": ProductionElementType.PROP,
+    "revólver": ProductionElementType.PROP,
+    "revolveres": ProductionElementType.PROP,
+    "revólveres": ProductionElementType.PROP,
+    "pistola": ProductionElementType.PROP,
+    "pistolas": ProductionElementType.PROP,
+    "bala": ProductionElementType.PROP,
+    "balas": ProductionElementType.PROP,
+    "cartucho": ProductionElementType.PROP,
+    "cartuchos": ProductionElementType.PROP,
+
+    # --- Ampliación: equipos de audio ---
+    "psicofonías": ProductionElementType.PROP,
+    "psicofonias": ProductionElementType.PROP,
+    "grabadora": ProductionElementType.PROP,
+    "grabadoras": ProductionElementType.PROP,
+    "micrófono": ProductionElementType.PROP,
+    "microfono": ProductionElementType.PROP,
+    "micrófonos": ProductionElementType.PROP,
+    "microfonos": ProductionElementType.PROP,
+    "cámara": ProductionElementType.PROP,
+    "camara": ProductionElementType.PROP,
+    "cámaras": ProductionElementType.PROP,
+    "camaras": ProductionElementType.PROP,
+
+    # --- Ampliación: utensilios ---
+    "hilo": ProductionElementType.PROP,
+    "hilos": ProductionElementType.PROP,
+    "cuerda": ProductionElementType.PROP,
+    "cuerdas": ProductionElementType.PROP,
+    "llave": ProductionElementType.PROP,
+    "llaves": ProductionElementType.PROP,
+
+    # --- Ampliación: set dressing ---
+    "galvano": ProductionElementType.SET_DRESSING,
+    "galvanos": ProductionElementType.SET_DRESSING,
+    "premio": ProductionElementType.SET_DRESSING,
+    "premios": ProductionElementType.SET_DRESSING,
+    "trofeo": ProductionElementType.SET_DRESSING,
+    "trofeos": ProductionElementType.SET_DRESSING,
 }

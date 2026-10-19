@@ -4035,7 +4035,7 @@ async function saveSceneNode(
       sceneId === state.activeSceneId &&
       isLatestRevision
     ) {
-      scheduleSceneAnalysis(120);
+      scheduleSceneAnalysis(1500);
     }
   }
 }
@@ -4228,14 +4228,17 @@ async function syncAnalysisToBreakdown(
   try {
     scene.breakdown_items = scene.breakdown_items || [];
 
-    const existingKeys = new Set(
-      scene.breakdown_items.map(item =>
+    const existingItems = new Map(
+      scene.breakdown_items.map(item => [
         normalizeBreakdownKey(
           item.category,
           item.name
-        )
-      )
+        ),
+        item,
+      ])
     );
+
+    const existingKeys = new Set(existingItems.keys());
 
     const candidates = [];
 
@@ -4308,14 +4311,46 @@ async function syncAnalysisToBreakdown(
         candidate.name
       );
 
-      if (
-        existingKeys.has(key) ||
-        seenCandidates.has(key)
-      ) {
+      if (seenCandidates.has(key)) {
         continue;
       }
 
       seenCandidates.add(key);
+
+      if (existingKeys.has(key)) {
+        const existing = existingItems.get(key);
+        if (
+          existing &&
+          existing.state === "rejected" &&
+          existing.source === "analysis"
+        ) {
+          try {
+            const updated = await request(
+              `/api/breakdown/${existing.id}`,
+              {
+                method: "PATCH",
+                body: JSON.stringify({
+                  state: "detected",
+                }),
+              }
+            );
+
+            Object.assign(existing, updated);
+          } catch (error) {
+            console.error(
+              "No fue posible reactivar el elemento detectado.",
+              {
+                id: existing.id,
+                name: candidate.name,
+                category: candidate.category,
+                error,
+              }
+            );
+          }
+        }
+
+        continue;
+      }
 
       try {
         const item = await request(
@@ -4333,6 +4368,7 @@ async function syncAnalysisToBreakdown(
 
         scene.breakdown_items.push(item);
         existingKeys.add(key);
+        existingItems.set(key, item);
       } catch (error) {
         console.error(
           "No fue posible crear el elemento detectado.",

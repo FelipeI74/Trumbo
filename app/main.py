@@ -2696,6 +2696,258 @@ def export_project_pdf(
         },
     )
 
+# --- EXPORT: PDF de desglose formato industria ---
+@app.get("/api/projects/{project_id}/export/breakdown-pdf")
+def export_project_breakdown_pdf(
+    project_id: int,
+):
+    from io import BytesIO
+    from reportlab.lib.pagesizes import LETTER
+    from reportlab.lib.colors import HexColor
+    from reportlab.lib.units import inch
+    from reportlab.pdfgen import canvas
+
+    with connect() as connection:
+        project = connection.execute(
+            """
+            SELECT *
+            FROM projects
+            WHERE id = ?
+            """,
+            (project_id,),
+        ).fetchone()
+
+        if project is None:
+            raise HTTPException(404, "Proyecto no encontrado")
+
+        scene_rows = connection.execute(
+            """
+            SELECT *
+            FROM scenes
+            WHERE project_id = ?
+            ORDER BY scene_number
+            """,
+            (project_id,),
+        ).fetchall()
+
+        scenes = [scene_with_metadata(connection, row) for row in scene_rows]
+
+    COLORES = {
+        "cast": HexColor("#F14646"),
+        "stunt": HexColor("#F7A138"),
+        "extra": HexColor("#3CDB6F"),
+        "special_effect": HexColor("#469CF6"),
+        "prop": HexColor("#B566DA"),
+        "vehicle": HexColor("#E66FA0"),
+        "animal": HexColor("#E66FA0"),
+        "wardrobe": HexColor("#CE4649"),
+        "makeup": HexColor("#8A8A8A"),
+        "equipment": HexColor("#C4B450"),
+        "fx": HexColor("#DAAD54"),
+        "furniture": HexColor("#B566DA"),
+        "set_dressing": HexColor("#8A8A8A"),
+    }
+
+    CATEGORIAS_HOJA = [
+        ("cast", "CAST", {"character", "cast", "scene_cast"}),
+        ("stunt", "STUNTS", {"stunt"}),
+        ("extra", "EXTRAS / ATMOSPHERE", {"extra"}),
+        ("special_effect", "SPECIAL EFFECTS", {"special_effect"}),
+        ("prop", "PROPS", {"prop"}),
+        ("vehicle", "VEHICLES / ANIMALS", {"vehicle", "animal"}),
+        ("wardrobe", "WARDROBE", {"wardrobe"}),
+        ("makeup", "MAKE-UP / HAIR", {"makeup"}),
+        ("fx", "SOUND EFFECTS / MUSIC", {"fx"}),
+        ("equipment", "SPECIAL EQUIPMENT", {"equipment"}),
+        ("furniture", "FURNITURE", {"furniture"}),
+        ("set_dressing", "SET DRESSING", {"set_dressing"}),
+    ]
+
+    cast_order = []
+    cast_seen = set()
+    for scene in scenes:
+        for item in scene.get("breakdown_items", []):
+            if item.get("category") not in {"character", "cast", "scene_cast"}:
+                continue
+            if item.get("state", "confirmed") == "rejected":
+                continue
+            name = str(item.get("name") or "").strip()
+            if name.upper() in _CSV_TRANSITION_SKIP:
+                continue
+            key = name.casefold()
+            if key and key not in cast_seen:
+                cast_seen.add(key)
+                cast_order.append(name)
+
+    cast_numbers = {
+        name.casefold(): idx + 1 for idx, name in enumerate(cast_order)
+    }
+
+    BANDAS = {
+        ("INT", "DIA"): HexColor("#EEEEEE"),
+        ("INT", "DÍA"): HexColor("#EEEEEE"),
+        ("INT", "NOCHE"): HexColor("#6FA8DC"),
+        ("EXT", "DIA"): HexColor("#FFE599"),
+        ("EXT", "DÍA"): HexColor("#FFE599"),
+        ("EXT", "NOCHE"): HexColor("#93C47D"),
+    }
+
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=LETTER)
+    width, height = LETTER
+
+    def _draw_header(scene, y_top):
+        heading = str(scene.get("heading") or "")
+        fields = _parse_heading_fields(heading)
+        int_ext = fields["int_ext"].replace(".", "").strip().upper()
+        tod = fields["time_of_day"].strip().upper()
+        banda = BANDAS.get((int_ext, tod), HexColor("#F0F0F0"))
+
+        y = y_top
+        pdf.setFillColor(banda)
+        pdf.setStrokeColor(HexColor("#CCCCCC"))
+        pdf.setLineWidth(0.5)
+        pdf.rect(0, y - 40, width, 40, stroke=0, fill=1)
+        pdf.setFillColor(HexColor("#000000"))
+
+        pdf.setFont("Helvetica-Bold", 14)
+        scene_num = scene.get("scene_number", "")
+        pdf.drawString(1 * inch, y - 20, "ESCENA " + str(scene_num))
+
+        dur = int(scene.get("runtime_seconds") or 0)
+        dur_txt = "%02d:%02d" % (dur // 60, dur % 60)
+        pdf.setFont("Helvetica", 10)
+        pdf.drawRightString(width - 1 * inch, y - 20, "Duracion: " + dur_txt)
+
+        pdf.setFont("Helvetica-Bold", 11)
+        pdf.drawString(1 * inch, y - 42, heading)
+
+        sinopsis = str(scene.get("synopsis") or "").strip()
+        if sinopsis:
+            pdf.setFont("Helvetica-Oblique", 9)
+            pdf.drawString(1 * inch, y - 56, sinopsis[:120])
+
+        return y - 90
+
+    def _draw_categoria(y, label, color, items):
+        pdf.setFillColor(color)
+        pdf.rect(1 * inch, y - 16, width - 2 * inch, 16, stroke=0, fill=1)
+        pdf.setFillColor(HexColor("#FFFFFF"))
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.drawString(1.1 * inch, y - 12, label)
+        pdf.setFillColor(HexColor("#000000"))
+
+        y -= 26
+
+        if not items:
+            pdf.setStrokeColor(HexColor("#CCCCCC"))
+            pdf.rect(1 * inch, y - 18, width - 2 * inch, 18, stroke=1, fill=0)
+            y -= 24
+        else:
+            pdf.setFont("Helvetica", 9)
+            for item in items:
+                if y < 1 * inch + 30:
+                    pdf.showPage()
+                    y = height - 1 * inch
+                pdf.drawString(1.2 * inch, y, "- " + str(item))
+                y -= 14
+            y -= 10
+
+        return y
+
+    # --- Página 1: Portada + Cast List ---
+    y = height - 1 * inch
+    pdf.setFont("Helvetica-Bold", 20)
+    pdf.drawString(1 * inch, y, "DESGLOSE DE PRODUCCION")
+    y -= 30
+
+    pdf.setFont("Helvetica", 12)
+    pdf.drawString(1 * inch, y, "Proyecto: " + str(project["title"]))
+    y -= 20
+    pdf.drawString(
+        1 * inch,
+        y,
+        "Fecha: " + datetime.now().strftime("%d-%m-%Y"),
+    )
+    y -= 20
+    pdf.drawString(1 * inch, y, "Total de escenas: " + str(len(scenes)))
+    y -= 20
+
+    total_segundos = sum(int(s.get("runtime_seconds") or 0) for s in scenes)
+    total_min = total_segundos // 60
+    total_seg = total_segundos % 60
+    pdf.drawString(
+        1 * inch,
+        y,
+        "Duracion total: %02d:%02d" % (total_min, total_seg),
+    )
+    y -= 40
+
+    pdf.setFont("Helvetica-Bold", 14)
+    pdf.drawString(1 * inch, y, "CAST LIST")
+    y -= 20
+
+    pdf.setFont("Helvetica", 11)
+    for idx, name in enumerate(cast_order):
+        if y < 1 * inch + 30:
+            pdf.showPage()
+            y = height - 1 * inch
+        pdf.drawString(1 * inch, y, "#%d  %s" % (idx + 1, name))
+        y -= 16
+
+    # --- Páginas por escena ---
+    for scene in scenes:
+        pdf.showPage()
+        y = height - 0.8 * inch
+        y = _draw_header(scene, y)
+
+        items_by_cat = {cat_key: [] for cat_key, _, _ in CATEGORIAS_HOJA}
+        for item in scene.get("breakdown_items", []):
+            if item.get("state", "confirmed") == "rejected":
+                continue
+            cat = str(item.get("category") or "").strip().lower()
+            name = str(item.get("name") or "").strip()
+            if not name:
+                continue
+            if name.upper() in _CSV_TRANSITION_SKIP:
+                continue
+            for cat_key, _, cat_set in CATEGORIAS_HOJA:
+                if cat in cat_set:
+                    if cat_key == "cast":
+                        num = cast_numbers.get(name.casefold())
+                        if num:
+                            items_by_cat[cat_key].append("#%d %s" % (num, name))
+                        else:
+                            items_by_cat[cat_key].append(name)
+                    else:
+                        items_by_cat[cat_key].append(name)
+                    break
+
+        for cat_key, label, _ in CATEGORIAS_HOJA:
+            if y < 1.5 * inch:
+                pdf.showPage()
+                y = height - 1 * inch
+            color = COLORES.get(cat_key, HexColor("#CCCCCC"))
+            y = _draw_categoria(y, label, color, items_by_cat[cat_key])
+
+    pdf.save()
+    buffer.seek(0)
+
+    safe_name = (
+        re.sub(r"[^A-Za-z0-9_-]+", "_", str(project["title"])).strip("_")
+        or "adumn_project"
+    )
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": 'attachment; filename="'
+            + safe_name
+            + '_desglose.pdf"'
+        },
+    )
+
 @app.get("/api/projects/{project_id}/export/csv")
 def export_project_csv(
     project_id: int,
