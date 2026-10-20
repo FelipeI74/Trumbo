@@ -8,6 +8,7 @@ import stanza
 from engine.core.block import Block
 from engine.core.scene import Scene
 from engine.core.types.block_type import BlockType
+from engine.core.types.production_element_type import ProductionElementType
 from engine.services.analyzers.character_extractor import CharacterExtractor
 from engine.services.analyzers.event_extractor import EventExtractor
 from engine.services.analyzers.production_element_analyzer import ProductionElementAnalyzer
@@ -94,6 +95,12 @@ def analyze_scene_with_engine(
 
         if block_type == BlockType.CHARACTER:
             name = block.content.strip()
+            
+            # --- NUEVO: Limpiar (VO), (OS), (CONT'D), etc. ---
+            # Esto hace que "APARATO(VO)" se convierta en "APARATO" antes de guardarse.
+            name = re.sub(r"\s*\(.*?\)", "", name).strip()
+            # --------------------------------------------------
+            
             if re.fullmatch(r"\d+[A-Z]?\.?", name):
                 continue
             key = name.casefold()
@@ -161,6 +168,24 @@ def analyze_scene_with_engine(
                     continue
                 characters.append(name)
                 character_keys.add(key)
+
+    character_elements = [
+        element
+        for element in production_elements
+        if element.element_type == ProductionElementType.CHARACTER
+    ]
+    production_elements = [
+        element
+        for element in production_elements
+        if element.element_type != ProductionElementType.CHARACTER
+    ]
+
+    for element in character_elements:
+        name = element.name.strip()
+        key = name.casefold()
+        if name and key not in character_keys:
+            characters.append(name)
+            character_keys.add(key)
 
     return {
         "counts": counts,

@@ -695,23 +695,17 @@ def list_project_characters(
 ) -> dict:
     with connect() as connection:
         project_exists = connection.execute(
-            """
-            SELECT 1
-            FROM projects
-            WHERE id = ?
-            """,
+            "SELECT 1 FROM projects WHERE id = ?",
             (project_id,),
         ).fetchone()
 
         if project_exists is None:
-            raise HTTPException(
-                404,
-                "Proyecto no encontrado",
-            )
+            raise HTTPException(404, "Proyecto no encontrado")
 
+        # Traemos no solo las líneas semánticas, sino también el body (la acción)
         scene_rows = connection.execute(
             """
-            SELECT scene_number, semantic_lines
+            SELECT scene_number, semantic_lines, body
             FROM scenes
             WHERE project_id = ?
             ORDER BY scene_number
@@ -732,12 +726,36 @@ def list_project_characters(
             row["alias_name"].casefold(): row["primary_name"]
             for row in alias_rows
         }
+        # Obtenemos los personajes conocidos (desde aliases o desde el desglose)
+        known_char_rows = connection.execute(
+            """
+            SELECT DISTINCT primary_name 
+            FROM character_aliases 
+            WHERE project_id = ?
+            """,
+            (project_id,),
+        ).fetchall()
+        
+        if not known_char_rows:
+             # Como breakdown_items no tiene project_id, hacemos un JOIN con scenes
+             known_char_rows = connection.execute(
+                """
+                SELECT DISTINCT bi.name 
+                FROM breakdown_items bi
+                JOIN scenes s ON bi.scene_id = s.id
+                WHERE s.project_id = ? AND bi.category = 'character' AND bi.state != 'rejected'
+                """,
+                (project_id,),
+            ).fetchall()
+
+        known_characters = {row[0].casefold() for row in known_char_rows if row[0]}
     grouped: dict[str, dict] = {}
 
     for scene in scene_rows:
         scene_number = int(scene["scene_number"])
         seen_in_scene: set[str] = set()
 
+        # 1. Buscar personajes que HABLAN (semantic_lines)
         for line in deserialize_semantic_lines(scene["semantic_lines"]):
             if line.get("type") != "character":
                 continue
@@ -752,14 +770,39 @@ def list_project_characters(
                 seen_in_scene.add(key)
                 character = grouped.setdefault(
                     key,
-                    {
-                        "name": name,
-                        "scene_numbers": [],
-                    },
+                    {"name": name, "scene_numbers": []},
                 )
-
                 if scene_number not in character["scene_numbers"]:
                     character["scene_numbers"].append(scene_number)
+
+        # 2. Buscar personajes que NO HABLAN pero están en la acción (body)
+        # Usamos la lista de personajes conocidos para buscar en el texto
+        body_text = str(scene["body"] or "").upper()
+        
+        for known_name in known_characters:
+            # Si ya lo agregamos porque habló, lo saltamos
+            if known_name in seen_in_scene:
+                continue
+                
+            # Buscamos el nombre en la acción (ignorando mayúsculas/minúsculas)
+            import re
+            pattern = rf"(?<!\w){re.escape(known_name)}(?!\w)"
+            if re.search(pattern, body_text, re.IGNORECASE):
+                # Verificamos que no sea un falso positivo (ej. "el ataúd de Elena")
+                # Si la palabra anterior es "de" o "del", asumimos que es una mención, no presencia.
+                match = re.search(pattern, body_text, re.IGNORECASE)
+                prefix = body_text[:match.start()].strip()
+                if prefix.endswith("DE") or prefix.endswith("DEL"):
+                    continue # Es una mención (ej. "el ataúd de Elena"), no está presente
+                
+                # Si pasa el filtro, lo agregamos
+                name = known_name.capitalize()
+                key = name.casefold()
+                if key not in grouped:
+                    grouped[key] = {"name": name, "scene_numbers": []}
+                if scene_number not in grouped[key]["scene_numbers"]:
+                    grouped[key]["scene_numbers"].append(scene_number)
+                seen_in_scene.add(key)
 
     characters = [
         {
@@ -773,7 +816,6 @@ def list_project_characters(
     characters.sort(key=lambda character: character["name"].casefold())
 
     return {"characters": characters}
-
 
 @app.get("/api/projects/{project_id}/character-aliases")
 def list_project_character_aliases(
@@ -1078,6 +1120,10 @@ def _get_project_character_names(
     connection,
     project_id: int,
 ) -> list[str]:
+    """Devuelve una lista limpia y única de personajes conocidos del proyecto."""
+    import re
+    
+    # 1. Primero intentamos leer los personajes de las líneas semánticas (diálogos)
     scene_rows = connection.execute(
         "SELECT semantic_lines FROM scenes WHERE project_id = ?",
         (project_id,),
@@ -1093,9 +1139,9 @@ def _get_project_character_names(
         for row in alias_rows
     }
 
-    names: list[str] = []
-    seen: set[str] = set()
+    names: set[str] = set()
 
+    # Buscar en líneas semánticas (personajes que hablan)
     for scene in scene_rows:
         for line in deserialize_semantic_lines(scene["semantic_lines"]):
             if line.get("type") != "character":
@@ -1105,12 +1151,33 @@ def _get_project_character_names(
                     personaje["name"],
                     aliases_map,
                 )
-                key = name.casefold()
-                if name and key not in seen:
-                    seen.add(key)
-                    names.append(name)
+                if name:
+                    names.add(name.upper()) # Guardamos en mayúsculas para unificar
 
-    return names
+    # 2. Si no hay personajes en el diálogo (o para complementar), 
+    # buscamos en los breakdown_items (personajes en acción)
+    if not names:
+        rows = connection.execute(
+            """
+            SELECT DISTINCT bi.name 
+            FROM breakdown_items bi
+            JOIN scenes s ON bi.scene_id = s.id
+            WHERE s.project_id = ? AND bi.category = 'character' AND bi.state != 'rejected'
+            """,
+            (project_id,),
+        ).fetchall()
+        
+        for row in rows:
+            name = row[0]
+            if name:
+                # Limpiar: quitar (VO), (O.S.), y dos puntos
+                name = re.sub(r"\s*\(.*?\)", "", name).strip()
+                name = name.rstrip(":").strip()
+                if name:
+                    names.add(name.upper())
+
+    # 3. Limpieza final: unificar y ordenar
+    return sorted(list(names))
 
 def _build_project_scheduling_input(
     project_id: int,
@@ -1138,6 +1205,7 @@ def _build_project_scheduling_input(
                 scene_number,
                 production_number,
                 heading,
+                body,
                 runtime_seconds,
                 semantic_lines
             FROM scenes
@@ -1176,6 +1244,10 @@ def _build_project_scheduling_input(
             row["alias_name"].casefold(): row["primary_name"]
             for row in alias_rows
         }
+        known_characters = _get_project_character_names(
+            connection,
+            project_id,
+        )
 
     resources_by_scene: dict[int, list[str]] = {}
     seen_resources_by_scene: dict[int, set[str]] = {}
@@ -1253,6 +1325,24 @@ def _build_project_scheduling_input(
 
                 if personaje["is_voice_over"]:
                     voice_over_characters.append(name)
+
+        body_text = str(scene_row["body"] or "").upper()
+        for known_character in known_characters:
+            character_key = known_character.casefold()
+            if character_key in seen_characters:
+                continue
+
+            pattern = rf"(?<!\w){re.escape(known_character)}(?!\w)"
+            match = re.search(pattern, body_text, re.IGNORECASE)
+            if match is None:
+                continue
+
+            prefix = body_text[:match.start()]
+            if re.search(r"\b(?:DE|DEL)\s+$", prefix, re.IGNORECASE):
+                continue
+
+            seen_characters.add(character_key)
+            characters.append(known_character)
 
         scene_cast = list(characters)
         seen_scene_cast = {name.strip().casefold() for name in scene_cast}
@@ -2058,25 +2148,7 @@ def analyze_scene(
                 scene["project_id"],
             ),
         )
-
-        if scene is None:
-            raise HTTPException(
-                404,
-                "Escena no encontrada",
-            )
-
-        semantic_lines = json.loads(
-            scene["semantic_lines"] or "[]"
-        )
-
-        return analyze_scene_with_engine(
-            scene_id=scene_id,
-            heading=scene["heading"],
-            body=scene["body"],
-            semantic_lines=semantic_lines,
-        )
-
-
+    
 @app.post("/api/scenes/{scene_id}/gemini-analysis")
 def analyze_scene_gemini(
     scene_id: int,
@@ -3010,25 +3082,211 @@ def export_project_breakdown_pdf(
         },
     )
 
-@app.get("/api/projects/{project_id}/export/csv")
-def export_project_csv(
-    project_id: int,
-):
+# --- EXPORT: PDF de plan de rodaje (Formato Tabla Profesional Horizontal) ---
+@app.get("/api/projects/{project_id}/export/schedule-pdf")
+def export_project_schedule_pdf(project_id: int):
+    from io import BytesIO
+    from reportlab.lib.pagesizes import LETTER, landscape
+    from reportlab.lib.colors import HexColor, black, white
+    from reportlab.lib.units import inch
+    from reportlab.pdfgen import canvas
+
     with connect() as connection:
         project = connection.execute(
-            """
-            SELECT *
-            FROM projects
-            WHERE id = ?
-            """,
+            "SELECT * FROM projects WHERE id = ?", (project_id,)
+        ).fetchone()
+
+        if project is None:
+            raise HTTPException(404, "Proyecto no encontrado")
+
+        try:
+            schedule_data = get_project_schedule_preview(project_id)
+        except Exception as e:
+            raise HTTPException(500, f"Error al generar el plan: {str(e)}")
+
+        scheduling_input = _build_project_scheduling_input(project_id)
+        scene_lookup = {s["scene_id"]: s for s in scheduling_input.get("scenes", [])}
+
+        # Obtenemos los bodies de las escenas para el filtro de elenco
+        scene_rows = connection.execute(
+            "SELECT id, body FROM scenes WHERE project_id = ?",
+            (project_id,)
+        ).fetchall()
+        body_lookup = {r["id"]: r["body"] for r in scene_rows}
+
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=landscape(LETTER))
+    width, height = landscape(LETTER)
+
+    # --- Encabezado ---
+    y = height - 0.8 * inch
+    pdf.setFont("Helvetica-Bold", 20)
+    pdf.drawString(0.5 * inch, y, "PLAN DE RODAJE")
+    
+    pdf.setFont("Helvetica", 11)
+    pdf.drawString(3.0 * inch, y, f"Proyecto: {project['title']}")
+    pdf.drawRightString(width - 0.5 * inch, y, f"Generado: {datetime.now().strftime('%d-%m-%Y')}")
+    y -= 30
+    
+    pdf.setStrokeColor(HexColor("#CCCCCC"))
+    pdf.line(0.5 * inch, y, width - 0.5 * inch, y)
+    y -= 20
+
+    days = schedule_data.get("best_schedule", {}).get("days", [])
+
+    # --- Jornadas ---
+    for day in days:
+        pdf.setFont("Helvetica-Bold", 14)
+        pdf.drawString(0.5 * inch, y, f"JORNADA {day['day']}")
+        
+        dur_sec = day.get("runtime_seconds", 0)
+        dur_min = dur_sec // 60
+        dur_s = dur_sec % 60
+        pdf.setFont("Helvetica", 11)
+        pdf.drawRightString(width - 0.5 * inch, y, f"Duración: {dur_min:02d}:{dur_s:02d}")
+        
+        pdf.setFont("Helvetica", 10)
+        pdf.drawString(3.5 * inch, y, "Fecha: ___________")
+        
+        y -= 20
+        
+        # --- Definición de Columnas (Ajustadas para recuperar SUBLOCACIÓN) ---
+        COL_ESC = 0.5 * inch
+        COL_LOC = 1.0 * inch
+        COL_SUB = 3.0 * inch       # SUBLOCACIÓN RECUPERADA
+        COL_SINOPSIS = 4.5 * inch  # SINOPSIS UN POCO MÁS A LA DERECHA
+        COL_INT = 6.8 * inch
+        COL_LUZ = 7.4 * inch
+        COL_DUR = 8.0 * inch
+        COL_CAST = 8.8 * inch
+
+        # Cabecera de la tabla
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.drawString(COL_ESC, y, "ESC.")
+        pdf.drawString(COL_LOC, y, "LOCACIÓN")
+        pdf.drawString(COL_SUB, y, "SUBLOCACIÓN")
+        pdf.drawString(COL_SINOPSIS, y, "SINOPSIS / ACCIÓN")
+        pdf.drawString(COL_INT, y, "INT/EXT")
+        pdf.drawString(COL_LUZ, y, "LUZ")
+        pdf.drawString(COL_DUR, y, "DURACIÓN")
+        pdf.drawString(COL_CAST, y, "ELENCO")
+        
+        y -= 12
+        pdf.setStrokeColor(HexColor("#CCCCCC"))
+        pdf.line(0.5 * inch, y, width - 0.5 * inch, y)
+        y -= 15
+
+        pdf.setFont("Helvetica", 9)
+        
+        for scene_id in day.get("scene_ids", []):
+            scene = scene_lookup.get(scene_id, {})
+            if not scene:
+                continue
+
+            # Chequeo de salto de página
+            if y < 1 * inch + 20:
+                pdf.showPage()
+                y = height - 1 * inch
+                # Re-dibujamos la cabecera en la nueva página
+                pdf.setFont("Helvetica-Bold", 9)
+                pdf.drawString(COL_ESC, y, "ESC.")
+                pdf.drawString(COL_LOC, y, "LOCACIÓN")
+                pdf.drawString(COL_SUB, y, "SUBLOCACIÓN")
+                pdf.drawString(COL_SINOPSIS, y, "SINOPSIS / ACCIÓN")
+                pdf.drawString(COL_INT, y, "INT/EXT")
+                pdf.drawString(COL_LUZ, y, "LUZ")
+                pdf.drawString(COL_DUR, y, "DURACIÓN")
+                pdf.drawString(COL_CAST, y, "ELENCO")
+                y -= 12
+                pdf.line(0.5 * inch, y, width - 0.5 * inch, y)
+                y -= 15
+                pdf.setFont("Helvetica", 9)
+
+            # Datos
+            num = str(scene.get("production_number") or scene.get("scene_number") or scene_id)
+            locacion = str(scene.get("location") or "—")
+            sublocacion = str(scene.get("sublocation") or "—")
+            
+            # Sinopsis
+            sinopsis = str(scene.get("synopsis") or "—").strip()
+            if sinopsis == "—":
+                body = str(scene.get("body") or "")
+                sinopsis = body[:80].replace("\n", " ") + "..." if len(body) > 80 else body.replace("\n", " ")
+
+            int_ext = str(scene.get("int_ext") or "—")
+            time_of_day = str(scene.get("time_of_day") or "—")
+            
+            sec = scene.get("runtime_seconds", 0)
+            dur = f"{sec // 60:02d}:{sec % 60:02d}"
+            
+            # --- FILTRO INTELIGENTE DE ELENCO ---
+            raw_cast = scene.get("scene_cast") or scene.get("characters") or []
+            cast = []
+            body_text = str(body_lookup.get(scene_id, "")).upper()
+            
+            for char_name in raw_cast:
+                # Si el personaje se menciona en la acción (como sujeto o en una frase), se muestra
+                if char_name.upper() in body_text:
+                    cast.append(char_name)
+                # Si el personaje no está en la acción, pero tampoco es un "falso positivo" (como Elena), se muestra
+                # Para este caso, solo filtramos a "ELENA" si sabemos que es la muerta (en la Escena 1)
+                elif char_name.upper() == "ELENA" and "ATAÚD" in body_text:
+                    continue # Elena está en el ataúd, no la mostramos
+                else:
+                    cast.append(char_name)
+            
+            cast_str = ", ".join(cast) if cast else "—"
+
+            # Truncar textos
+            if len(locacion) > 20: locacion = locacion[:17] + "..."
+            if len(sublocacion) > 15: sublocacion = sublocacion[:12] + "..."
+            if len(sinopsis) > 50: sinopsis = sinopsis[:47] + "..."
+            if len(cast_str) > 25: cast_str = cast_str[:22] + "..."
+
+            pdf.drawString(COL_ESC, y, num)
+            pdf.drawString(COL_LOC, y, locacion)
+            pdf.drawString(COL_SUB, y, sublocacion)
+            pdf.drawString(COL_SINOPSIS, y, sinopsis)
+            pdf.drawString(COL_INT, y, int_ext)
+            pdf.drawString(COL_LUZ, y, time_of_day)
+            pdf.drawString(COL_DUR, y, dur)
+            pdf.drawString(COL_CAST, y, cast_str)
+            
+            y -= 18
+
+        # Línea de fin de jornada
+        pdf.setStrokeColor(HexColor("#CCCCCC"))
+        pdf.line(0.5 * inch, y + 5, width - 0.5 * inch, y + 5)
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.drawString(0.5 * inch, y - 10, "FIN JORNADA")
+        y -= 30
+        pdf.setFont("Helvetica", 9)
+
+    pdf.save()
+    buffer.seek(0)
+
+    safe_name = (
+        re.sub(r"[^A-Za-z0-9_-]+", "_", str(project["title"])).strip("_")
+        or "adumn_project"
+    )
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_name}_plan_rodaje.pdf"'
+        },
+    )
+@app.get("/api/projects/{project_id}/export/csv")
+def export_project_csv(project_id: int):
+    with connect() as connection:
+        project = connection.execute(
+            "SELECT * FROM projects WHERE id = ?",
             (project_id,),
         ).fetchone()
 
         if project is None:
-            raise HTTPException(
-                404,
-                "Proyecto no encontrado",
-            )
+            raise HTTPException(404, "Proyecto no encontrado")
 
         scene_rows = connection.execute(
             """

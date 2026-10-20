@@ -896,63 +896,29 @@ async function resetScheduleManualOrder() {
 function setMainView(view) {
   state.activeMainView = view;
 
-  const screenplay =
-    $("#screenplayViewport");
+  const screenplay = $("#screenplayViewport");
+  const breakdown = $("#productionBreakdownView");
+  const schedule = $("#scheduleView");
+  const reports = $("#reportsView"); // NUEVO
+  const toolbar = $(".editor-toolbar");
+  const footer = $(".scene-footer");
+  const inspector = $(".inspector");
+  const detail = $("#characterDetailView");
 
-  const breakdown =
-    $("#productionBreakdownView");
-
-  const schedule =
-    $("#scheduleView");
-
-  const toolbar =
-    $(".editor-toolbar");
-
-  const footer =
-    $(".scene-footer");
-
-  const inspector =
-    $(".inspector");
-
-  const detail =
-    $("#characterDetailView");
-
-  if (screenplay) {
-    screenplay.hidden =
-      view !== "guion";
-  }
-
-  if (breakdown) {
-    breakdown.hidden =
-      view !== "desglose";
-  }
-
-  if (schedule) {
-    schedule.hidden =
-      view !== "plan-rodaje";
-  }
+  if (screenplay) screenplay.hidden = view !== "guion";
+  if (breakdown) breakdown.hidden = view !== "desglose";
+  if (schedule) schedule.hidden = view !== "plan-rodaje";
+  if (reports) reports.hidden = view !== "informes"; // NUEVO
 
   const isProductionView =
     view === "desglose" ||
-    view === "plan-rodaje";
+    view === "plan-rodaje" ||
+    view === "informes"; // NUEVO
 
-  if (toolbar) {
-    toolbar.hidden =
-      isProductionView;
-  }
-
-  if (footer) {
-    footer.hidden =
-      isProductionView;
-  }
-
-  if (inspector) {
-    inspector.hidden = false;
-  }
-
-  if (detail) {
-    detail.hidden = true;
-  }
+  if (toolbar) toolbar.hidden = isProductionView;
+  if (footer) footer.hidden = isProductionView;
+  if (inspector) inspector.hidden = false;
+  if (detail) detail.hidden = true;
 
   if (view === "desglose") {
     renderProductionBreakdown();
@@ -4282,23 +4248,7 @@ async function syncAnalysisToBreakdown(
         item.name
       );
 
-      // [NUEVO] Filtro anti-fantasmas para personajes
-      if (item.category === "character") {
-        const isKnown = (analysis.characters || []).some(
-          c => c.trim().toUpperCase() === item.name.toUpperCase()
-        );
-        if (!isKnown) {
-          if (item.state !== "rejected") {
-            item.state = "rejected"; // Lo ocultamos de la interfaz al instante
-            request(`/api/breakdown/${item.id}`, {
-              method: "PATCH",
-              body: JSON.stringify({ state: "rejected" }),
-            }).catch(err => console.error("Error al rechazar fantasma:", err));
-          }
-          continue; // Saltamos al siguiente item
-        }
-      }
-
+            
       if (
         item.source !== "analysis" ||
         item.state === "confirmed" ||
@@ -4336,11 +4286,9 @@ async function syncAnalysisToBreakdown(
 
       if (existingKeys.has(key)) {
         const existing = existingItems.get(key);
-        if (
-          existing &&
-          existing.state === "rejected" &&
-          existing.source === "analysis"
-        ) {
+        // Si el personaje está en el backend (candidates) pero el frontend lo tiene rechazado,
+        // lo reactivamos automáticamente.
+        if (existing && existing.state === "rejected") {
           try {
             const updated = await request(
               `/api/breakdown/${existing.id}`,
@@ -6630,3 +6578,122 @@ document
       "width=1200,height=800,resizable=yes,scrollbars=yes"
     );
   });
+// --- Lógica para descargar el PDF del desglose ---
+document.addEventListener("DOMContentLoaded", () => {
+  const downloadPdfBtn = document.getElementById("downloadBreakdownPdfButton");
+  
+  if (downloadPdfBtn) {
+    downloadPdfBtn.addEventListener("click", async () => {
+      const projectId = document.getElementById("projectSelect")?.value;
+      if (!projectId) return;
+
+      const originalText = downloadPdfBtn.textContent;
+      downloadPdfBtn.textContent = 'Generando PDF...';
+      downloadPdfBtn.disabled = true;
+
+      try {
+        const response = await fetch(`/api/projects/${projectId}/export/breakdown-pdf`);
+        if (!response.ok) throw new Error('Error al generar el PDF');
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        const projectTitle = document.getElementById('projectSelect')?.selectedOptions[0]?.text || 'Proyecto';
+        const safeName = projectTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        
+        a.download = `desglose_${safeName}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error(error);
+        alert('Hubo un error al generar el PDF del desglose.');
+      } finally {
+        downloadPdfBtn.textContent = originalText;
+        downloadPdfBtn.disabled = false;
+      }
+    });
+  }
+});
+  // Botón para descargar el PDF del Plan de Rodaje
+  const downloadScheduleBtn = document.getElementById("downloadSchedulePdfButton");
+  if (downloadScheduleBtn) {
+    downloadScheduleBtn.addEventListener("click", async () => {
+      const projectId = document.getElementById("projectSelect")?.value;
+      if (!projectId) return;
+
+      const originalText = downloadScheduleBtn.textContent;
+      downloadScheduleBtn.textContent = 'Generando Plan...';
+      downloadScheduleBtn.disabled = true;
+
+      try {
+        const response = await fetch(`/api/projects/${projectId}/export/schedule-pdf`);
+        if (!response.ok) throw new Error('Error al generar el PDF');
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        const projectTitle = document.getElementById('projectSelect')?.selectedOptions[0]?.text || 'Proyecto';
+        const safeName = projectTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        
+        a.download = `plan_rodaje_${safeName}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error(error);
+        alert('Hubo un error al generar el PDF del Plan de Rodaje.');
+      } finally {
+        downloadScheduleBtn.textContent = originalText;
+        downloadScheduleBtn.disabled = false;
+      }
+    });
+  }
+  // --- CONEXIÓN DEL BOTÓN DEL PLAN DE RODAJE ---
+document.addEventListener("DOMContentLoaded", () => {
+  const btn = document.getElementById("downloadSchedulePdfButton");
+  
+  if (btn) {
+    btn.addEventListener("click", async () => {
+      const projectId = document.getElementById("projectSelect")?.value;
+      if (!projectId) return;
+
+      const originalText = btn.textContent;
+      btn.textContent = 'Generando...';
+      btn.disabled = true;
+
+      try {
+        const response = await fetch(`/api/projects/${projectId}/export/schedule-pdf`);
+        if (!response.ok) throw new Error('Error al generar el PDF');
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        const projectTitle = document.getElementById('projectSelect')?.selectedOptions[0]?.text || 'Proyecto';
+        const safeName = projectTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        
+        a.download = `plan_rodaje_${safeName}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error(error);
+        alert('Hubo un error al generar el PDF del Plan de Rodaje.');
+      } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }
+    });
+  } else {
+    console.warn("No se encontró el botón downloadSchedulePdfButton");
+  }
+});
