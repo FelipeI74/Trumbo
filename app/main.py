@@ -1073,6 +1073,45 @@ def list_project_resources(
     return {"resources": resources}
 
 
+
+def _get_project_character_names(
+    connection,
+    project_id: int,
+) -> list[str]:
+    scene_rows = connection.execute(
+        "SELECT semantic_lines FROM scenes WHERE project_id = ?",
+        (project_id,),
+    ).fetchall()
+
+    alias_rows = connection.execute(
+        "SELECT alias_name, primary_name FROM character_aliases WHERE project_id = ?",
+        (project_id,),
+    ).fetchall()
+
+    aliases_map = {
+        row["alias_name"].casefold(): row["primary_name"]
+        for row in alias_rows
+    }
+
+    names: list[str] = []
+    seen: set[str] = set()
+
+    for scene in scene_rows:
+        for line in deserialize_semantic_lines(scene["semantic_lines"]):
+            if line.get("type") != "character":
+                continue
+            for personaje in parse_character_cue(line.get("text") or ""):
+                name = resolve_character_alias(
+                    personaje["name"],
+                    aliases_map,
+                )
+                key = name.casefold()
+                if name and key not in seen:
+                    seen.add(key)
+                    names.append(name)
+
+    return names
+
 def _build_project_scheduling_input(
     project_id: int,
 ) -> dict:
@@ -1988,14 +2027,37 @@ def analyze_scene(
         scene = connection.execute(
             """
             SELECT
+                id,
                 heading,
                 body,
-                semantic_lines
+                semantic_lines,
+                project_id
             FROM scenes
             WHERE id = ?
             """,
             (scene_id,),
         ).fetchone()
+
+        if scene is None:
+            raise HTTPException(
+                404,
+                "Escena no encontrada",
+            )
+
+        semantic_lines = json.loads(
+            scene["semantic_lines"] or "[]"
+        )
+
+        return analyze_scene_with_engine(
+            scene_id=scene_id,
+            heading=scene["heading"],
+            body=scene["body"],
+            semantic_lines=semantic_lines,
+            known_characters=_get_project_character_names(
+                connection,
+                scene["project_id"],
+            ),
+        )
 
         if scene is None:
             raise HTTPException(

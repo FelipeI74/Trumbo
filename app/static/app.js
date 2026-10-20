@@ -4276,11 +4276,28 @@ async function syncAnalysisToBreakdown(
       )
     );
 
-    for (const item of scene.breakdown_items) {
+      for (const item of scene.breakdown_items) {
       const itemKey = normalizeBreakdownKey(
         item.category,
         item.name
       );
+
+      // [NUEVO] Filtro anti-fantasmas para personajes
+      if (item.category === "character") {
+        const isKnown = (analysis.characters || []).some(
+          c => c.trim().toUpperCase() === item.name.toUpperCase()
+        );
+        if (!isKnown) {
+          if (item.state !== "rejected") {
+            item.state = "rejected"; // Lo ocultamos de la interfaz al instante
+            request(`/api/breakdown/${item.id}`, {
+              method: "PATCH",
+              body: JSON.stringify({ state: "rejected" }),
+            }).catch(err => console.error("Error al rechazar fantasma:", err));
+          }
+          continue; // Saltamos al siguiente item
+        }
+      }
 
       if (
         item.source !== "analysis" ||

@@ -425,8 +425,8 @@ def test_production_element_analyzer_detects_extended_equipment() -> None:
         element.name: element.element_type
         for element in elements
     } == {
-        "Cámara": ProductionElementType.EQUIPMENT,
-        "Micrófono": ProductionElementType.EQUIPMENT,
+        "Cámara": ProductionElementType.PROP,
+        "Micrófono": ProductionElementType.PROP,
     }
 
 

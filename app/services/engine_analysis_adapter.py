@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import re
 from uuid import uuid4
@@ -20,6 +20,7 @@ def analyze_scene_with_engine(
     heading: str,
     body: str,
     semantic_lines: list[dict[str, str]] | None = None,
+    known_characters: list[str] | None = None,
 ) -> dict:
     """
     Analyze a screenplay scene using the Engine parser and return the
@@ -66,7 +67,10 @@ def analyze_scene_with_engine(
     event_characters = CharacterExtractor().extract(events)
 
     production_element_analyzer = ProductionElementAnalyzer()
-    production_elements = production_element_analyzer.extract(blocks)
+    production_elements = production_element_analyzer.extract(
+        blocks,
+        known_characters=known_characters or [],
+    )
 
     counts = {
         "heading": 0,
@@ -122,6 +126,9 @@ def analyze_scene_with_engine(
                     [],
                 ).append((event, document))
 
+        # Pre-calculamos los nombres conocidos en minúsculas para comparación rápida
+        known_keys = {c.casefold() for c in (known_characters or [])}
+
         for statistic in event_characters:
             name = statistic.character.name.strip()
             key = name.casefold()
@@ -149,6 +156,9 @@ def analyze_scene_with_engine(
                     break
 
             if is_proper_name:
+                # CANDADO ANTI-FANTASMAS: Si no está en la lista oficial del proyecto, se ignora
+                if known_keys and key not in known_keys:
+                    continue
                 characters.append(name)
                 character_keys.add(key)
 

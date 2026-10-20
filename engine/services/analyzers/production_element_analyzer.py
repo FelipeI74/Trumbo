@@ -42,6 +42,7 @@ class ProductionElementAnalyzer:
     def extract(
         self,
         blocks: list[Block],
+        known_characters: list[str] | None = None,
     ) -> list[ProductionElement]:
         """
         Return unique production elements found in ACTION blocks.
@@ -62,11 +63,38 @@ class ProductionElementAnalyzer:
         )
         action_index = 0
 
+        
+        # --- Búsqueda de personajes conocidos ---
+        known_set = {
+            name.casefold()
+            for name in (known_characters or [])
+            if name and name.strip()
+        }
+
         for block in blocks:
             if block.block_type != BlockType.ACTION:
                 continue
 
+            text = block.content
+            # Buscar personajes conocidos antes del catálogo
+            if known_set:
+                for char_name in (known_characters or []):
+                    if not char_name or not char_name.strip():
+                        continue
+                    char_key = char_name.casefold()
+                    if char_key not in known_set:
+                        continue
+                    pattern = rf"(?<!\w){re.escape(char_key)}(?!\w)"
+                    if re.search(pattern, text, re.IGNORECASE):
+                        if char_key not in elements:
+                            elements[char_key] = ProductionElement(
+                                id=str(uuid4()),
+                                name=char_name,
+                                element_type=ProductionElementType.CHARACTER,
+                            )
             text = block.content.lower()
+            
+
             semantic_candidates = semantic_results[action_index]
             action_index += 1
 
