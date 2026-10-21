@@ -63,7 +63,6 @@ class ProductionElementAnalyzer:
         )
         action_index = 0
 
-        
         # --- Búsqueda de personajes conocidos ---
         known_set = {
             name.casefold()
@@ -76,7 +75,7 @@ class ProductionElementAnalyzer:
                 continue
 
             text = block.content
-            # Buscar personajes conocidos antes del catálogo
+            # Buscar personajes conocidos en la acción
             if known_set:
                 for char_name in (known_characters or []):
                     if not char_name or not char_name.strip():
@@ -84,8 +83,17 @@ class ProductionElementAnalyzer:
                     char_key = char_name.casefold()
                     if char_key not in known_set:
                         continue
+                    
+                    # Buscamos el nombre como palabra completa
                     pattern = rf"(?<!\w){re.escape(char_key)}(?!\w)"
-                    if re.search(pattern, text, re.IGNORECASE):
+                    match = re.search(pattern, text, re.IGNORECASE)
+                    
+                    if match:
+                        # Filtro para no confundir menciones ("el ataúd de Elena") con presencia
+                        prefix = text[:match.start()].strip().upper()
+                        if prefix.endswith("DE") or prefix.endswith("DEL"):
+                            continue
+                        
                         if char_key not in elements:
                             elements[char_key] = ProductionElement(
                                 id=str(uuid4()),
@@ -93,7 +101,6 @@ class ProductionElementAnalyzer:
                                 element_type=ProductionElementType.CHARACTER,
                             )
             text = block.content.lower()
-            
 
             semantic_candidates = semantic_results[action_index]
             action_index += 1
@@ -495,3 +502,4 @@ class ProductionElementAnalyzer:
                 candidates.append(candidate)
 
         return candidates
+    

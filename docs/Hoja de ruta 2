@@ -1,0 +1,937 @@
+# ADÜMN
+
+# HOJA DE RUTA MAESTRA
+
+Estado al 14 de octubre de 2026
+
+Documento interno de trabajo · Fuente de verdad del estado del proyecto y plan de avance
+
+## Estado de cada ítem
+
+- `[✓]` Hecho y verificado.
+- `[◐]` Parcial / en progreso / pendiente de validación.
+- `[ ]` Pendiente.
+- `[✗]` Descartado (con motivo).
+
+## Riesgo de cada ítem pendiente
+
+- `🟢` Bajo: localizado, reversible.
+- `🟡` Medio: afecta datos o varios flujos.
+- `🔴` Alto: arquitectura, modelo de datos o motores centrales.
+
+## Origen de cada ítem
+
+- `[S]` Adaptado de Sophocles.
+- `[A]` Propio de ADÜMN.
+- `[2026]` Mirada contemporánea (local-first, IA asistida, LATAM).
+
+## Secciones de cada fase
+
+- **Estado actual.** Qué hay hoy, con commit y evidencia.
+- **Lente Sophocles.** Qué hacía bien, qué adaptamos, qué descartamos.
+- **Hoja de ruta.** Ítems pendientes, filtrados por la lente.
+
+# Estado del repositorio al 14-10-2026
+
+- **Rama:** `feature/trumbo-engine`
+- **HEAD:** `0e81d05` — Add character aliases for unifying character names across the screenplay
+- **Ahead de origin:** 6 commits.
+- **Working tree:** limpio. Solo dos ZIPs de auditoría sin trackear (`ADUMN_AI_AUDIT.zip`, `ADUMN_semantic_audit_3a6f7f0.zip`). No versionar.
+- **Tests:** `306 passed, 30 subtests, 3 warnings` (los 3 warnings son externos: 2 de FastAPI `on_event`, 1 de Starlette `TestClient`).
+- **Base de datos activa:** `trumbo.db` (8.400.896 bytes).
+- **Backups verificados:**
+	- SQLite: `ADUMN_BACKUPS\trumbo_2026-10-14_152925.db` — restauración probada.
+	- Imágenes: `ADUMN_BACKUPS\data_projects_2026-10-13_HHMMSS\` — 53 archivos, 12,91 MB.
+- **Ubicación de backups:** `C:\Users\Usuario\Desktop\Proyecto Trumbo\ADUMN_BACKUPS\` (fuera del repo).
+
+# Últimos 5 commits
+
+- `0e81d05` Add character aliases for unifying character names across the screenplay
+- `7000c50` Integrate parse_character_cue into characters and scheduling input
+- `3dd003c` Add parse_character_cue helper for screenplay character lines
+- `8e14462` Add breakdown report endpoint and Gemini analysis integration (WIP)
+- `3035046` Persist manual shooting schedule order
+
+## Herramientas en uso
+
+- **Backend:** Python 3.13.2, FastAPI, Uvicorn, SQLite.
+- **Frontend:** HTML, CSS, JavaScript vanilla.
+- **Tests:** pytest + unittest + subtests.
+- **Motor de scheduling:** CP-SAT (Google OR-Tools).
+- **Semántica:** Stanza + WordNet/OMW español + catálogo propio.
+- **IA externa (WIP):** Gemini, aparcado hasta cerrar Fase 8.
+- **Asistentes de código:** Antigravity (cuota agotada hasta ~19-10-2026).
+
+## Advertencias operativas
+
+- No tocar `app/main.py` con scripts de PowerShell que manipulen strings largos. Historial de off-by-one. Si hay que editar, hacerlo con editor o vía Antigravity.
+- No commitear los ZIPs de auditoría. Contienen `data/projects` con imágenes.
+- No tocar el motor CP-SAT (`app/scheduling/`) sin bug demostrado con test dirigido.
+- No exponer `storage.py` a red sin endurecer contención de rutas.
+
+# Resumen de cambios desde la última versión de la hoja (04-10-2026)
+
+## Completado
+
+- Endpoint de informe de desglose (`GET /api/projects/{id}/reports/breakdown`) + 6 tests.
+- `parse_character_cue`: parser de líneas de personaje con VO, combined cues y deduplicación.
+- `resolve_character_alias`: resolución de aliases por proyecto.
+- Tabla `character_aliases` en el esquema SQLite.
+- Integración de aliases en `list_project_characters`.
+- Backup integrado (SQLite + imágenes) verificado y restauración probada.
+- 39 tests nuevos en total (21 parser + 5 integración parser + 6 informe + 10 resolver + 7 integración aliases).
+
+## Pendiente inmediato
+
+- Endpoints `GET`/`PUT` para gestionar aliases desde API.
+- Frontend de gestión de aliases.
+- Integrar aliases en `_build_project_scheduling_input`.
+- Aviso al usuario cuando se envíen datos a Gemini.
+- Cierre técnico de Gemini o aparcado definitivo.
+
+## Cambios en la hoja de ruta
+
+- Fase 3 gana peso: aliases de personaje cierran un capítulo.
+- Fase 7 sube de prioridad por la lente Sophocles.
+- Fase 8 (IA) pasa a diseño paralelo, no bloquea.
+- Fase 9 (robustez/backups) parcialmente cerrada.
+
+# FASE 1 · Guion semántico
+
+## Estado
+
+Núcleo funcional. Fase sólida, con flecos avanzados.
+
+## Estado actual
+
+- Documento continuo como fuente central. `[✓]`
+- Líneas semánticas con tipos (`heading`, `action`, `character`, `dialogue`, `parenthetical`, `transition`). `[✓]`
+- Proyección de escenas desde el documento. `[✓]`
+- Sincronización Documento → Líneas → Escenas. `[✓]`
+- Numeración de producción independiente (1, 1A, 2…). `[✓]`
+- Flujo Tab / Enter en el editor. `[✓]`
+- Encabezados INT. / EXT. `[✓]`
+- Reconciliación protegida para no reprocesar headings ya reconocidos. `[✓]`
+- Selección múltiple de líneas. `[✓]`
+- Guardados innecesarios de escenas evitados. `[✓]`
+
+## Lente Sophocles
+
+Sophocles tenía un motor de guion muy probado durante 8 años, con decisiones que siguen siendo buenas:
+
+- **Auto-convert de strings.** Tecleas `int.` y se convierte en heading. Tecleas `fade in:` y se convierte en transición de entrada. ADÜMN ya tiene algo similar (`_HEADING_PREFIX_RE` y `_CSV_TRANSITION_SKIP`). **Adaptación 2026:** ampliar el diccionario de auto-convert sin hardcodear — un archivo de configuración editable, no un `if` en el código.
+- **Auto-type.** Sophocles proponía la siguiente palabra en gris. **Adaptación 2026:** sugerencias contextuales por IA (Fase 8), no hardcodeadas.
+- **Atajos de teclado por tipo de párrafo.** Sophocles tenía `Ctrl+1` a `Ctrl+9` para cambiar tipo. **Adaptación 2026:** atajos configurables + selector en la barra superior.
+
+Lo que no copiamos: la dependencia de la impresora instalada para activar el preview. Sophocles no dejaba previsualizar sin una impresora (real o dummy). ADÜMN no tiene esa limitación y debe mantenerla así.
+
+## Hoja de ruta 2026
+
+- `[◐]` Autocomplete de personajes y locaciones. `[A]` 🟢
+- `[◐]` Comportamiento definitivo de líneas vacías. `[A]` 🟢
+- `[◐]` Duración aproximada — revisar calibración contra escenas reales. `[A]` 🟡
+- `[ ]` Auto-convert configurable por archivo externo. `[S][2026]` 🟢
+- `[ ]` PDF de guion formato industria. `[A]` 🟡
+- `[ ]` Ortografía. `[A]` 🟢
+- `[ ]` Traducción simultánea. `[A]` 🟡
+- `[ ]` Atajos de teclado por tipo de párrafo, configurables. `[S][2026]` 🟢
+
+## Criterio de cierre del editor
+
+- Escribir y editar un guion prolongadamente sin pérdida de datos.
+- Insertar/eliminar escenas sin romper identidad ni numeración.
+- Guardar → cerrar → abrir → recuperar correctamente el documento.
+- No producir guardados/reconciliaciones masivas injustificadas.
+
+# FASE 2 · Storyboard
+
+## Estado
+
+Funcional. Fase congelada para nuevas features; solo robustez.
+
+## Estado actual
+
+- Storyboard asociado a escena. `[✓]`
+- Creación, edición, eliminación y renumeración automática de planos. `[✓]`
+- Inspector del plano con metadatos (tipo, movimiento, descripción, notas). `[✓]`
+- Drag & drop persistente. `[✓]`
+- Ventana independiente y soporte para segundo monitor. `[✓]`
+- Modos de visualización: plano único, cascada, mosaico. `[✓]`
+- Storyboard General con proyección automática escenas → planos. `[✓]`
+- PDF Storyboard. `[✓]`
+- Upload de imágenes con validación de firma (PNG, JPEG, WebP). `[✓]`
+- Contención de rutas en `storage.py` (rechaza `../`, rutas absolutas fuera). `[✓]`
+
+## Lente Sophocles
+
+Sophocles no tenía storyboard con imágenes. Tenía scene cards y sequence cards — tarjetas con texto que resumían la escena, no imágenes de planos. Es una de las capacidades que ADÜMN tiene y Sophocles no.
+
+Lo que sí podemos aprender de Sophocles en este terreno:
+
+- **Escenas y secuencias como entidades separadas.** Sophocles tenía actos > secuencias > escenas como jerarquía explícita. ADÜMN hoy tiene solo escenas. **Adaptación 2026:** permitir agrupar escenas en secuencias, sin romper la estructura actual. Útil para storyboards largos.
+- **Production strips con color por INT/EXT y DÍA/NOCHE.** Sophocles coloreaba los strips del plan de rodaje. **Adaptación 2026:** en el Storyboard General, colorear los planos por tiempo de la escena (día/noche) y por tipo de plano. Ayuda visual.
+
+Lo que no copiamos: el sistema de "has-been-shot" con checkboxes individuales en el schedule de Sophocles. ADÜMN trabaja en local-first, el estado de "rodado o no" se puede manejar mejor con marcas a nivel de escena, no de plano.
+
+## Hoja de ruta 2026
+
+- `[◐]` Revisar almacenamiento/MIME de JPEG/WebP — actualmente tratado internamente como PNG en algún flujo. `[A]` 🟡
+- `[◐]` Validar que reorder reciba permutación completa sin duplicados ni IDs ajenos (test ya existe, confirmar cobertura). `[A]` 🟢
+- `[ ]` Determinar propósito de `shots.is_archived` antes de cambiar comportamiento de eliminación. `[A]` 🟢
+- `[ ]` Eliminar overlay/código antiguo cuando se confirme que nada depende de él. `[A]` 🟢
+- `[ ]` Agrupar escenas en secuencias (opcional, sin romper modelo actual). `[S][2026]` 🟡
+- `[ ]` Colorear planos en Storyboard General por INT/EXT y DÍA/NOCHE. `[S][2026]` 🟢
+
+## Criterio de cierre
+
+- Crear, editar, reordenar y eliminar planos sin pérdida de información.
+- Cerrar/reabrir proyecto conservando Storyboard.
+- Storyboard General representa correctamente las escenas y planos.
+- PDF generado correctamente en prueba real.
+
+# FASE 3 · Desglose de producción
+
+## Estado
+
+FASE ACTIVA. Aliases de personaje añadidos el 14-10-2026. Falta cerrar con corpus de prueba.
+
+## Estado actual
+
+### Núcleo
+
+- Desglose operativo por escena. `[✓]`
+- Reconocimiento automático desde ACTION. `[✓]`
+- Catálogo audiovisual propio + Stanza + WordNet/OMW español. `[✓]`
+- Detección de objetos fuera del catálogo. `[✓]`
+- Priorización de términos compuestos. `[✓]`
+- Filtrado de falsos personajes procedentes de numeración. `[✓]`
+- Estados detected / confirmed / rejected. `[✓]`
+- Rechazados excluidos del desglose activo y del scheduling-input. `[✓]`
+- Backend idempotente por scene + category + name. `[✓]`
+- Protección concurrente con `BEGIN IMMEDIATE`. `[✓]`
+- Mismo nombre permitido en categorías distintas. `[✓]`
+- Integración Desglose → Elenco → Plan. `[✓]`
+
+### Parser de líneas de personaje (14-10-2026)
+
+- `parse_character_cue` con separadores `/`, `&`, `,`. `[✓]`
+- VO ((V.O.), (VO), (O.S.), (OS)) detectado y marcado, no excluido. `[✓]`
+- Parentéticos no-VO ((CONT'D), (CONTINUING)) limpiados del nombre. `[✓]`
+- Guión (FRED - BARNEY) no separa — un solo personaje. `[✓]`
+- Deduplicación case-insensitive. `[✓]`
+
+### Aliases de personaje (14-10-2026)
+
+- Tabla `character_aliases` en SQLite (`project_id`, `primary_name`, `alias_name`, UNIQUE por `project_id+alias_name`). `[✓]`
+- `resolve_character_alias(name, aliases_map)` pura, sin BD. `[✓]`
+- Integrado en `list_project_characters`. `[✓]`
+- 10 tests del resolver + 7 tests de integración. `[✓]`
+
+### Acciones y efectos
+
+- SPECIAL_EFFECT, VFX/SFX inicial desde acciones. `[✓]`
+- Ruptura, estallido, descarga, emisión, transformación. `[✓]`
+- STUNT inicial, distinción contextual de caer según sujeto. `[✓]`
+- Herencia del sujeto en acciones coordinadas. `[✓]`
+
+## Lente Sophocles
+
+Sophocles dedica un capítulo entero al desglose (About the breakdown process, Getting started with a breakdown). Tres cosas que hace bien y que sí adaptamos:
+
+- **Unificación de nombres (aliases).** Sophocles insiste: antes de hacer el breakdown, asegúrate de que cada personaje tenga una sola entrada. Si hay dos CLERK, renómbralos CLERK 1 y CLERK 2. Y da alias cortos para que quepan en los informes. Adaptado 2026: ya implementado con `character_aliases`. Falta UI para gestionarlo.
+- **Limpieza previa del guion.** Sophocles recomienda encabezados con redacción consistente (INT. RICK'S PLACE - MAIN ROOM siempre igual), cada set con su propio encabezado distinto, romper INT./EXT. combinados en dos escenas separadas e identificar "escenas ocultas" (una pelea "al otro lado de la calle" debería ser su propia escena). Adaptación 2026: un chequeo de calidad del guion previo al desglose que avise de estos problemas, sin bloquear. Podría ser un endpoint `/api/projects/{id}/script-hygiene` que devuelva advertencias.
+- **Acciones no siempre son un elemento.** Sophocles distingue entre "elementos que aparecen en la escena" y "acciones que ocurren". Y avisa: no toda acción es un ítem de desglose.
+
+Lo que descartamos de Sophocles:
+
+- Su lista fija de categorías (Hair, Optical Effects, Mechanical Effects, Stand-Ins). ADÜMN tiene su propio catálogo moderno, adaptado al contexto latinoamericano. No migramos.
+- Sus reglas de extracción palabra-por-palabra. ADÜMN usa semántica (Stanza + WordNet). Mejor.
+
+## Hoja de ruta 2026
+
+- `[◐]` Ampliar necesidades derivadas de acciones mediante semántica, no listas. `[A]` 🟡
+- `[◐]` Categorías: Arte/Utilería, VFX/SFX, STUNT. Completar: Vestuario, Extras, Vehículos, Animales, Maquillaje, Equipamiento especial. `[A]` 🟡
+- `[◐]` Definir modelo para rigging / seguridad / necesidades técnicas. `[A]` 🟡
+- `[◐]` Confirmar mediante uso prolongado que no aparecen duplicados nuevos. `[A]` 🟡
+- `[ ]` Endpoint `GET /api/projects/{id}/character-aliases` — lista aliases. `[S][2026]` 🟢
+- `[ ]` Endpoint `PUT /api/projects/{id}/character-aliases` — reemplaza lista completa. `[S][2026]` 🟢
+- `[ ]` Integrar aliases en `_build_project_scheduling_input` (para que el plan de rodaje respete aliases). `[A]` 🟡
+- `[ ]` Endpoint `/api/projects/{id}/script-hygiene` — chequeo de consistencia de encabezados y detección de escenas ocultas. `[S][2026]` 🟡
+- `[ ]` Limpiar duplicados históricos existentes. `[A]` 🟡
+- `[ ]` Evaluar UNIQUE/migración solo después de limpiar datos. `[A]` 🔴
+- `[ ]` Crear corpus de evaluación con escenas reales. `[A]` 🟡
+- `[ ]` Medir precision/recall de la versión actual. `[A]` 🟢
+- `[ ]` Separar conceptualmente "elemento obsoleto/inactivo" de "rechazo humano explícito". `[A]` 🟡
+
+## Criterio de cierre de Fase 3
+
+- 0 nuevos duplicados durante prueba controlada de ≥ 10 escenas consecutivas.
+- Un elemento rechazado manualmente no reaparece injustificadamente.
+- Un elemento confirmado permanece confirmado después de editar/reanalizar.
+- Ningún falso personaje/elemento crítico contamina Elenco o Plan.
+- Corpus real ejecutado y precision/recall medidos.
+- Usuario puede corregir fácilmente errores y omisiones.
+- Desglose persiste correctamente después de cerrar/reabrir.
+
+Objetivo: fiable y corregible, no reconocimiento perfecto.
+
+# FASE 4 · Entidades y fichas de producción
+
+## Estado
+
+Parcial. Fase importante, pero no bloquea la primera validación externa.
+
+## Estado actual
+
+- Ficha básica de personaje (nombre, escenas, primera aparición). `[◐]`
+- Ficha básica de locación (nombre parseado del heading). `[◐]`
+- Lista de recursos del proyecto agrupados por categoría. `[◐]`
+- Relación automática recurso → escenas. `[◐]`
+- Relación con desglose. `[◐]`
+
+## Lente Sophocles
+
+Sophocles tenía aquí dos conceptos que ADÜMN no tiene y que son valiosos:
+
+### 1. Sets vs Locations
+
+Set = texto literal del scene header (INT. THE HOUSE).
+
+Location = agrupación lógica con jerarquía (THE HOUSE → A Quiet Neighborhood → San Francisco).
+
+Múltiples sets pueden pertenecer a una misma location. Y Sophocles distinguía además story locations (lo que dice el guion: "La Luna") de production locations (dónde se rueda: "Studio A").
+
+Adaptación 2026: ADÜMN hoy tiene location como una cadena única. Añadir jerarquía padre-hijo permitiría:
+
+- Agrupar "cocina", "dormitorio", "baño" bajo "Casa".
+- Filtrar por locación padre para ver todas las sublocaciones.
+- Informes agrupados por jerarquía.
+
+### 2. Character aliases con herencia de texto descriptivo
+
+Sophocles decía algo interesante: si asignas un alias que coincide con otro personaje existente, el existente se elimina y hereda su texto descriptivo al personaje principal. Ejemplo: CHARACTER 1 tiene descripción "A tall man", CHARACTER 2 tiene "A thin man". Si le das a 1 el alias CHARACTER 2, la descripción nueva de 1 es "A tall man. A thin man."
+
+Adaptación 2026: cuando integremos aliases con fichas de personaje, tener en cuenta esta regla de herencia. No es urgente, pero es elegante.
+
+### 3. Player types y locales
+
+Sophocles clasificaba personajes como Principal, Supporting, Day, Undefined. Y locaciones como Stage, Local, Remote Location. Eso alimenta el presupuesto (Fase 5 futura).
+
+Adaptación 2026: útil a medio plazo si ADÜMN llega a tener presupuesto. Hoy no.
+
+## Hoja de ruta 2026
+
+- `[ ]` Ficha completa de personaje: nombre, aliases, escenas, tipo (principal/secundario/día), notas, actor asociado. `[S][2026]` 🟡
+- `[ ]` Ficha completa de locación: nombre, jerarquía padre, sublocaciones, escenas, notas. `[S][2026]` 🟡
+- `[ ]` Ficha completa de recurso: descripción, escenas, cantidad por escena, notas, categoría. `[S][2026]` 🟡
+- `[ ]` Jerarquía padre-hijo de locaciones (sets vs locations). `[S]` 🟡
+- `[ ]` Relación con Storyboard (qué planos se rodaron en qué locación). `[A]` 🟡
+- `[ ]` Información contextual de producción (para informes futuros). `[A]` 🟡
+- `[ ]` Al integrar aliases con fichas, aplicar herencia de texto descriptivo. `[S]` 🟢
+
+## Criterio de cierre
+
+Las entidades centrales (personaje, locación, recurso) son identificables, consultables y están correctamente relacionadas con sus escenas.
+
+No se necesitan fichas sofisticadas.
+
+# FASE 5 · Plan de rodaje
+
+## Estado
+
+Núcleo CP-SAT estable, con reordenamiento manual persistente. Faltan restricciones de producción real.
+
+## Estado actual
+
+- Vista de planificación. `[✓]`
+- Jornadas automáticas. `[✓]`
+- Reglas INT./EXT. y DÍA/NOCHE. `[✓]`
+- Elenco y locaciones desde el desglose. `[✓]`
+- Duración estimada por escena. `[✓]`
+- CP-SAT con fallback y warm start. `[✓]`
+- Reproducibilidad. `[✓]`
+- Conservación de todas las escenas y `production_number` (incluida 1A). `[✓]`
+- Validación con proyecto real de 107 escenas. `[✓]`
+- Reordenamiento manual persistente (commit `3035046`, 08-10-2026). `[✓]`
+- Fingerprint de input para invalidar orden manual cuando cambia el proyecto. `[✓]`
+- Validación DÍA antes que NOCHE en orden manual. `[✓]`
+
+## Lente Sophocles
+
+Sophocles dedicaba varios capítulos al scheduling. Cuatro cosas que hace bien y que vale la pena adaptar:
+
+### 1. Search Depth configurable
+
+Sophocles permitía elegir la profundidad de búsqueda del scheduler: desde Superficial (solo ordena por locación, día/noche, INT/EXT) hasta Very Deep (más variaciones, más lento, mejor resultado).
+
+Adaptación 2026: exponer una opción `search_depth` en la API de scheduling. Hoy CP-SAT siempre busca igual. Añadir un modo "rápido" para proyectos grandes sería útil.
+
+### 2. In-Sequence Bias
+
+Sophocles permitía ajustar cuánto peso dar al orden del guion vs. otras optimizaciones. "Bias alto" → el scheduler intenta mantener orden del guion cuando puede.
+
+Adaptación 2026: añadir una penalización configurable por alejarse del orden del guion. Hoy `scoring.py` tiene pesos, pero no un "in-sequence bias" explícito. Útil para proyectos con mucho flashback o estructura no lineal.
+
+### 3. Cast / Location Balance
+
+Sophocles permitía elegir: minimizar spans de actores (agrupar sus días) o minimizar spans de locaciones (agrupar días de rodaje por locación). Es una decisión de producción real.
+
+Adaptación 2026: añadir un parámetro `cast_location_balance` (0.0 = todo locación, 1.0 = todo cast). Tu motor lo puede manejar con peso adicional en la función de coste.
+
+### 4. Múltiples schedules guardados
+
+Sophocles permitía guardar varias versiones del plan y comparar. Store Schedule / Load Schedule.
+
+Adaptación 2026: ya tienes `schedule_manual_orders` (una sola orden manual por proyecto). Evolucionar a `schedule_alternatives` (múltiples) permitiría comparar: "plan A con más locaciones agrupadas vs. plan B con actores agrupados". Es Fase 5 avanzada.
+
+Lo que descartamos de Sophocles:
+
+- Su dependencia de "unidad de producción" para el scheduling básico. ADÜMN no necesita esa complejidad hoy.
+- Su auto-scheduler con búsqueda ciega. CP-SAT es superior.
+
+## Hoja de ruta 2026
+
+- `[◐]` Continuidad: garantizar que escenas que comparten personajes no se rueden en días consecutivos si no es necesario. `[S][2026]` 🔴
+- `[ ]` Traslados: agrupar días por locación para minimizar viajes. `[S]` 🟡
+- `[ ]` Complejidad técnica desde Desglose (stunts, VFX): no agrupar escenas complejas consecutivas. `[A]` 🔴
+- `[ ]` Disponibilidad real de actores: cada personaje con ventanas de disponibilidad. `[S]` 🟡
+- `[ ]` Search depth configurable. `[S]` 🟢
+- `[ ]` In-sequence bias configurable. `[S]` 🟢
+- `[ ]` Cast / Location Balance configurable. `[S]` 🟡
+- `[ ]` Múltiples schedules alternativos guardados y comparables. `[S][2026]` 🟡
+- `[ ]` Explicar recomendaciones del scheduler (por qué eligió este orden). `[2026]` 🟡
+- `[ ]` Validar con distintos proyectos reales (mínimo 2-3 características). `[A]` 🟡
+- `[ ]` Cambiar `DEFAULT_MODEL` de Gemini a `gemini-flash-latest` (aparcado con la Fase 8, pero relevante). `[A]` 🟢
+
+## Criterio de cierre
+
+- Ninguna escena desaparece o se duplica.
+- Production numbers se conservan.
+- Restricciones DÍA/NOCHE se cumplen.
+- Elenco y locaciones corresponden al proyecto real.
+- Fallback produce plan válido si CP-SAT falla.
+- Validación con al menos 2-3 proyectos distintos.
+
+Regla: no tocar el motor central (`app/scheduling/`) salvo bug demostrado con test dirigido.
+
+# FASE 6 · Inspector
+
+## Estado
+
+Parcial. Estructura básica funciona, falta pulir contexto y contenido.
+
+## Estado actual
+
+- Inspector de plano funcional. `[✓]`
+- Navegación Guion → Desglose → Plan → Guion. `[✓]`
+- Aceptar/Rechazar elementos del desglose operativo. `[✓]`
+- Inspector de escena: básico. `[◐]`
+- Inspector de personaje: básico. `[◐]`
+- Inspector de locación: básico. `[◐]`
+- Inspector de recurso: básico. `[◐]`
+- Cerrado por defecto según contexto: parcial. `[◐]`
+
+## Lente Sophocles
+
+Sophocles tenía el Detail View, una ventana con pestañas por tipo de entidad (Scene, Sequence, Act, Location, Character, Dialogue, Bookmarks, Paragraph Notes). Cada pestaña mostraba información detallada de la entidad activa, y se sincronizaba automáticamente con la vista principal: si te movías a otra escena, el Detail View se actualizaba.
+
+Lo que vale la pena adaptar:
+
+- **Contextualización estricta.** Sophocles mostraba solo la pestaña relevante al tipo de entidad seleccionada. Si seleccionabas una locación, no te mostraba las pestañas de personaje. Adaptación 2026: el inspector de ADÜMN debería ocultar contenido no pertinente al módulo activo. Hoy muestra todo lo que hay, sin filtrar por contexto.
+- **Vista "Detail" por pestañas.** Equivalente a un panel unificado con secciones. ADÜMN hoy tiene el inspector fragmentado.
+- **Notas por párrafo.** Sophocles permitía asignar notas a cualquier párrafo, no solo a escenas. Útil para marcar zonas del guion con dudas o recordatorios. Adaptación 2026: evaluar extender el modelo de notas para permitir notas por línea semántica (Fase 6 avanzada).
+
+Lo que descartamos:
+
+- La densidad visual del Detail View de Sophocles. Paneles con muchas pestañas son difíciles de navegar en pantallas modernas. ADÜMN puede tener un inspector más limpio y con búsqueda.
+
+## Hoja de ruta 2026
+
+- `[ ]` Elemento individual de desglose: ficha detallada al clicar un ítem. `[A]` 🟢
+- `[ ]` Unificación contextual definitiva: qué se ve en cada momento, con reglas claras. `[A]` 🟡
+- `[ ]` Mostrar solo información pertinente al módulo activo. `[S]` 🟡
+- `[ ]` Notas por párrafo (línea semántica), no solo por escena. `[S][2026]` 🟡
+- `[ ]` Búsqueda dentro del inspector (saltar a personaje, locación, recurso por nombre). `[2026]` 🟢
+
+## Criterio de cierre
+
+El Inspector no bloquea trabajo, no muestra información incorrecta, no cambia inesperadamente el contexto del usuario.
+
+# FASE 7 · Informes y documentos
+
+## Estado
+
+CSV y PDF de storyboard existen. Informe de desglose (endpoint) añadido el 13-10-2026. Falta todo lo demás.
+
+## Estado actual
+
+- Exportación CSV de desglose. `[✓]`
+- Storyboard General (JSON + vista). `[✓]`
+- PDF de storyboard. `[✓]`
+- Endpoint `GET /api/projects/{id}/reports/breakdown` (informe JSON por escena, con items confirmed y detected, excluye rejected, deduplica por categoría+nombre, prioriza confirmed sobre detected). `[✓]` — commit `8e14462`, 6 tests.
+- Exportación PDF del guion (formato industria). `[✓]`
+
+## Lente Sophocles
+
+Sophocles era muy fuerte en informes de producción. Tenía una sección entera del manual dedicada a reportes. Los que más valor tienen para ADÜMN 2026:
+
+### 1. Breakdown Pages
+
+Una página por escena, mostrando todos los recursos requeridos. Dos formatos: grid-style (cuadrícula con celdas por categoría) y list-style (listas bajo encabezados). Sophocles tenía "Breakdown in script order" y "Breakdown in shooting order" — el mismo contenido, dos ordenaciones.
+
+Adaptación 2026: el endpoint actual devuelve JSON. Añadir:
+
+- Un parámetro `order=script|shooting`.
+- Una exportación PDF que renderice el informe en grid o list.
+
+### 2. Day-Out-of-Days (DOOD)
+
+El informe más importante para producción real. Muestra para cada recurso (típicamente actores) una fila por día del rodaje, con marcas:
+
+- W (work), H (hold), T (travel), R (rehearsal).
+- S y F marcan el primer y último día pago.
+- D y P marcan drop y pickup en idle periods.
+- La columna vertical se colorea por tipo de día.
+
+El DOOD es lo que determina cuántos días paga cada actor. Sin DOOD, no hay presupuesto.
+
+Adaptación 2026: la lógica de drop/hold es compleja (SAG tiene reglas específicas), pero el formato del informe se puede implementar. Requiere:
+
+- Modelo de "idle periods" en el scheduling (ya hay base).
+- Reglas por recurso: AUTO_DROP, ALWAYS_HOLD, RUN_OF_SHOW. `[S]` 🟡
+- Cálculo de días pagos por recurso.
+
+### 3. Call Sheet
+
+Informe diario de llamado. Muestra, para un día concreto:
+
+- Escenas a rodar.
+- Recursos requeridos.
+- Horas de llamado de actores y crew.
+- Instrucciones especiales.
+
+Adaptación 2026: requiere que el usuario introduzca las horas de llamado (no se pueden calcular automáticamente). El resto es agregación de datos que ya tienes.
+
+### 4. Sides
+
+Páginas del guion que se ruedan un día concreto, filtradas por actor. Los actores las reciben al final del día para estudiar las escenas del día siguiente.
+
+Adaptación 2026: requiere que el PDF de guion ya esté bien (Fase 1) y que el schedule esté cerrado. Es una consulta filtrada del guion por escenas del día.
+
+### 5. Resource List y Resource Continuity
+
+- **Resource List:** por categoría, con first day / last day / day span / days in use / scene count por recurso.
+- **Resource Continuity:** por día de rodaje, qué recursos se necesitan.
+
+Adaptación 2026: cálculo puro. Fácil de implementar.
+
+### 6. Report Strings
+
+Sophocles tenía una configuración centralizada de "strings" (nombre de producción, director, productor, etc.) que aparecían en todos los informes. Se configuraba una vez y se usaba en todos los reportes.
+
+Adaptación 2026: crear tabla `project_report_strings` (o un JSON en `projects`) con los strings comunes. Un endpoint GET/PUT para editarlos. Los informes los consumen.
+
+### 7. Scene Cards y Sequence Cards
+
+Tarjetas físicas con el nombre de la escena, los steps que engloba y las notas. Sophocles las generaba para imprimir.
+
+Adaptación 2026: fuera de alcance hasta que existan Steps/Threads (que no existen en ADÜMN). Descartado por ahora.
+
+Lo que descartamos de Sophocles:
+
+- Su dependencia de la impresora para generar informes.
+- Su enfoque de "grid rígido" que consume mucha tinta. Adaptación 2026: informes HTML imprimibles desde navegador, más flexibles.
+
+## Hoja de ruta 2026
+
+### Prioridad alta (por orden)
+
+- `[ ]` Ampliar el endpoint de breakdown para soportar `order=script|shooting`. `[S]` 🟢
+- `[ ]` Añadir strings de proyecto (director, productor, empresa, etc.) con endpoint GET/PUT. `[S][2026]` 🟢
+- `[ ]` Informe de desglose en PDF (grid-style y list-style). `[A]` 🟡
+- `[ ]` Informe de plan de rodaje en PDF. `[A]` 🟡
+
+### Prioridad media
+
+- `[ ]` Resource List (por categoría). `[S]` 🟢
+- `[ ]` Resource Continuity (por día). `[S]` 🟢
+- `[ ]` Informe de escenas (una fila por escena, con info agregada). `[A]` 🟢
+- `[ ]` Informe de personajes (una fila por personaje, escenas, primera aparición). `[A]` 🟢
+- `[ ]` Informe de locaciones. `[A]` 🟢
+- `[ ]` Informe de recursos (agrupado por categoría). `[A]` 🟢
+
+### Prioridad baja
+
+- `[ ]` Day-Out-of-Days. `[S]` 🟡 (requiere modelo de drop/hold).
+- `[ ]` Call Sheet. `[S]` 🟡 (requiere entrada manual de horas).
+- `[ ]` Sides (por actor, por día). `[S]` 🟡 (requiere schedule cerrado).
+- `[ ]` Otros formatos según necesidad demostrada.
+
+## Criterio de cierre
+
+- Informe de desglose exportable y verificado con proyecto real.
+- Plan de rodaje exportable y verificado.
+- Los demás solo si la prueba externa demuestra necesidad.
+
+# FASE 8 · Asistente IA
+
+## Estado
+
+En exploración. Gemini parcialmente integrado. Aparcado hasta cerrar el flujo end-to-end.
+
+## Estado actual
+
+Implementado (commit `8e14462`):
+
+- `app/services/gemini_service.py`: cliente HTTP a `generativelanguage.googleapis.com` con `urllib`. 257 líneas. `[✓]`
+- Endpoint `POST /api/scenes/{scene_id}/gemini-analysis`: obtiene heading y body de la escena, llama al servicio, devuelve sugerencias. `[✓]`
+- 5 tests con mocks: 404 sin escena, 200 con mocks, inmutabilidad de breakdown_items, error 502, no-llamada a Gemini desde endpoints locales. `[✓]`
+- Deduplicación, validación estricta, descarte de categorías inválidas. `[✓]`
+
+Pendiente / a medio:
+
+- `DEFAULT_MODEL = "gemini-3.8-flash"` existe pero puede dar 503. Candidato a `gemini-flash-latest`. `[◐]` 🟢
+- Falta aviso al usuario de que se envía texto a Google antes de llamar. `[ ]` 🟡
+- Falta frontend (botón en pestaña IA, carga, errores, sin guardar sugerencias). `[ ]` 🟡
+- Faltan 3 tests del servicio: sin API key, JSON roto, categoría inválida. `[ ]` 🟢
+- No hay AIService abstracto — está Gemini hardcodeado. `[ ]` 🔴
+
+## Lente Sophocles
+
+Sophocles no tenía IA. Punto. No había LLM en 2007. Pero sí tenía dos cosas que son precedentes conceptuales de lo que ADÜMN puede hacer con IA:
+
+### 1. Brainstorm Dialog
+
+Sophocles tenía un "Brainstorm Dialog" para personajes, locaciones, escenas, secuencias. Presentaba una lista de preguntas predefinidas para ayudar al escritor a desarrollar la entidad. Ejemplos: "¿Cuál es la intención principal del personaje?", "¿Qué obstáculos enfrenta?".
+
+Adaptación 2026: este es el caso de uso perfecto para IA moderna. Reemplazar las preguntas hardcodeadas por:
+
+- Preguntas contextuales generadas por IA sobre el material real del proyecto.
+- Respuestas propuestas por IA que el usuario acepta, edita o descarta.
+- Todo local-first, con opt-in explícito para el proveedor externo.
+
+### 2. Scene/Sequence/Act structural checklists
+
+Sophocles mostraba, para cada escena, una lista de atributos de "escena bien formada": conflicto, giro, arco del personaje, etc. El usuario podía marcarlos manualmente.
+
+Adaptación 2026: un análisis IA de cada escena que sugiera:
+
+- ¿Tiene conflicto claro?
+- ¿Avanza la trama?
+- ¿Los personajes cambian?
+- Sugerencias específicas para reescribir si algo falla.
+
+Regla fundamental (ya en la hoja de ruta): "No introducir dependencia crítica de un LLM antes de validar el producto central." Esa regla sigue vigente y es correcta.
+
+Lo que descartamos de Sophocles:
+
+Nada, porque no tenía IA. Pero descartamos de la lente genérica 2026:
+
+- IA que "gobernase" datos.
+- IA que decidiera por el usuario.
+- IA que reemplazara CP-SAT.
+
+## Hoja de ruta 2026
+
+### A corto plazo (cierre del actual)
+
+- `[ ]` Cambiar `DEFAULT_MODEL` a `gemini-flash-latest` o verificar cuál está disponible. `[A]` 🟢
+- `[ ]` Añadir aviso obligatorio al usuario antes de llamar a Gemini: "Esto enviará el texto de la escena a Google." `[A]` 🟡
+- `[ ]` 3 tests faltantes del servicio: sin API key, JSON roto, categoría inválida. `[A]` 🟢
+- `[ ]` Frontend de la pestaña IA: botón, estados de carga, errores, sin auto-guardado. `[A]` 🟡
+
+### A medio plazo (diseño)
+
+- `[ ]` Abstraer AIService con interfaz propia. Gemini como un GeminiProvider. `[S][2026]` 🔴
+- `[ ]` Definir contrato de AIService: `analyze_scene`, `suggest_breakdown`, `explain_schedule`, `brainstorm_character`, `structural_review`. `[2026]` 🟡
+- `[ ]` Primer proveedor alternativo: OpenAI, Anthropic, o local (Ollama). `[2026]` 🟡
+- `[ ]` Selector de proveedor en configuración de proyecto. `[2026]` 🟡
+
+### A largo plazo (features)
+
+- `[ ]` Brainstorm Dialog con IA contextual (basado en Brainstorm de Sophocles). `[S][2026]` 🟡
+- `[ ]` Análisis estructural de escenas (basado en Structural Checklist de Sophocles). `[S][2026]` 🟡
+- `[ ]` Detección de inconsistencias (personajes, tiempos, locaciones). `[A]` 🟡
+- `[ ]` Sinopsis bajo demanda. `[A]` 🟢
+- `[ ]` Consultas sobre el proyecto ("¿En qué escenas aparece MARTA?"). `[A]` 🟢
+- `[ ]` Explicación del plan de rodaje ("¿Por qué agrupaste estas escenas?"). `[2026]` 🟡
+- `[ ]` Apoyo a notas y revisiones. `[A]` 🟢
+- `[ ]` Modelo local futuro (sin proveedor externo). `[2026]` 🔴
+
+## Reglas de funcionamiento (vigentes)
+
+- ADÜMN funciona completamente si el proveedor IA está caído, desactivado o sin cuota.
+- La IA propone; el usuario decide.
+- El modelo estructurado/determinista continúa siendo la fuente autoritativa.
+- Enviar al proveedor únicamente el contexto mínimo necesario.
+- Informar al usuario cuando se envíen datos a un proveedor externo.
+- Medir consumo por usuario/proyecto (futuro).
+
+# FASE 9 · Robustez y seguridad de datos
+
+## Estado
+
+Parcialmente cerrada el 13-10-2026. Backup verificado y restauración probada.
+
+## Estado actual
+
+### Backups (cerrado 13-10-2026)
+
+- Backup SQLite activo + `data/projects` (imágenes). `[✓]`
+- Restauración probada a base temporal y lectura por ADÜMN. `[✓]`
+- Backups guardados fuera del repo (ADUMN_BACKUPS). `[✓]`
+- Documentado el método y verificado con 27 proyectos, 210 escenas, 1113 items, 14 planos. `[✓]`
+
+### Tests
+
+- 306 passed, 30 subtests, 3 warnings externos. `[✓]`
+- 39 tests nuevos añadidos en los dos días del 13-10 y 14-10. `[✓]`
+
+Pendiente:
+
+- Navegación general (validación con proyectos grandes). `[◐]` 🟡
+- Manejo de errores (revisión completa del flujo). `[◐]` 🟡
+- Rendimiento en proyectos grandes. `[◐]` 🟡
+- Desglose bajo uso prolongado. `[◐]` 🟡
+
+## Lente Sophocles
+
+Sophocles dedicaba mucha atención a la integridad de datos:
+
+### 1. Auto-save y auto-backup
+
+Sophocles guardaba automáticamente cada X segundos o cada Y pulsaciones. El backup se guardaba en un archivo paralelo `.scb` junto al `.scp` principal, con la fecha YYYYMM del guardado.
+
+Adaptación 2026: ADÜMN no tiene auto-save. El usuario guarda manualmente. Falta un backup automático que:
+
+- Se ejecute cada hora (o configurable).
+- Se guarde fuera del repo (en `ADUMN_BACKUPS/auto/`).
+- Rote (mantener últimos N backups).
+- No dependa del usuario para funcionar.
+
+### 2. Verificación de integridad
+
+Sophocles no verificaba, pero su modelo de archivo único `.scp` permitía detectar corrupción fácilmente. ADÜMN con SQLite puede ejecutar `PRAGMA integrity_check` regularmente.
+
+Adaptación 2026: comando interno para verificar integridad de la SQLite, programable semanalmente o manual.
+
+### 3. Password protection
+
+Sophocles permitía proteger guiones con password (y advertía: si la olvidas, pierdes todo). Adaptación 2026: fuera de alcance hoy. Descartado por ahora.
+
+### 4. Dummy printers
+
+Sophocles requería una impresora instalada. Adaptación 2026: ADÜMN no tiene esa limitación. Mantener.
+
+## Hoja de ruta 2026
+
+### Prioridad alta
+
+- `[ ]` Backup automático cada hora a `ADUMN_BACKUPS/auto/`, con rotación. `[S][2026]` 🟡
+- `[ ]` Comando interno `python -m app.tools.check_integrity` que valide SQLite. `[A]` 🟢
+- `[ ]` Prueba E2E completa: crear → escribir → desglosar → storyboard → plan → exportar → cerrar → abrir. `[A]` 🟡
+- `[ ]` Prueba de cierre/reapertura repetida (10 veces). `[A]` 🟡
+- `[ ]` Verificar que `state=rejected` no entra en Elenco, recursos ni scheduling-input. `[A]` 🟡 (ya cubierto por tests, pero falta prueba manual).
+
+### Prioridad media
+
+- `[ ]` Endurecer contención de rutas en `storage.py` antes de exponer a red. `[A]` 🟡
+- `[ ]` Deprecación FastAPI `on_event` → lifespan. `[A]` 🟢
+- `[ ]` Manejo de errores: 404, 500, 409 con mensajes útiles al usuario. `[A]` 🟡
+- `[ ]` Rendimiento en proyectos grandes: medir con Radio Magallanes 2 y otros. `[A]` 🟡
+
+### Prioridad baja
+
+- `[ ]` Estados vacíos definitivos. `[A]` 🟢
+- `[ ]` Limpieza de código provisional. `[A]` 🟡
+- `[ ]` Consistencia visual mínima. `[A]` 🟢
+
+## Criterio de cierre
+
+Crear → escribir/importar → editar → escenas → desglose → storyboard → plan → exportar → guardar → cerrar → volver a abrir.
+
+Sin pérdida de datos ni intervención técnica.
+
+# FASE 10 · Usuarios, identidad y acceso
+
+## Estado
+
+Pendiente. Comienza después de cerrar la estabilización y E2E del núcleo actual.
+
+## Estado actual
+
+- ADÜMN es local-first, un solo usuario. No hay login, no hay cuentas.
+- Cada instalación es una SQLite en `trumbo.db` con todos los proyectos.
+- Ideal para uso individual: escritor, director, productor trabajando solo.
+- No hay exposición a red — la app escucha en `127.0.0.1:8000`.
+
+## Lente Sophocles
+
+Sophocles era también de un solo usuario, con archivo `.scp` local. No tenía cuentas ni identidad. La única "seguridad" que ofrecía era la contraseña por archivo.
+
+Lo que esto significa: Sophocles nos da un precedente importante. Una app de guion y producción puede ser perfectamente funcional sin cuentas. La mayoría de escritores y directores trabajan solos o en grupos pequeños.
+
+Adaptación 2026: ADÜMN no necesita cuentas en su primera versión pública. La introducción de identidad es un paso posterior, cuando:
+
+- Varios profesionales quieran compartir proyectos.
+- Haya demanda real de colaboración.
+- El producto central esté validado.
+
+Lo que sí adaptamos del precedente Sophocles:
+
+- **Protección opcional por proyecto.** Sophocles protegía archivos con contraseña. ADÜMN podría permitir proteger un proyecto individual con contraseña, sin necesidad de cuentas completas. `[S]` 🟢
+- **Trabajo en red local.** Sophocles era single-machine. Adaptación 2026: permitir que ADÜMN escuche en LAN con autenticación básica, para que un productor y un director en la misma oficina puedan ver el mismo proyecto.
+
+## Hoja de ruta 2026
+
+### Principio arquitectónico
+
+La cuenta ADÜMN es la identidad principal. Google u otros proveedores son mecanismos de autenticación asociados; no son la fuente de verdad del usuario. 🔴
+
+### Cuenta e identidad
+
+- `[ ]` Diseñar modelo `users`. 🔴
+- `[ ]` Diseñar `user_identities` desacoplado del proveedor. 🟡
+- `[ ]` Autenticación inicial de cuenta ADÜMN. 🟡
+- `[ ]` Integración "Continuar con Google" mediante OAuth/OIDC. 🟡
+- `[ ]` Permitir asociar más de un método de autenticación a la misma cuenta ADÜMN. 🟡
+- `[ ]` Sesiones persistentes y cierre de sesión seguro. 🟡
+
+### Propiedad y acceso a proyectos
+
+- `[ ]` Diseñar `project_memberships` sin alterar IDs actuales. 🔴
+- `[ ]` Rol inicial owner; preparar editor/viewer sin implementarlos antes de necesitarlos. 🟡
+- `[ ]` Toda operación sobre proyecto, escena, desglose, storyboard, plan e informes debe comprobar autorización en backend. 🔴
+- `[ ]` Test obligatorio: usuario A no puede leer, modificar ni borrar datos del usuario B. 🔴
+- `[ ]` Migrar proyectos existentes al propietario sin pérdida de datos y con backup previo. 🔴
+
+### Seguridad para versión conectada
+
+- `[ ]` Gestión segura de secretos y credenciales OAuth. 🔴
+- `[ ]` Cookies/sesiones seguras y protección CSRF. 🟡
+- `[ ]` Política CORS explícita. 🟡
+- `[ ]` Validar uploads y storage bajo contexto multiusuario. 🔴
+- `[ ]` Rate limiting en autenticación y endpoints expuestos. 🟡
+- `[ ]` Logs y errores sin exponer datos sensibles. 🟡
+- `[ ]` Flujo de recuperación de acceso/cuenta. 🟡
+
+### Base de datos y despliegue
+
+- `[ ]` Mantener SQLite mientras sea suficiente. 🟢
+- `[ ]` Evaluar PostgreSQL u otra base servidor solo cuando despliegue y concurrencia lo justifiquen. 🟡
+- `[ ]` Backup y restauración comprobados antes de cualquier migración de identidad/propiedad. 🔴
+
+## Criterio de cierre
+
+Un usuario puede crear/iniciar sesión en ADÜMN, opcionalmente usar Google, acceder exclusivamente a sus proyectos, cerrar sesión y volver a entrar conservando todos sus datos.
+
+La autenticación no rompe Guion → Desglose → Storyboard → Plan → Informes.
+
+# REGLAS DE DESARROLLO
+
+Estas reglas rigen cualquier cambio en ADÜMN. Aplican tanto a humanos como a IA.
+
+1. No añadimos features simplemente porque estén pendientes. Deben resolver un problema demostrado o validar la propuesta central de ADÜMN.
+2. No perseguimos perfección semántica. El objetivo es precisión útil + corrección humana sencilla.
+3. Un test verde no basta. Código → tests → proyecto real → comportamiento real.
+4. No tocamos motores estables sin evidencia de un problema. Especialmente CP-SAT y el projection engine.
+5. Los cambios de alto riesgo se diseñan antes de programarse.
+6. La otra IA es ejecutora/revisora técnica de tareas concretas. Arquitectura, prioridades y checklist permanecen bajo control del usuario.
+7. No introducimos grandes refactorizaciones salvo necesidad demostrada.
+8. Protección de datos tiene prioridad sobre nuevas funciones.
+9. Los backups se verifican con restauración, no solo con copia. Un backup no se considera implementado hasta demostrar que puede restaurarse.
+10. Las operaciones destructivas requieren confirmación explícita. Borrar, mover, migrar, o renombrar datos existentes.
+11. Los endpoints nuevos llevan tests dirigidos antes de la suite completa.
+12. Los scripts de PowerShell que toquen código deben ser verificados con `py_compile` antes de seguir. Historial de off-by-one con manipulación de strings largos.
+
+# PRIORIDAD INMEDIATA · 14-10-2026
+
+Orden de trabajo propuesto:
+
+### 1. Cerrar el ciclo de aliases de personaje
+
+- Endpoints GET/PUT para gestionar aliases.
+- Frontend mínimo (si hay tiempo).
+- Integración de aliases en `_build_project_scheduling_input`.
+- Commit propio.
+
+### 2. Cerrar el ciclo de la Fase 8 (Gemini)
+
+- Decidir: seguir con Gemini (cuando vuelva Antigravity) o aparcarlo definitivamente.
+- Si se sigue: aviso al usuario, 3 tests faltantes, frontend, cambio de DEFAULT_MODEL.
+- Si se aparca: documentar explícitamente el motivo y la fecha de reactivación.
+
+### 3. Cerrar la Fase 3 con prueba de 10 escenas
+
+- Corpus de escenas reales.
+- Medición de precision/recall línea base.
+- Persistencia de confirmed/rejected verificada.
+- Confirmación de 0 duplicados nuevos.
+
+### 4. Informe enriquecido de desglose (Fase 7)
+
+- Ampliar el endpoint actual con `order=script|shooting`.
+- Añadir strings de proyecto (director, productor, empresa).
+- Exportación PDF con grid-style y list-style.
+
+### 5. Prueba E2E completa del producto
+
+Crear proyecto → escribir → desglosar → storyboard → plan → exportar → cerrar → abrir.
+
+Con proyecto real (Radio Magallanes 2).
+
+### 6. Iniciar Fase 4 (Fichas y entidades)
+
+- Ficha completa de personaje.
+- Jerarquía padre-hijo de locaciones (sets vs locations).
+
+### 7. Fase 5 avanzada (Plan de rodaje)
+
+- Search depth configurable.
+- In-sequence bias.
+- Cast/Location balance.
+
+### 8. Fase 9 (Robustez)
+
+- Backup automático.
+- E2E repetido.
+- Deprecación `on_event`.
+
+### 9. Después: Fase 10 (Usuarios) cuando el producto esté validado externamente
+
+# ÍNDICE DE DECISIONES CLAVE
+
+Registro de decisiones de diseño tomadas desde el inicio. Útil para que una IA nueva entienda por qué el código es como es.
+
+| Decisión | Fecha | Motivo |
+|---|---|---|
+| SQLite en lugar de archivo monolítico | Anterior | Inspeccionable, versionable, migrable. |
+| Semantic lines como fuente central | Anterior | Proyección limpia, editor desacoplado. |
+| CP-SAT para scheduling | Anterior | Garantías formales, mejor que heurísticas ad-hoc. |
+| detected/confirmed/rejected en desglose | Anterior | Modelo con estados, no determinista. |
+| Local-first, sin depender de servicios externos | Anterior | Portable, offline, sin cuota. |
+| No exigir impresora instalada | Anterior | Sophocles exigía impresora; ADÜMN no. |
+| No adoptar la lista fija de categorías de Sophocles | 14-10-2026 | El catálogo propio es más moderno y adaptado a LATAM. |
+| VO marca, no excluye | 14-10-2026 | Un narrador con V.O. es un item de producción, aunque no esté en escena. |
+| Guión (FRED - BARNEY) no separa | 14-10-2026 | Sophocles lo documenta: - no es separador válido. |
+| Aliases por proyecto, no globales | 14-10-2026 | El "FELIPE" de un guion no es el mismo que el de otro. |
+| Backup fuera del repo | 13-10-2026 | Un git clean no debe tocarlos. |
+| Endpoint de informe devuelve JSON, no PDF | 13-10-2026 | Separar datos de formato. El PDF se genera después. |
+| Gemini aparcado (no commiteado como cerrado) | 14-10-2026 | Evita dependencia prematura antes de validar producto central. |
+
+# MIRADA 2026 · CONTEXTO Y CRITERIO
+
+Esta sección no es una fase. Es un resumen de la perspectiva con la que se toman las decisiones.
+
+1. **Local-first, sin excusas.** ADÜMN no depende de internet, no requiere cuenta, no pide permiso para funcionar. La nube es opcional, nunca obligatoria.
+2. **IA como asistente, no como autoridad.** El modelo estructurado (documento semántico, CP-SAT, SQLite) es la fuente de verdad. La IA propone. La persona valida.
+3. **Adaptado al cine independiente latinoamericano.** El catálogo audiovisual, los flujos y las categorías reflejan la realidad de producciones pequeñas y medianas, no las reglas de Hollywood.
+4. **Moderno sin copiar.** Sophocles validó muchas ideas hace 20 años. Se adaptan con criterio 2026: sin dependencia de impresora, sin archivos monolíticos, sin UI densa, sin requerimientos obsoletos.
+5. **Una IA por tarea.** El sistema no delega todo a un LLM. Cada parte hace lo suyo: CP-SAT para scheduling, Stanza para semántica, SQLite para datos, IA para asistencia puntual.
+6. **Documentación como parte del código.** Este documento es fuente de verdad. Si algo no está aquí, no existe en el proyecto.
+7. **Backups que se pueden restaurar.** Un backup que nunca se ha restaurado no es un backup. Es una esperanza.
+8. **Reversibilidad como principio.** Cualquier cambio debe poder deshacerse. Los archivos temporales se conservan hasta que la operación está verificada. Los commits son granulares.
+
+Fin del documento.
+
+Próxima actualización: cuando se cierre alguna fase completa o se tome una decisión arquitectónica relevante.
