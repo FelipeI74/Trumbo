@@ -5814,6 +5814,29 @@ function setupEvents() {
       "click",
       createProject
     );
+      // Borrar proyecto
+  const deleteProjectBtn = document.getElementById("deleteProjectButton");
+  if (deleteProjectBtn) {
+    deleteProjectBtn.addEventListener("click", async () => {
+      if (!state.project) return;
+
+      const confirmed = window.confirm(
+        `¿Estás seguro de que quieres eliminar el proyecto "${state.project.title}"?\n\nEsta acción no se puede deshacer.`
+      );
+      if (!confirmed) return;
+
+      try {
+        await request(`/api/projects/${state.project.id}`, {
+          method: "DELETE",
+        });
+        // Recargar la lista de proyectos y seleccionar el primero disponible
+        await loadProjects();
+      } catch (error) {
+        console.error(error);
+        alert("No fue posible eliminar el proyecto.");
+      }
+    });
+  }
 
   $("#newSceneButton")
     .addEventListener(

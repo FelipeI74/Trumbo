@@ -1601,7 +1601,75 @@ def delete_project_schedule_manual_order(
         )
 
     return {"status": "deleted", "project_id": project_id}
+@app.delete("/api/projects/{project_id}")
+def delete_project(
+    project_id: int,
+) -> dict:
+    with connect() as connection:
+        project = connection.execute(
+            "SELECT id, title FROM projects WHERE id = ?",
+            (project_id,),
+        ).fetchone()
 
+        if project is None:
+            raise HTTPException(
+                404,
+                "Proyecto no encontrado",
+            )
+
+        # 1. Borrar breakdown items (dependen de las escenas)
+        connection.execute(
+            "DELETE FROM breakdown_items WHERE scene_id IN (SELECT id FROM scenes WHERE project_id = ?)",
+            (project_id,),
+        )
+
+        # 2. Borrar notas (dependen de las escenas)
+        connection.execute(
+            "DELETE FROM notes WHERE scene_id IN (SELECT id FROM scenes WHERE project_id = ?)",
+            (project_id,),
+        )
+
+        # 3. Borrar revisiones (dependen de las escenas)
+        connection.execute(
+            "DELETE FROM revisions WHERE scene_id IN (SELECT id FROM scenes WHERE project_id = ?)",
+            (project_id,),
+        )
+
+        # 4. Borrar los planos del storyboard (dependen del proyecto)
+        connection.execute(
+            "DELETE FROM shots WHERE project_id = ?",
+            (project_id,),
+        )
+
+        # 5. Borrar las escenas
+        connection.execute(
+            "DELETE FROM scenes WHERE project_id = ?",
+            (project_id,),
+        )
+
+        # 6. Borrar aliases de personajes
+        connection.execute(
+            "DELETE FROM character_aliases WHERE project_id = ?",
+            (project_id,),
+        )
+
+        # 7. Borrar el orden manual del plan de rodaje (el que ya tenías)
+        connection.execute(
+            "DELETE FROM schedule_manual_orders WHERE project_id = ?",
+            (project_id,),
+        )
+
+        # 8. Finalmente, borrar el proyecto
+        connection.execute(
+            "DELETE FROM projects WHERE id = ?",
+            (project_id,),
+        )
+
+        return {
+            "ok": True,
+            "deleted_project_id": project_id,
+            "title": project["title"],
+        }
 
 @app.get("/api/projects/{project_id}/document")
 def get_project_document(
