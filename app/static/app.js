@@ -4974,10 +4974,13 @@ function exportProjectPdf() {
     return;
   }
 
-  window.open(
-    `/api/projects/${state.project.id}/export/pdf`,
-    "_blank"
+  const includeNumbers = window.confirm(
+    "¿Incluir números de escena?\n\nAceptar = Formato Producción (con números)\nCancelar = Formato Spec (sin números)"
   );
+
+  // Abrimos el PDF en una pestaña nueva para previsualizarlo
+  const url = `/api/projects/${state.project.id}/export/pdf?include_scene_numbers=${includeNumbers}`;
+  window.open(url, "_blank");
 }
 
 async function updateBreakdownItemState(

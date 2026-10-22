@@ -2537,6 +2537,7 @@ def scene_spelling_review(
 @app.get("/api/projects/{project_id}/export/pdf")
 def export_project_pdf(
     project_id: int,
+    include_scene_numbers: bool = True,
 ):
     with connect() as connection:
         project = connection.execute(
@@ -2702,11 +2703,36 @@ def export_project_pdf(
 
         y -= LINE_HEIGHT
 
+        # --- PORTADA ---
+    pdf.setFont("Courier-Bold", 24)
+    pdf.drawCentredString(width / 2, height - 4 * 72, str(project["title"]).upper())
+    
+    pdf.setFont("Courier", 14)
+    pdf.drawCentredString(width / 2, height - 5 * 72, "Escrito por")
+    pdf.drawCentredString(width / 2, height - 5.4 * 72, "[Nombre del Autor]")
+    
+    pdf.setFont("Courier", 12)
+    pdf.drawCentredString(width / 2, height - 7 * 72, "Versión de Producción")
+    pdf.drawCentredString(width / 2, height - 7.4 * 72, datetime.now().strftime("%d de %B de %Y"))
+    
+    pdf.setFont("Courier", 9)
+    pdf.drawCentredString(width / 2, 1.5 * 72, "© 2026 [Nombre del Autor]. Documento de producción interno.")
+
+    # --- CUERPO DEL GUION ---
+    pdf.showPage()
+    page_number += 1
+    y = height - TOP_MARGIN
+
     for scene in scenes:
         lines = scene_lines_for_export(scene)
+        
+        # Buscamos la posición del encabezado para alinear el número
+        heading_index = -1
+        for idx, line in enumerate(lines):
+            if str(line.get("type") or "").strip().lower() == "heading":
+                heading_index = idx
+                break
 
-        # El heading semántico del documento es la autoridad.
-        # No se genera aquí un "ESCENA X" artificial.
         for line_index, line in enumerate(lines):
             line_type = str(
                 line.get("type") or "action"
@@ -2722,9 +2748,16 @@ def export_project_pdf(
                 continue
 
             if line_type == "heading":
-                # Un encabezado no debe quedar aislado al final
-                # de una página.
                 ensure_space(LINE_HEIGHT * 3)
+
+                # Si es el primer heading de la escena, dibujamos el número a la derecha
+                if include_scene_numbers and line_index == heading_index:
+                    pdf.setFont(FONT_NAME, FONT_SIZE)
+                    pdf.drawRightString(
+                        width - RIGHT_ACTION,
+                        y,
+                        str(scene.get("production_number") or scene.get("scene_number"))
+                    )
 
                 draw_wrapped(
                     text.upper(),
@@ -2735,8 +2768,6 @@ def export_project_pdf(
                 y -= LINE_HEIGHT
 
             elif line_type == "character":
-                # Mantener el personaje unido, cuando sea posible,
-                # con el comienzo de su diálogo.
                 following_types = [
                     str(next_line.get("type") or "").lower()
                     for next_line in lines[
@@ -2769,8 +2800,6 @@ def export_project_pdf(
                     RIGHT_DIALOGUE,
                 )
 
-                # Separación profesional después del bloque de diálogo
-                # cuando la línea siguiente vuelve a acción o heading.
                 next_type = ""
 
                 if line_index + 1 < len(lines):
@@ -2790,7 +2819,6 @@ def export_project_pdf(
 
             elif line_type == "transition":
                 draw_transition(text)
-
                 y -= LINE_HEIGHT
 
             else:
@@ -2799,11 +2827,8 @@ def export_project_pdf(
                     LEFT_ACTION,
                     RIGHT_ACTION,
                 )
-
                 y -= LINE_HEIGHT
 
-        # Separación mínima entre escenas si el documento
-        # no contiene ya una línea vacía.
         if lines:
             y -= LINE_HEIGHT
 
@@ -2825,11 +2850,10 @@ def export_project_pdf(
         media_type="application/pdf",
         headers={
             "Content-Disposition": (
-                f'attachment; filename="{safe_name}.pdf"'
+                f'inline; filename="{safe_name}.pdf"'
             )
         },
     )
-
 # --- EXPORT: PDF de desglose formato industria ---
 @app.get("/api/projects/{project_id}/export/breakdown-pdf")
 def export_project_breakdown_pdf(
