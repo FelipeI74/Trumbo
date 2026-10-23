@@ -264,11 +264,12 @@
         >
       </div>
 
-      <div class="scene-list-header">
+           <div class="scene-list-header">
         <span id="sidebarContextTitle">Escenas</span>
         <div class="scene-list-actions">
           <button class="sidebar-ctrl-btn" title="Filtrar" aria-label="Filtrar escenas">⊟</button>
           <button class="sidebar-ctrl-btn" title="Vista lista" aria-label="Vista lista">≡</button>
+          <button id="manageAliasesButton" title="Gestionar Alias" style="display: none; background: #d8a64f; color: #111315; border: none; border-radius: 4px; padding: 0 8px; font-weight: bold; cursor: pointer;">Alias</button>
           <button id="newSceneButton" title="Insertar una nueva escena">Nueva</button>
         </div>
       </div>
@@ -599,3 +600,35 @@
 
 </body>
 </html>
+  <!-- MODAL DE ALIASES -->
+  <div id="aliasesModal" class="modal-overlay" hidden>
+    <div class="modal-content">
+      <header class="modal-header">
+        <h2>Gestionar Alias de Personajes</h2>
+        <button id="closeAliasesModal" class="modal-close">×</button>
+      </header>
+      
+      <div class="modal-body">
+        <p style="font-size: 13px; color: #9da3a9; margin-bottom: 15px;">
+          Agrega los alias para unificar nombres. Por ejemplo, si "ANDRÉS (VO)" es el mismo personaje que "ANDRÉS", agrégalo como alias.
+        </p>
+        
+        <div id="aliasesList" style="margin-bottom: 20px;">
+          <!-- La lista de alias se llena con JavaScript -->
+        </div>
+
+        <div style="display: flex; gap: 10px; align-items: flex-end; background: #1a1d20; padding: 15px; border-radius: 6px;">
+          <div style="flex: 1;">
+            <label style="display: block; font-size: 11px; margin-bottom: 4px;">Personaje Principal</label>
+            <input id="aliasPrimaryInput" type="text" placeholder="Ej. ANDRÉS" style="width: 100%; padding: 8px; background: #111315; border: 1px solid #34383d; color: white; border-radius: 4px;">
+          </div>
+          <div style="flex: 1;">
+            <label style="display: block; font-size: 11px; margin-bottom: 4px;">Alias</label>
+            <input id="aliasSecondaryInput" type="text" placeholder="Ej. ANDRÉS (VO)" style="width: 100%; padding: 8px; background: #111315; border: 1px solid #34383d; color: white; border-radius: 4px;">
+          </div>
+          <button id="addAliasButton" style="padding: 8px 16px; background: #d8a64f; color: #111315; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Agregar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  

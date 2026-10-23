@@ -5624,11 +5624,15 @@ function setupEvents() {
         const searchRow = $(".sidebar-search-row");
         const footer = $(".sidebar-footer");
 
-        if (view === "characters") {
+               if (view === "characters") {
           title.textContent = "Personajes";
           newSceneButton.hidden = true;
           searchRow.hidden = true;
           footer.hidden = true;
+
+          // Mostrar el botón de Alias solo en esta pestaña
+          const manageAliasesBtn = document.getElementById("manageAliasesButton");
+          if (manageAliasesBtn) manageAliasesBtn.style.display = "block";
 
           if (!state.project) {
             return;
@@ -5730,11 +5734,16 @@ function setupEvents() {
           return;
         }
 
-        if (view === "scenes") {
+               if (view === "scenes") {
           title.textContent = "Escenas";
           newSceneButton.hidden = false;
           searchRow.hidden = false;
           footer.hidden = false;
+          
+          // Ocultar el botón de Alias en esta pestaña
+          const manageAliasesBtn = document.getElementById("manageAliasesButton");
+          if (manageAliasesBtn) manageAliasesBtn.style.display = "none";
+
           $("#characterDetailView").hidden = true;
           if (state.activeMainView === "guion") {
             $("#screenplayViewport").hidden = false;
@@ -6721,5 +6730,190 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   } else {
     console.warn("No se encontró el botón downloadSchedulePdfButton");
+  }
+});
+async function loadAliases() {
+  if (!state.project) return;
+  
+  try {
+    const response = await request(`/api/projects/${state.project.id}/character-aliases`);
+    const aliases = response.aliases || [];
+    
+    const container = document.getElementById("aliasesList");
+    if (!container) return;
+    
+    if (aliases.length === 0) {
+      container.innerHTML = '<div style="color: #9da3a9; font-size: 13px;">No hay alias configurados.</div>';
+      return;
+    }
+    
+    container.innerHTML = aliases.map(a => `
+      <div class="alias-row">
+        <span><strong>${escapeHtml(a.primary_name)}</strong> ← ${escapeHtml(a.alias_name)}</span>
+        <button class="secondary" onclick="removeAlias('${a.alias_name.replace(/'/g, "\\'")}')" style="padding: 2px 8px; font-size: 11px;">Eliminar</button>
+      </div>
+    `).join("");
+  } catch (error) {
+    console.error("Error cargando alias:", error);
+  }
+}
+
+async function addAlias() {
+  if (!state.project) return;
+  
+  const primary = document.getElementById("aliasPrimaryInput").value.trim();
+  const alias = document.getElementById("aliasSecondaryInput").value.trim();
+  
+  if (!primary || !alias) {
+    alert("Ambos campos son obligatorios.");
+    return;
+  }
+  
+  try {
+    const current = await request(`/api/projects/${state.project.id}/character-aliases`);
+    const aliases = current.aliases || [];
+    aliases.push({ primary_name: primary, alias_name: alias });
+    
+    await request(`/api/projects/${state.project.id}/character-aliases`, {
+      method: "PUT",
+      body: JSON.stringify({ aliases }),
+    });
+    
+    document.getElementById("aliasPrimaryInput").value = "";
+    document.getElementById("aliasSecondaryInput").value = "";
+    loadAliases();
+  } catch (error) {
+    console.error("Error agregando alias:", error);
+    alert("No fue posible agregar el alias.");
+  }
+}
+
+async function removeAlias(aliasName) {
+  if (!state.project) return;
+  
+  try {
+    const current = await request(`/api/projects/${state.project.id}/character-aliases`);
+    const aliases = (current.aliases || []).filter(a => a.alias_name !== aliasName);
+    
+    await request(`/api/projects/${state.project.id}/character-aliases`, {
+      method: "PUT",
+      body: JSON.stringify({ aliases }),
+    });
+    
+    loadAliases();
+  } catch (error) {
+    console.error("Error eliminando alias:", error);
+  }
+}
+
+// Configurar eventos del modal de alias (al final del setupEvents)
+const manageAliasesBtn = document.getElementById("manageAliasesButton");
+if (manageAliasesBtn) {
+  manageAliasesBtn.addEventListener("click", () => {
+    document.getElementById("aliasesModal").hidden = false;
+    loadAliases();
+  });
+}
+
+const closeAliasesBtn = document.getElementById("closeAliasesModal");
+if (closeAliasesBtn) {
+  closeAliasesBtn.addEventListener("click", () => {
+    document.getElementById("aliasesModal").hidden = true;
+  });
+}
+
+const addAliasBtn = document.getElementById("addAliasButton");
+if (addAliasBtn) {
+  addAliasBtn.addEventListener("click", addAlias);
+}
+// --- Lógica de apertura del modal de Alias (delegación de eventos) ---
+document.addEventListener("click", (event) => {
+  // Abrir modal al hacer clic en el botón "Alias"
+  if (event.target.closest("#manageAliasesButton")) {
+    const modal = document.getElementById("aliasesModal");
+    if (modal) {
+      modal.hidden = false;
+      modal.style.display = "flex"; // Forzar display por si el CSS falla
+      loadAliases(); // Cargar la lista de alias
+    }
+  }
+
+  // Cerrar modal al hacer clic en la "X"
+  if (event.target.closest("#closeAliasesModal")) {
+    const modal = document.getElementById("aliasesModal");
+    if (modal) {
+      modal.hidden = true;
+      modal.style.display = "none";
+    }
+  }
+
+  // Cerrar modal al hacer clic fuera de él
+  if (event.target.id === "aliasesModal") {
+    event.target.hidden = true;
+    event.target.style.display = "none";
+  }
+});
+
+// --- Agregar Alias ---
+document.addEventListener("click", async (event) => {
+  if (event.target.closest("#addAliasButton")) {
+    const primary = document.getElementById("aliasPrimaryInput").value.trim();
+    const alias = document.getElementById("aliasSecondaryInput").value.trim();
+    
+    if (!primary || !alias) {
+      alert("Ambos campos son obligatorios.");
+      return;
+    }
+    
+    try {
+      const projectId = document.getElementById("projectSelect").value;
+      const current = await request(`/api/projects/${projectId}/character-aliases`);
+      const aliases = current.aliases || [];
+      aliases.push({ primary_name: primary, alias_name: alias });
+      
+      await request(`/api/projects/${projectId}/character-aliases`, {
+        method: "PUT",
+        body: JSON.stringify({ aliases }),
+      });
+      
+      document.getElementById("aliasPrimaryInput").value = "";
+      document.getElementById("aliasSecondaryInput").value = "";
+      loadAliases();
+    } catch (error) {
+      console.error(error);
+      alert("No fue posible agregar el alias.");
+    }
+  }
+});
+// --- DELEGACIÓN DE EVENTOS PARA EL MODAL DE ALIAS ---
+document.addEventListener("click", (event) => {
+  // 1. Abrir modal
+  if (event.target.closest("#manageAliasesButton")) {
+    const modal = document.getElementById("aliasesModal");
+    if (modal) {
+      modal.hidden = false;
+      modal.style.display = "flex";
+      loadAliases(); // Carga la lista
+    }
+  }
+
+  // 2. Cerrar modal (botón X)
+  if (event.target.closest("#closeAliasesModal")) {
+    const modal = document.getElementById("aliasesModal");
+    if (modal) {
+      modal.hidden = true;
+      modal.style.display = "none";
+    }
+  }
+
+  // 3. Cerrar modal (clic fuera)
+  if (event.target.id === "aliasesModal") {
+    event.target.hidden = true;
+    event.target.style.display = "none";
+  }
+
+  // 4. Agregar Alias
+  if (event.target.closest("#addAliasButton")) {
+    addAlias();
   }
 });

@@ -1328,3 +1328,69 @@ body.inspector-collapsed .inspector {
   background: rgba(216, 166, 79, 0.12);
   color: #f0d6a4;
 }
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-overlay[hidden] {
+  display: none !important;
+}
+
+.modal-content {
+  background: #111315;
+  border: 1px solid #34383d;
+  border-radius: 8px;
+  width: 600px;
+  max-width: 90%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  border-bottom: 1px solid #34383d;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #f4f0e8;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: #9da3a9;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  color: #f4f0e8;
+}
+
+.alias-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background: #1a1d20;
+  border: 1px solid #34383d;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
