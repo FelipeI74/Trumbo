@@ -688,7 +688,6 @@ def get_project_breakdown_report(project_id: int) -> dict:
         "scenes": scenes,
     }
 
-
 @app.get("/api/projects/{project_id}/characters")
 def list_project_characters(
     project_id: int,
@@ -722,10 +721,18 @@ def list_project_characters(
             (project_id,),
         ).fetchall()
 
+        import unicodedata
+        def normalize_name(name: str) -> str:
+            if not name:
+                return ""
+            normalized = unicodedata.normalize("NFD", name)
+            return "".join(c for c in normalized if unicodedata.category(c) != "Mn").casefold()
+
         aliases_map = {
-            row["alias_name"].casefold(): row["primary_name"]
+            normalize_name(row["alias_name"]): row["primary_name"]
             for row in alias_rows
         }
+
         # Obtenemos los personajes conocidos (desde aliases o desde el desglose)
         known_char_rows = connection.execute(
             """
@@ -737,7 +744,6 @@ def list_project_characters(
         ).fetchall()
         
         if not known_char_rows:
-             # Como breakdown_items no tiene project_id, hacemos un JOIN con scenes
              known_char_rows = connection.execute(
                 """
                 SELECT DISTINCT bi.name 
@@ -749,6 +755,7 @@ def list_project_characters(
             ).fetchall()
 
         known_characters = {row[0].casefold() for row in known_char_rows if row[0]}
+
     grouped: dict[str, dict] = {}
 
     for scene in scene_rows:
@@ -761,7 +768,11 @@ def list_project_characters(
                 continue
 
             for personaje in parse_character_cue(line.get("text") or ""):
-                name = resolve_character_alias(personaje["name"], aliases_map)
+                # Aplicar alias al nombre
+                original_name = personaje["name"]
+                normalized = normalize_name(original_name)
+                name = aliases_map.get(normalized, original_name)
+                
                 key = name.casefold()
 
                 if not name or key in seen_in_scene:
@@ -776,44 +787,51 @@ def list_project_characters(
                     character["scene_numbers"].append(scene_number)
 
         # 2. Buscar personajes que NO HABLAN pero están en la acción (body)
-        # Usamos la lista de personajes conocidos para buscar en el texto
         body_text = str(scene["body"] or "").upper()
         
         for known_name in known_characters:
-            # Si ya lo agregamos porque habló, lo saltamos
             if known_name in seen_in_scene:
                 continue
                 
-            # Buscamos el nombre en la acción (ignorando mayúsculas/minúsculas)
-            import re
             pattern = rf"(?<!\w){re.escape(known_name)}(?!\w)"
-            if re.search(pattern, body_text, re.IGNORECASE):
-                # Verificamos que no sea un falso positivo (ej. "el ataúd de Elena")
-                # Si la palabra anterior es "de" o "del", asumimos que es una mención, no presencia.
-                match = re.search(pattern, body_text, re.IGNORECASE)
-                prefix = body_text[:match.start()].strip()
+            match = re.search(pattern, body_text, re.IGNORECASE)
+            
+            if match:
+                prefix = body_text[:match.start()].strip().upper()
                 if prefix.endswith("DE") or prefix.endswith("DEL"):
-                    continue # Es una mención (ej. "el ataúd de Elena"), no está presente
+                    continue 
                 
-                # Si pasa el filtro, lo agregamos
-                name = known_name.capitalize()
-                key = name.casefold()
+                # Aplicar alias al nombre
+                normalized = normalize_name(known_name)
+                final_name = aliases_map.get(normalized, known_name)
+                key = final_name.casefold()
+                
                 if key not in grouped:
-                    grouped[key] = {"name": name, "scene_numbers": []}
+                    grouped[key] = {"name": final_name, "scene_numbers": []}
                 if scene_number not in grouped[key]["scene_numbers"]:
                     grouped[key]["scene_numbers"].append(scene_number)
                 seen_in_scene.add(key)
 
-    characters = [
-        {
-            "name": character["name"],
-            "scene_count": len(character["scene_numbers"]),
-            "first_scene": character["scene_numbers"][0],
-            "scene_numbers": character["scene_numbers"],
-        }
-        for character in grouped.values()
-    ]
-    characters.sort(key=lambda character: character["name"].casefold())
+    # --- APLICAR ALIAS Y UNIFICAR ---
+    unified = {}
+    for char in grouped.values():
+        normalized = normalize_name(char["name"])
+        primary = aliases_map.get(normalized, char["name"])
+        
+        if primary not in unified:
+            unified[primary] = {
+                "name": primary,
+                "scene_count": 0,
+                "first_scene": char["scene_numbers"][0] if char["scene_numbers"] else 0,
+                "scene_numbers": [],
+            }
+        
+        unified[primary]["scene_count"] += len(char["scene_numbers"])
+        unified[primary]["scene_numbers"].extend(char["scene_numbers"])
+        unified[primary]["scene_numbers"] = sorted(set(unified[primary]["scene_numbers"]))
+
+    characters = list(unified.values())
+    characters.sort(key=lambda c: c["name"].casefold())
 
     return {"characters": characters}
 
@@ -1240,8 +1258,18 @@ def _build_project_scheduling_input(
             (project_id,),
         ).fetchall()
 
+        import unicodedata
+        
+        def normalize_name(name: str) -> str:
+            """Elimina tildes y convierte a minúsculas para comparar."""
+            if not name:
+                return ""
+            # Normalizar a NFD (descomponer caracteres acentuados) y eliminar los diacríticos
+            normalized = unicodedata.normalize("NFD", name)
+            return "".join(c for c in normalized if unicodedata.category(c) != "Mn").casefold()
+
         aliases_map = {
-            row["alias_name"].casefold(): row["primary_name"]
+            normalize_name(row["alias_name"]): row["primary_name"]
             for row in alias_rows
         }
         known_characters = _get_project_character_names(
@@ -2184,12 +2212,7 @@ def analyze_scene(
     with connect() as connection:
         scene = connection.execute(
             """
-            SELECT
-                id,
-                heading,
-                body,
-                semantic_lines,
-                project_id
+            SELECT id, heading, body, semantic_lines, project_id
             FROM scenes
             WHERE id = ?
             """,
@@ -2197,16 +2220,33 @@ def analyze_scene(
         ).fetchone()
 
         if scene is None:
-            raise HTTPException(
-                404,
-                "Escena no encontrada",
-            )
+            raise HTTPException(404, "Escena no encontrada")
 
-        semantic_lines = json.loads(
-            scene["semantic_lines"] or "[]"
-        )
+        semantic_lines = json.loads(scene["semantic_lines"] or "[]")
 
-        return analyze_scene_with_engine(
+        # Obtener los alias del proyecto
+        alias_rows = connection.execute(
+            """
+            SELECT alias_name, primary_name
+            FROM character_aliases
+            WHERE project_id = ?
+            """,
+            (scene["project_id"],),
+        ).fetchall()
+
+        import unicodedata
+        def normalize_name(name: str) -> str:
+            if not name:
+                return ""
+            normalized = unicodedata.normalize("NFD", name)
+            return "".join(c for c in normalized if unicodedata.category(c) != "Mn").casefold()
+
+        aliases_map = {
+            normalize_name(row["alias_name"]): row["primary_name"]
+            for row in alias_rows
+        }
+
+        analysis = analyze_scene_with_engine(
             scene_id=scene_id,
             heading=scene["heading"],
             body=scene["body"],
@@ -2216,6 +2256,18 @@ def analyze_scene(
                 scene["project_id"],
             ),
         )
+
+        # Aplicar alias a los personajes detectados
+        if "characters" in analysis and analysis["characters"]:
+            normalized_chars = []
+            for char in analysis["characters"]:
+                normalized = normalize_name(char)
+                primary = aliases_map.get(normalized, char)
+                if primary not in normalized_chars:
+                    normalized_chars.append(primary)
+            analysis["characters"] = normalized_chars
+
+        return analysis
     
 @app.post("/api/scenes/{scene_id}/gemini-analysis")
 def analyze_scene_gemini(

@@ -207,6 +207,18 @@ def initialize() -> None:
     CREATE INDEX IF NOT EXISTS idx_character_aliases_project
         ON character_aliases(project_id);
 
+    CREATE TABLE IF NOT EXISTS character_profiles (
+        project_id INTEGER NOT NULL,
+        primary_name TEXT NOT NULL,
+        actor_name TEXT,
+        player_type TEXT DEFAULT 'Principal',
+        wardrobe_notes TEXT,
+        general_notes TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (project_id, primary_name),
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+
     """
 
     with connect() as connection:
