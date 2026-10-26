@@ -6761,30 +6761,50 @@ async function loadAliases() {
 async function addAlias() {
   if (!state.project) return;
   
-  const primary = document.getElementById("aliasPrimaryInput").value.trim();
-  const alias = document.getElementById("aliasSecondaryInput").value.trim();
+  const primaryInput = document.getElementById("aliasPrimaryInput");
+  const aliasInput = document.getElementById("aliasSecondaryInput");
+  
+  const primary = primaryInput.value.trim();
+  const alias = aliasInput.value.trim();
   
   if (!primary || !alias) {
     alert("Ambos campos son obligatorios.");
     return;
   }
   
+  if (primary.toUpperCase() === alias.toUpperCase()) {
+    alert("El alias no puede ser igual al nombre principal.");
+    return;
+  }
+  
   try {
+    // 1. Obtener los alias actuales
     const current = await request(`/api/projects/${state.project.id}/character-aliases`);
     const aliases = current.aliases || [];
+    
+    // 2. Verificar que el alias no exista ya
+    const exists = aliases.some(a => a.alias_name.toUpperCase() === alias.toUpperCase());
+    if (exists) {
+      alert("Ese alias ya existe para este proyecto.");
+      return;
+    }
+    
+    // 3. Agregar el nuevo alias
     aliases.push({ primary_name: primary, alias_name: alias });
     
+    // 4. Enviar la lista completa
     await request(`/api/projects/${state.project.id}/character-aliases`, {
       method: "PUT",
       body: JSON.stringify({ aliases }),
     });
     
-    document.getElementById("aliasPrimaryInput").value = "";
-    document.getElementById("aliasSecondaryInput").value = "";
+    // 5. Limpiar inputs y recargar la lista
+    primaryInput.value = "";
+    aliasInput.value = "";
     loadAliases();
   } catch (error) {
     console.error("Error agregando alias:", error);
-    alert("No fue posible agregar el alias.");
+    alert("No fue posible agregar el alias. Revisa la consola para más detalles.");
   }
 }
 
@@ -6915,5 +6935,25 @@ document.addEventListener("click", (event) => {
   // 4. Agregar Alias
   if (event.target.closest("#addAliasButton")) {
     addAlias();
+  }
+});
+// --- CONTROL DEL PANEL COLAPSABLE ---
+document.addEventListener("click", (event) => {
+  // Si se hace clic en el botón de la barra superior
+  if (event.target.closest("#toggleSidebarButton")) {
+    const body = document.body;
+    
+    // Alternar la clase que oculta el panel
+    body.classList.toggle("sidebar-collapsed");
+    
+    // Cambiar el icono del botón
+    const btn = document.getElementById("toggleSidebarButton");
+    if (btn) {
+      if (body.classList.contains("sidebar-collapsed")) {
+        btn.textContent = "▶"; // Flecha para indicar que se puede abrir
+      } else {
+        btn.textContent = "☰"; // Menú para indicar que se puede cerrar
+      }
+    }
   }
 });

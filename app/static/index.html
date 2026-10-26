@@ -163,21 +163,24 @@
   </style>
 </head>
 
-<body class="inspector-collapsed" lang="es" spellcheck="true">
+<body class="inspector-collapsed sidebar-expanded" lang="es" spellcheck="true">
 
   <header class="topbar">
-
-    <div class="topbar-brand">
-      <div class="brand">ADÜMN</div>
-      <div class="subbrand">Alpha 0.3 · Editor continuo semántico</div>
+    <div class="topbar-brand" style="display: flex; align-items: center;">
+      <img src="/static/img/logo-adumn.png" alt="ADÜMN" style="height: 115px; width: auto; margin-left: 10px;">
     </div>
+
+    <!-- BOTÓN PARA COLAPSAR EL PANEL IZQUIERDO -->
+    <button id="toggleSidebarButton" title="Mostrar u ocultar panel de escenas" style="background: none; border: 1px solid #34383d; color: #f4f0e8; border-radius: 4px; padding: 5px 10px; cursor: pointer; margin-right: 15px; margin-left: 10px; font-size: 18px;">
+      ☰
+    </button>
 
     <div class="topbar-group">
       <span class="topbar-label">Proyecto</span>
       <div class="topbar-project-row">
         <select id="projectSelect" aria-label="Proyecto"></select>
         <button id="newProjectButton" title="Nuevo proyecto">+</button>
-       <button id="deleteProjectButton" title="Eliminar proyecto actual" style="background: #b91c1c; color: white; border: none; border-radius: 4px; padding: 0 8px; cursor: pointer;">×</button>
+        <button id="deleteProjectButton" title="Eliminar proyecto actual" style="background: #b91c1c; color: white; border: none; border-radius: 4px; padding: 0 8px; cursor: pointer;">×</button>
       </div>
     </div>
 
@@ -209,8 +212,7 @@
       Storyboard General
     </button>
   </nav>
-
-
+  
   <main class="workspace">
 
     <!-- COLUMNA IZQUIERDA -->
@@ -631,4 +633,3 @@
       </div>
     </div>
   </div>
-  

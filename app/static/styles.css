@@ -1394,3 +1394,20 @@ body.inspector-collapsed .inspector {
   border-radius: 4px;
   margin-bottom: 8px;
 }
+/* --- ESTILOS PARA EL PANEL COLAPSABLE --- */
+
+/* Cuando el body tiene la clase 'sidebar-collapsed', ocultamos los paneles izquierdos */
+body.sidebar-collapsed .col-left,
+body.sidebar-collapsed .sidebar {
+  display: none !important;
+}
+
+/* Cuando está colapsado, el editor ocupa todo el espacio disponible */
+body.sidebar-collapsed .workspace {
+  grid-template-columns: 1fr auto !important; /* El editor se estira, el inspector se queda a la derecha */
+}
+
+/* Ajuste para que el editor no se desborde */
+body.sidebar-collapsed .editor {
+  width: 100% !important;
+}
