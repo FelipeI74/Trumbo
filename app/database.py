@@ -77,6 +77,17 @@ def migrate(connection: sqlite3.Connection) -> None:
             "ALTER TABLE scenes ADD COLUMN production_number TEXT"
         )
 
+    # --- NUEVAS COLUMNAS PARA EL CALENDARIO ---
+    if not column_exists(connection, "projects", "start_date"):
+        connection.execute("ALTER TABLE projects ADD COLUMN start_date TEXT")
+
+    if not column_exists(connection, "projects", "work_days"):
+        connection.execute("ALTER TABLE projects ADD COLUMN work_days TEXT DEFAULT '1,2,3,4,5'")
+
+    if not column_exists(connection, "projects", "day_type"):
+        connection.execute("ALTER TABLE projects ADD COLUMN day_type TEXT DEFAULT 'estandar'")
+    # ------------------------------------------
+
 
 def initialize() -> None:
     schema = """
@@ -84,6 +95,9 @@ def initialize() -> None:
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
         format TEXT NOT NULL DEFAULT 'feature',
+        start_date TEXT,
+        work_days TEXT DEFAULT '1,2,3,4,5',
+        day_type TEXT DEFAULT 'estandar',
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );

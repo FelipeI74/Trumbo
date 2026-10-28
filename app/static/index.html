@@ -1,1297 +1,363 @@
 <!doctype html>
-
 <html lang="es">
-
 <head>
-
   <meta charset="utf-8">
-
   <meta name="viewport" content="width=device-width, initial-scale=1">
-
-
-
-  <title>ADÜMN Alpha 0.3</title>
-
-
-
+  <title>ADÜMN V1.1</title>
+  
   <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/modules/production.css">
 
-  <link rel="stylesheet" href="/static/production.css">
-
-  <link rel="stylesheet" href="/static/production.css">
   <style>
-
-    .production-breakdown-view {
-
-      height: 100%;
-
-      overflow: auto;
-
-      padding: 28px 32px 48px;
-
-      background: #111315;
-
-      color: #f4f0e8;
-
-    }
-
-    .production-breakdown-header {
-
-      margin-bottom: 24px;
-
-      padding-bottom: 16px;
-
-      border-bottom: 1px solid #34383d;
-
-    }
-
-    .production-breakdown-eyebrow {
-
-      display: block;
-
-      margin-bottom: 6px;
-
-      color: #d8a64f;
-
-      font-size: 11px;
-
-      font-weight: 700;
-
-      letter-spacing: .12em;
-
-    }
-
-    .production-breakdown-header h1 {
-
-      margin: 0;
-
-      font-size: 24px;
-
-      font-weight: 650;
-
-    }
-
-    .production-breakdown-summary {
-
-      margin-top: 7px;
-
-      color: #9da3a9;
-
-      font-size: 13px;
-
-    }
-
-    .production-breakdown-scenes {
-
-      display: grid;
-
-      gap: 18px;
-
-    }
-
-    .production-breakdown-scene {
-
-      padding: 18px;
-
-      background: #1a1d20;
-
-      border: 1px solid #34383d;
-
-      border-radius: 8px;
-
-    }
-
-    .production-breakdown-scene-header {
-
-      margin-bottom: 14px;
-
-      padding-bottom: 12px;
-
-      border-bottom: 1px solid #2d3135;
-
-    }
-
-    .production-breakdown-scene-number {
-
-      margin-bottom: 4px;
-
-      color: #d8a64f;
-
-      font-size: 11px;
-
-      font-weight: 700;
-
-      letter-spacing: .08em;
-
-      text-transform: uppercase;
-
-    }
-
-    .production-breakdown-scene-heading {
-
-      margin: 0;
-
-      font-size: 15px;
-
-      font-weight: 600;
-
-    }
-
-    .production-breakdown-groups {
-
-      display: grid;
-
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-
-      gap: 10px 22px;
-
-    }
-
-    .production-breakdown-group-title {
-
-      margin-bottom: 4px;
-
-      color: #8f969d;
-
-      font-size: 10px;
-
-      font-weight: 700;
-
-      letter-spacing: .07em;
-
-      text-transform: uppercase;
-
-    }
-
-    .production-breakdown-group-items {
-
-      color: #e2e4e6;
-
-      font-size: 13px;
-
-      line-height: 1.45;
-
-    }
-
-    .production-breakdown-empty {
-
-      color: #70767d;
-
-      font-size: 13px;
-
-    }
-
-
-
-    /* Estilos para la vista de Informes */
-
-    .reports-view {
-
-      height: 100%;
-
-      overflow: auto;
-
-      padding: 32px 40px 60px;
-
-      background: #111315;
-
-      color: #f4f0e8;
-
-    }
-
-    .reports-header {
-
-      margin-bottom: 30px;
-
-      border-bottom: 1px solid #34383d;
-
-      padding-bottom: 20px;
-
-    }
-
-    .reports-header h1 {
-
-      margin: 8px 0 0;
-
-      font-size: 28px;
-
-    }
-
-    .reports-header p {
-
-      color: #9da3a9;
-
-      margin-top: 8px;
-
-    }
-
-    .reports-grid {
-
-      display: grid;
-
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-
-      gap: 20px;
-
-    }
-
-    .report-card {
-
-      background: #1a1d20;
-
-      border: 1px solid #34383d;
-
-      border-radius: 8px;
-
-      padding: 24px;
-
-      display: flex;
-
-      flex-direction: column;
-
-    }
-
-    .report-card h3 {
-
-      margin: 0 0 10px;
-
-      font-size: 18px;
-
-    }
-
-    .report-card p {
-
-      color: #9da3a9;
-
-      font-size: 14px;
-
-      margin-bottom: 20px;
-
-      line-height: 1.5;
-
-      flex-grow: 1;
-
-    }
-
-    .report-card button {
-
-      width: 100%;
-
-      padding: 10px;
-
-      font-weight: 600;
-
-      border-radius: 6px;
-
-      border: none;
-
-      cursor: pointer;
-
-    }
-
-    .report-card button.primary {
-
-      background: #d8a64f;
-
-      color: #111315;
-
-    }
-
-    .report-card button.primary:hover {
-
-      background: #e8b85f;
-
-    }
-
-    .report-card button:disabled {
-
-      background: #2d3135;
-
-      color: #6b7280;
-
-      cursor: not-allowed;
-
-    }
-
-
-
-    @media (max-width: 900px) {
-
-      .production-breakdown-groups {
-
-        grid-template-columns: 1fr;
-
-      }
-
-    }
-
+    .production-breakdown-view { height: 100%; overflow: auto; padding: 28px 32px 48px; background: #111315; color: #f4f0e8; }
+    .production-breakdown-header { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #34383d; }
+    .production-breakdown-eyebrow { display: block; margin-bottom: 6px; color: #d8a64f; font-size: 11px; font-weight: 700; letter-spacing: .12em; }
+    .production-breakdown-header h1 { margin: 0; font-size: 24px; font-weight: 650; }
+    .production-breakdown-summary { margin-top: 7px; color: #9da3a9; font-size: 13px; }
+    .production-breakdown-scenes { display: grid; gap: 18px; }
+    .production-breakdown-scene { padding: 18px; background: #1a1d20; border: 1px solid #34383d; border-radius: 8px; }
+    .production-breakdown-scene-header { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #2d3135; }
+    .production-breakdown-scene-number { margin-bottom: 4px; color: #d8a64f; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .production-breakdown-scene-heading { margin: 0; font-size: 15px; font-weight: 600; }
+    .production-breakdown-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 22px; }
+    .production-breakdown-group-title { margin-bottom: 4px; color: #8f969d; font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+    .production-breakdown-group-items { color: #e2e4e6; font-size: 13px; line-height: 1.45; }
+    .production-breakdown-empty { color: #70767d; font-size: 13px; }
+
+    .reports-view { height: 100%; overflow: auto; padding: 32px 40px 60px; background: #111315; color: #f4f0e8; }
+    .reports-header { margin-bottom: 30px; border-bottom: 1px solid #34383d; padding-bottom: 20px; }
+    .reports-header h1 { margin: 8px 0 0; font-size: 28px; }
+    .reports-header p { color: #9da3a9; margin-top: 8px; }
+    .reports-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+    .report-card { background: #1a1d20; border: 1px solid #34383d; border-radius: 8px; padding: 24px; display: flex; flex-direction: column; }
+    .report-card h3 { margin: 0 0 10px; font-size: 18px; }
+    .report-card p { color: #9da3a9; font-size: 14px; margin-bottom: 20px; line-height: 1.5; flex-grow: 1; }
+    .report-card button { width: 100%; padding: 10px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; }
+    .report-card button.primary { background: #d8a64f; color: #111315; }
+    .report-card button.primary:hover { background: #e8b85f; }
+    .report-card button:disabled { background: #2d3135; color: #6b7280; cursor: not-allowed; }
+
+    .calendar-view { height: 100%; overflow: auto; padding: 32px 40px 60px; background: #111315; color: #f4f0e8; }
+
+    @media (max-width: 900px) { .production-breakdown-groups { grid-template-columns: 1fr; } }
   </style>
-
 </head>
-
-
 
 <body class="inspector-collapsed sidebar-expanded" lang="es" spellcheck="true">
 
-
-
   <header class="topbar">
-
     <div class="topbar-brand" style="display: flex; align-items: center;">
-
-      <img src="/static/img/logo-adumn.png" alt="ADÜMN" style="height: 115px; width: auto; margin-left: 10px;">
-
+      <img src="/static/img/logo-adumn.png" alt="ADÜMN" style="height: 60px; width: auto; margin-left: 10px;">
     </div>
-
-
-
-    <!-- BOTÓN PARA COLAPSAR EL PANEL IZQUIERDO -->
-
-    <button id="toggleSidebarButton" title="Mostrar u ocultar panel de escenas" style="background: none; border: 1px solid #34383d; color: #f4f0e8; border-radius: 4px; padding: 5px 10px; cursor: pointer; margin-right: 15px; margin-left: 10px; font-size: 18px;">
-
-      ☰
-
-    </button>
-
-
-
+    <button id="toggleSidebarButton" title="Mostrar u ocultar panel de escenas" style="background: none; border: 1px solid #34383d; color: #f4f0e8; border-radius: 4px; padding: 5px 10px; cursor: pointer; margin-right: 15px; margin-left: 10px; font-size: 18px;">☰</button>
+    
     <div class="topbar-group">
-
       <span class="topbar-label">Proyecto</span>
-
       <div class="topbar-project-row">
-
         <select id="projectSelect" aria-label="Proyecto"></select>
-
         <button id="newProjectButton" title="Nuevo proyecto">+</button>
-
         <button id="deleteProjectButton" title="Eliminar proyecto actual" style="background: #b91c1c; color: white; border: none; border-radius: 4px; padding: 0 8px; cursor: pointer;">×</button>
-
       </div>
-
     </div>
-
-
-
     <span id="saveState">Guardado</span>
-
-
-
     <div class="topbar-group">
-
       <span class="topbar-label">Duración estimada</span>
-
       <strong id="projectRuntime">00:00</strong>
-
     </div>
-
-
-
     <button class="topbar-ai" disabled title="Próximamente">Asistente IA</button>
-
-
-
     <button id="exportPdfButton" title="Exportar proyecto a PDF">Exportar</button>
-
-
-
   </header>
 
-
-
   <nav class="main-nav">
-
     <button class="main-nav-tab active" data-view="guion">Guion</button>
-
     <button class="main-nav-tab" data-view="desglose">Desglose</button>
-
     <button class="main-nav-tab" data-view="plan-rodaje">Plan de rodaje</button>
-
     <button class="main-nav-tab" data-view="informes">Informes</button>
-
     <button class="main-nav-tab" data-view="produccion">Producción</button>
-
-
-
-    <button
-
-      id="generalStoryboardButton"
-
-      type="button"
-
-      style="margin-left: auto; margin-right: 20px;"
-
-      onclick="const projectId=document.getElementById('projectSelect')?.value;if(projectId){window.open('/static/storyboard-general.html?project='+encodeURIComponent(projectId)+'&v='+Date.now(),'_blank','width=1400,height=900,resizable=yes,scrollbars=yes');}"
-
-    >
-
+    <button class="main-nav-tab" data-view="calendario">Calendario</button>
+    
+    <button id="generalStoryboardButton" type="button" style="margin-left: auto; margin-right: 20px;" onclick="const projectId=document.getElementById('projectSelect')?.value;if(projectId){window.open('/static/storyboard-general.html?project='+encodeURIComponent(projectId)+'&v='+Date.now(),'_blank','width=1400,height=900,resizable=yes,scrollbars=yes');}">
       Storyboard General
-
     </button>
-
   </nav>
-
   
-
   <main class="workspace">
-
-
-
-    <!-- COLUMNA IZQUIERDA -->
-
-
-
     <aside class="col-left">
-
-
-
       <div class="col-left-section">
-
         <span class="col-left-heading">ELEMENTOS</span>
-
         <ul id="elementList" class="col-left-list">
-
           <li class="col-left-item active" data-element-view="scenes">Escenas</li>
-
           <li class="col-left-item" data-element-view="characters">Personajes</li>
-
           <li class="col-left-item" data-element-view="locations">Locaciones</li>
-
           <li class="col-left-item" data-element-view="resources">Arte / Utilería</li>
-
         </ul>
-
       </div>
-
-
-
       <div class="col-left-section">
-
         <span class="col-left-heading">VISTAS</span>
-
         <ul class="col-left-list">
-
           <li class="col-left-item active">Guión</li>
-
           <li class="col-left-item">Desglose</li>
-
           <li class="col-left-item">Plan de rodaje</li>
-
           <li class="col-left-item">Informes</li>
-
         </ul>
-
       </div>
-
-
-
       <div class="col-left-section">
-
         <span class="col-left-heading">PROYECTO</span>
-
         <ul class="col-left-list">
-
           <li class="col-left-item">Configuración</li>
-
           <li class="col-left-item">Equipos</li>
-
           <li class="col-left-item">Calendario</li>
-
           <li class="col-left-item">Notas del proyecto</li>
-
         </ul>
-
       </div>
-
-
-
-      <div class="col-left-footer">v0.3.0 • Local</div>
-
-
-
+      <div class="col-left-footer">ADÜMN V 1.1 • Local</div>
     </aside>
-
-
-
-
-
-    <!-- ÍNDICE DE ESCENAS -->
-
-
 
     <aside class="sidebar">
-
-
-
       <div class="sidebar-project-row">
-
-        <input
-
-          id="projectTitle"
-
-          aria-label="Título del proyecto"
-
-          placeholder="Título del proyecto"
-
-        >
-
+        <input id="projectTitle" aria-label="Título del proyecto" placeholder="Título del proyecto">
       </div>
-
-
-
-           <div class="scene-list-header">
-
+      <div class="scene-list-header">
         <span id="sidebarContextTitle">Escenas</span>
-
         <div class="scene-list-actions">
-
           <button class="sidebar-ctrl-btn" title="Filtrar" aria-label="Filtrar escenas">⊟</button>
-
           <button class="sidebar-ctrl-btn" title="Vista lista" aria-label="Vista lista">≡</button>
-
           <button id="manageAliasesButton" title="Gestionar Alias" style="display: none; background: #d8a64f; color: #111315; border: none; border-radius: 4px; padding: 0 8px; font-weight: bold; cursor: pointer;">Alias</button>
-
           <button id="newSceneButton" title="Insertar una nueva escena">Nueva</button>
-
         </div>
-
       </div>
-
-
-
       <div class="sidebar-search-row">
-
-        <input
-
-          class="sidebar-search"
-
-          type="search"
-
-          placeholder="Buscar escena…"
-
-          aria-label="Buscar escena"
-
-        >
-
+        <input class="sidebar-search" type="search" placeholder="Buscar escena…" aria-label="Buscar escena">
       </div>
-
-
-
       <div id="sceneList" class="scene-list"></div>
-
-
-
       <div class="sidebar-footer">
-
         <span class="sidebar-footer-label">Duración total</span>
-
         <span class="sidebar-footer-runtime">—</span>
-
       </div>
-
-
-
     </aside>
-
-
-
-
-
-    <!-- DOCUMENTO CONTINUO -->
-
-
 
     <section class="editor">
-
-
-
       <div class="editor-toolbar">
-
         <div class="editor-toolbar-left">
-
           <span id="sceneIdentity">SIN ESCENA</span>
-
           <span id="editorModeLabel" class="editor-mode-label">ACCIÓN</span>
-
         </div>
-
         <div class="editor-toolbar-center">
-
           <select id="lineTypeSelector" aria-label="Tipo de línea activa"></select>
-
         </div>
-
         <div class="editor-toolbar-right">
-
-          <button
-
-            id="toggleInspectorButton"
-
-            class="toolbar-toggle"
-
-            type="button"
-
-            aria-pressed="false"
-
-            title="Mostrar u ocultar inspector"
-
-          >
-
-            Inspector ◂
-
-          </button>
-
+          <button id="toggleInspectorButton" class="toolbar-toggle" type="button" aria-pressed="false" title="Mostrar u ocultar inspector">Inspector ◂</button>
         </div>
-
       </div>
-
-
-
-
 
       <div id="screenplayViewport" class="screenplay-viewport">
-
-        <article
-
-          id="screenplayEditor"
-
-          class="screenplay-editor"
-
-          aria-label="Editor de guion"
-
-          lang="es"
-
-          spellcheck="true"
-
-          autocorrect="on"
-
-        ></article>
-
+        <article id="screenplayEditor" class="screenplay-editor" aria-label="Editor de guion" lang="es" spellcheck="true" autocorrect="on"></article>
       </div>
 
-
-
-      <!-- VISTA DESGLOSE -->
-
-      <section
-
-        id="productionBreakdownView"
-
-        class="production-breakdown-view"
-
-        hidden
-
-        aria-label="Desglose de producción"
-
-      >
-
+      <section id="productionBreakdownView" class="production-breakdown-view" hidden aria-label="Desglose de producción">
         <header class="production-breakdown-header">
-
           <span class="production-breakdown-eyebrow">DESGLOSE DE PRODUCCIÓN</span>
-
           <h1>Desglose por escena</h1>
-
           <div id="productionBreakdownSummary" class="production-breakdown-summary"></div>
-
         </header>
-
-
-
         <div id="productionBreakdownScenes" class="production-breakdown-scenes"></div>
-
       </section>
 
-
-
-      <!-- VISTA PLAN DE RODAJE -->
-
-      <section
-
-        id="scheduleView"
-
-        class="schedule-view"
-
-        hidden
-
-        aria-label="Plan de rodaje"
-
-      >
-
+      <section id="scheduleView" class="schedule-view" hidden aria-label="Plan de rodaje">
         <div class="schedule-header">
-
-          <div>
-
-            <span class="schedule-eyebrow">PLAN DE RODAJE</span>
-
-            <h1>Jornadas</h1>
-
-          </div>
-
+          <div><span class="schedule-eyebrow">PLAN DE RODAJE</span><h1>Jornadas</h1></div>
           <button id="generateScheduleButton" type="button">Generar plan</button>
-
           <button id="saveScheduleOrderButton" type="button" disabled>Guardar orden</button>
-
           <button id="resetScheduleOrderButton" type="button" disabled>Restaurar plan calculado</button>
-
         </div>
-
         <div id="scheduleStatus" class="schedule-status" aria-live="polite"></div>
-
         <div class="schedule-columns" aria-hidden="true">
-
-          <span>ESC.</span>
-
-          <span>LOCACIÓN</span>
-
-          <span>SUBLOCACIÓN</span>
-
-          <span>INT/EXT</span>
-
-          <span>LUZ</span>
-
-          <span>DURACIÓN</span>
-
-          <span>ELENCO</span>
-
+          <span>ESC.</span><span>LOCACIÓN</span><span>SUBLOCACIÓN</span><span>INT/EXT</span><span>LUZ</span><span>DURACIÓN</span><span>ELENCO</span>
         </div>
-
         <div id="scheduleDays" class="schedule-days"></div>
-
       </section>
 
-
-
-      <!-- VISTA INFORMES -->
-
-      <section
-
-        id="reportsView"
-
-        class="reports-view"
-
-        hidden
-
-        aria-label="Informes de producción"
-
-      >
-
-        <header class="reports-header">
-
-          <span class="production-breakdown-eyebrow">CENTRO DE PRODUCCIÓN</span>
-
-          <h1>Informes</h1>
-
-          <p>Genera y exporta los documentos necesarios para tu rodaje.</p>
-
-        </header>
-
-
-
-        <div class="reports-grid">
-
-          
-
-          <!-- Tarjeta: Desglose -->
-
-          <div class="report-card">
-
-            <h3>Desglose de Producción</h3>
-
-            <p>
-
-              Una página por escena con los elementos categorizados, lista de elenco y colores de jornada.
-
-            </p>
-
-            <button id="downloadBreakdownPdfButton" class="primary">
-
-              Descargar PDF (Desglose)
-
-            </button>
-
-          </div>
-
-
-
-          <!          <!-- Tarjeta: Plan de Rodaje -->
-
-          <div class="report-card">
-
-            <h3>Plan de Rodaje</h3>
-
-            <p>
-
-              Orden cronológico de escenas por jornada, con restricciones de día/noche y locaciones.
-
-            </p>
-
-            <button id="downloadSchedulePdfButton" class="primary">
-
-              Descargar PDF (Plan)
-
-            </button>
-
-          </div>
-
-
-
-          <!-- Tarjeta: Hoja de Llamada -->
-
-          <div class="report-card">
-
-            <h3>Hoja de Llamada</h3>
-
-            <p>
-
-              Informe diario con escenas a rodar, elenco requerido y horarios de llamado.
-
-            </p>
-
-            <button disabled>
-
-              Próximamente
-
-            </button>
-
-          </div>
-
-
-
-        </div>
-
-      </section>
-
-
-
-      <!-- VISTA PRODUCCIÓN (STRIPBOARD) -->
-
-      <section
-
-        id="productionView"
-
-        class="production-view"
-
-        hidden
-
-        aria-label="Tablero de producción"
-
-      >
-
+      <!-- VISTA PRODUCCIÓN (SIN HIDDEN) -->
+      <section id="productionView" class="production-view" aria-label="Tablero de Producción">
         <div id="stripboard-root"></div>
-
       </section>
 
+      <!-- VISTA CALENDARIO -->
+      <section id="calendarView" class="calendar-view" hidden aria-label="Calendario de Producción">
+        <header class="production-breakdown-header">
+          <span class="production-breakdown-eyebrow">CALENDARIO DE PRODUCCIÓN</span>
+          <h1>Configuración de Rodaje</h1>
+        </header>
+        <div class="calendar-form" style="padding: 20px; color: #f4f0e8;">
+          <label style="display: block; margin-bottom: 10px;">Fecha de inicio del rodaje:</label>
+          <input type="date" id="calendarStartDate" style="padding: 8px; margin-bottom: 20px; width: 100%; max-width: 300px;">
 
+          <label style="display: block; margin-bottom: 10px;">Tipo de jornada:</label>
+          <select id="calendarDayType" style="padding: 8px; margin-bottom: 20px; width: 100%; max-width: 300px;">
+            <option value="estandar">Estándar (8h + almuerzo)</option>
+            <option value="continua">Continua (8h sin pausa)</option>
+          </select>
+
+          <label style="display: block; margin-bottom: 10px;">Días laborables:</label>
+          <div class="work-days-checkboxes" style="display: flex; gap: 10px; margin-bottom: 20px;">
+            <label><input type="checkbox" value="1" class="work-day"> Lun</label>
+            <label><input type="checkbox" value="2" class="work-day"> Mar</label>
+            <label><input type="checkbox" value="3" class="work-day"> Mié</label>
+            <label><input type="checkbox" value="4" class="work-day"> Jue</label>
+            <label><input type="checkbox" value="5" class="work-day"> Vie</label>
+            <label><input type="checkbox" value="6" class="work-day"> Sáb</label>
+            <label><input type="checkbox" value="7" class="work-day"> Dom</label>
+          </div>
+
+          <button id="saveCalendarButton" class="primary" style="padding: 10px 20px; background: #d8a64f; border: none; border-radius: 4px; cursor: pointer;">Guardar Calendario</button>
+        </div>
+      </section>
+
+      <section id="reportsView" class="reports-view" hidden aria-label="Informes de producción">
+        <header class="reports-header">
+          <span class="production-breakdown-eyebrow">CENTRO DE PRODUCCIÓN</span>
+          <h1>Informes</h1>
+          <p>Genera y exporta los documentos necesarios para tu rodaje.</p>
+        </header>
+        <div class="reports-grid">
+          <div class="report-card">
+            <h3>Desglose de Producción</h3>
+            <p>Una página por escena con los elementos categorizados, lista de elenco y colores de jornada.</p>
+            <button id="downloadBreakdownPdfButton" class="primary">Descargar PDF (Desglose)</button>
+          </div>
+          <div class="report-card">
+            <h3>Plan de Rodaje</h3>
+            <p>Orden cronológico de escenas por jornada, con restricciones de día/noche y locaciones.</p>
+            <button id="downloadSchedulePdfButton" class="primary">Descargar PDF (Plan)</button>
+          </div>
+          <div class="report-card">
+            <h3>Hoja de Llamada</h3>
+            <p>Informe diario con escenas a rodar, elenco requerido y horarios de llamado.</p>
+            <button disabled>Próximamente</button>
+          </div>
+        </div>
+      </section>
 
       <div id="characterDetailView" hidden></div>
-
-
-
       <div class="scene-footer">
-
         <span>Duración de escena activa</span>
-
         <strong id="sceneRuntime">00:00</strong>
-
       </div>
-
-
-
     </section>
 
-
-
-
-
-    <!-- INSPECTOR -->
-
-
-
     <aside class="inspector">
-
-
-
       <div class="inspector-header">
-
         <span class="inspector-title">Inspector de escena</span>
-
       </div>
-
-
-
       <div class="tabs">
-
         <button class="tab active" data-tab="synopsis">Sinopsis</button>
-
         <button class="tab" data-tab="notes">Notas</button>
-
         <button class="tab" data-tab="breakdown">Desglose</button>
-
         <button class="tab" data-tab="ia">IA</button>
-
       </div>
-
-
-
-      <!-- SINOPSIS -->
 
       <section id="panel-synopsis" class="panel active">
-
         <label for="sceneProductionNumber">Número de escena</label>
-
-        <input
-
-          id="sceneProductionNumber"
-
-          type="text"
-
-          placeholder="Ej. 12A"
-
-          autocomplete="off"
-
-        >
-
-
-
+        <input id="sceneProductionNumber" type="text" placeholder="Ej. 12A" autocomplete="off">
         <label for="sceneSynopsis">Sinopsis de la escena activa</label>
-
-        <textarea
-
-          id="sceneSynopsis"
-
-          placeholder="Resumen narrativo o de producción"
-
-        ></textarea>
-
-
-
-        <button id="suggestSynopsisButton" class="secondary">
-
-          Proponer sinopsis
-
-        </button>
-
-
-
-        <p class="hint">
-
-          La propuesta no modifica el guion.
-
-        </p>
-
+        <textarea id="sceneSynopsis" placeholder="Resumen narrativo o de producción"></textarea>
+        <button id="suggestSynopsisButton" class="secondary">Proponer sinopsis</button>
+        <p class="hint">La propuesta no modifica el guion.</p>
       </section>
-
-
-
-      <!-- NOTAS -->
 
       <section id="panel-notes" class="panel">
-
         <div class="inline-form">
-
           <input id="noteInput" placeholder="Nueva nota">
-
           <button id="addNoteButton">Agregar</button>
-
         </div>
-
         <div id="notesList"></div>
-
       </section>
-
-
-
-      <!-- DESGLOSE -->
 
       <section id="panel-breakdown" class="panel">
-
         <div class="breakdown-form">
-
           <select id="breakdownCategory">
-
-            <option value="prop">Prop</option>
-
-            <option value="character">Personaje</option>
-
-            <option value="location">Locación</option>
-
-            <option value="vehicle">Vehículo</option>
-
-            <option value="wardrobe">Vestuario</option>
-
-            <option value="fx">FX</option>
-
+            <option value="prop">Prop</option><option value="character">Personaje</option><option value="location">Locación</option><option value="vehicle">Vehículo</option><option value="wardrobe">Vestuario</option><option value="fx">FX</option>
           </select>
-
-
-
           <input id="breakdownName" placeholder="Elemento">
-
-
-
           <select id="breakdownState">
-
-            <option value="confirmed">Confirmado</option>
-
-            <option value="detected">Detectado</option>
-
-            <option value="rejected">Rechazado</option>
-
+            <option value="confirmed">Confirmado</option><option value="detected">Detectado</option><option value="rejected">Rechazado</option>
           </select>
-
-
-
           <button id="addBreakdownButton">Agregar</button>
-
         </div>
-
-
-
         <div class="breakdown-form">
-
           <select id="breakdownFilterCategory">
-
-            <option value="all">Todas las categorías</option>
-
-            <option value="prop">Prop</option>
-
-            <option value="character">Personaje</option>
-
-            <option value="location">Locación</option>
-
-            <option value="vehicle">Vehículo</option>
-
-            <option value="wardrobe">Vestuario</option>
-
-            <option value="fx">FX</option>
-
+            <option value="all">Todas las categorías</option><option value="prop">Prop</option><option value="character">Personaje</option><option value="location">Locación</option><option value="vehicle">Vehículo</option><option value="wardrobe">Vestuario</option><option value="fx">FX</option>
           </select>
-
-
-
           <select id="breakdownFilterState">
-
-            <option value="all">Todos los estados</option>
-
-            <option value="confirmed">Confirmado</option>
-
-            <option value="detected">Detectado</option>
-
-            <option value="rejected">Rechazado</option>
-
+            <option value="all">Todos los estados</option><option value="confirmed">Confirmado</option><option value="detected">Detectado</option><option value="rejected">Rechazado</option>
           </select>
-
         </div>
-
-
-
         <div class="analysis-block">
-
           <div class="analysis-title">Reconocimiento del guion</div>
-
-          <div id="scriptAnalysis" class="analysis-summary">
-
-            <div class="empty">
-
-              Escribe una escena para analizar su formato.
-
-            </div>
-
-          </div>
-
+          <div id="scriptAnalysis" class="analysis-summary"><div class="empty">Escribe una escena para analizar su formato.</div></div>
         </div>
-
-
-
         <div class="analysis-title">Elementos de producción confirmados</div>
-
         <div id="breakdownList"></div>
-
       </section>
-
-
-
     </aside>
-
-
-
   </main>
 
-
-
-
-
-  <!-- STORYBOARD OVERLAY -->
-
   <div id="storyboardOverlay" class="storyboard-overlay" hidden>
-
     <div class="storyboard-shell">
-
       <header class="storyboard-header">
-
-        <div>
-
-          <span class="storyboard-eyebrow">STORYBOARD</span>
-
-          <h2 id="storyboardSceneTitle">Escena</h2>
-
-        </div>
-
+        <div><span class="storyboard-eyebrow">STORYBOARD</span><h2 id="storyboardSceneTitle">Escena</h2></div>
         <div class="storyboard-header-actions">
-
           <span id="storyboardSaveState">Guardado</span>
-
           <button id="openStoryboardWindowButton" type="button">Abrir en ventana</button>
-
           <button id="closeStoryboardButton" type="button">Cerrar</button>
-
         </div>
-
       </header>
-
-
-
       <div class="storyboard-layout">
-
         <aside class="storyboard-shots">
-
           <button id="newShotButton" type="button">+ Nuevo plano</button>
-
           <div id="storyboardShotList"></div>
-
         </aside>
-
-
-
-        <section class="storyboard-canvas-area">
-
-          <div class="storyboard-canvas-placeholder">Canvas 16:9</div>
-
-        </section>
-
-
-
+        <section class="storyboard-canvas-area"><div class="storyboard-canvas-placeholder">Canvas 16:9</div></section>
         <aside class="storyboard-inspector">
-
-          <label>
-
-            Tipo de plano
-
-            <input id="shotTypeInput" type="text">
-
-          </label>
-
-          <label>
-
-            Movimiento
-
-            <input id="shotMovementInput" type="text">
-
-          </label>
-
-          <label>
-
-            Descripción
-
-            <textarea id="shotDescriptionInput"></textarea>
-
-          </label>
-
+          <label>Tipo de plano <input id="shotTypeInput" type="text"></label>
+          <label>Movimiento <input id="shotMovementInput" type="text"></label>
+          <label>Descripción <textarea id="shotDescriptionInput"></textarea></label>
           <button id="deleteStoryboardShotButton" type="button">Eliminar plano</button>
-
-          <label>
-
-            Notas
-
-            <textarea id="shotNotesInput"></textarea>
-
-          </label>
-
+          <label>Notas <textarea id="shotNotesInput"></textarea></label>
         </aside>
-
       </div>
-
     </div>
-
   </div>
 
-
-
-  <!-- LISTA DE AUTOCOMPLETADO -->
+  <div id="aliasesModal" class="modal-overlay" hidden>
+    <div class="modal-content">
+      <header class="modal-header">
+        <h2>Gestionar Alias de Personajes</h2>
+        <button id="closeAliasesModal" class="modal-close">×</button>
+      </header>
+      <div class="modal-body">
+        <p style="font-size: 13px; color: #9da3a9; margin-bottom: 15px;">Agrega los alias para unificar nombres. Por ejemplo, si "ANDRÉS (VO)" es el mismo personaje que "ANDRÉS", agrégalo como alias.</p>
+        <div id="aliasesList" style="margin-bottom: 20px;"></div>
+        <div style="display: flex; gap: 10px; align-items: flex-end; background: #1a1d20; padding: 15px; border-radius: 6px;">
+          <div style="flex: 1;">
+            <label style="display: block; font-size: 11px; margin-bottom: 4px;">Personaje Principal</label>
+            <input id="aliasPrimaryInput" type="text" placeholder="Ej. ANDRÉS" style="width: 100%; padding: 8px; background: #111315; border: 1px solid #34383d; color: white; border-radius: 4px;">
+          </div>
+          <div style="flex: 1;">
+            <label style="display: block; font-size: 11px; margin-bottom: 4px;">Alias</label>
+            <input id="aliasSecondaryInput" type="text" placeholder="Ej. ANDRÉS (VO)" style="width: 100%; padding: 8px; background: #111315; border: 1px solid #34383d; color: white; border-radius: 4px;">
+          </div>
+          <button id="addAliasButton" style="padding: 8px 16px; background: #d8a64f; color: #111315; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Agregar</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div id="autocompleteMenu" class="autocomplete-menu" hidden></div>
 
-
-
-  <script src="/static/production.js"></script>
-
+  <!-- SCRIPTS -->
   <script src="/static/app.js"></script>
-
-
-
+  <script src="/static/modules/production.js"></script>
+  <script src="/static/modules/calendar.js"></script>
 </body>
-
 </html>
-
-  <!-- MODAL DE ALIASES -->
-
-  <div id="aliasesModal" class="modal-overlay" hidden>
-
-    <div class="modal-content">
-
-      <header class="modal-header">
-
-        <h2>Gestionar Alias de Personajes</h2>
-
-        <button id="closeAliasesModal" class="modal-close">×</button>
-
-      </header>
-
-      
-
-      <div class="modal-body">
-
-        <p style="font-size: 13px; color: #9da3a9; margin-bottom: 15px;">
-
-          Agrega los alias para unificar nombres. Por ejemplo, si "ANDRÉS (VO)" es el mismo personaje que "ANDRÉS", agrégalo como alias.
-
-        </p>
-
-        
-
-        <div id="aliasesList" style="margin-bottom: 20px;">
-
-          <!-- La lista de alias se llena con JavaScript -->
-
-        </div>
-
-
-
-        <div style="display: flex; gap: 10px; align-items: flex-end; background: #1a1d20; padding: 15px; border-radius: 6px;">
-
-          <div style="flex: 1;">
-
-            <label style="display: block; font-size: 11px; margin-bottom: 4px;">Personaje Principal</label>
-
-            <input id="aliasPrimaryInput" type="text" placeholder="Ej. ANDRÉS" style="width: 100%; padding: 8px; background: #111315; border: 1px solid #34383d; color: white; border-radius: 4px;">
-
-          </div>
-
-          <div style="flex: 1;">
-
-            <label style="display: block; font-size: 11px; margin-bottom: 4px;">Alias</label>
-
-            <input id="aliasSecondaryInput" type="text" placeholder="Ej. ANDRÉS (VO)" style="width: 100%; padding: 8px; background: #111315; border: 1px solid #34383d; color: white; border-radius: 4px;">
-
-          </div>
-
-          <button id="addAliasButton" style="padding: 8px 16px; background: #d8a64f; color: #111315; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Agregar</button>
-
-        </div>
-
-      </div>
-
-    </div>
-
-  </div>
-
