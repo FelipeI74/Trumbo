@@ -736,6 +736,7 @@ def list_project_resources(
             SELECT
                 breakdown_items.name,
                 breakdown_items.category,
+                scenes.production_number,
                 scenes.scene_number
             FROM breakdown_items
             JOIN scenes
@@ -748,12 +749,15 @@ def list_project_resources(
         ).fetchall()
 
     grouped: dict[tuple[str, str], dict] = {}
-    seen_in_scene: set[tuple[int, str, str]] = set()
+    seen_in_scene: set[tuple[str, str, str]] = set()
 
     for resource in resource_rows:
         name = str(resource["name"] or "").strip()
         category = str(resource["category"] or "").strip()
-        scene_number = int(resource["scene_number"])
+        
+        # Usamos production_number (87) como prioridad; si está vacío, usamos scene_number (90)
+        scene_number = str(resource["production_number"] or resource["scene_number"]).strip()
+        
         key = (name.casefold(), category.casefold())
         scene_key = (scene_number, *key)
 
@@ -791,8 +795,6 @@ def list_project_resources(
     )
 
     return {"resources": resources}
-
-
 
 @app.get("/api/projects/{project_id}/scheduling-input")
 def get_project_scheduling_input(

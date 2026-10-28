@@ -73,7 +73,7 @@ def get_project_character_names(
 ) -> list[str]:
     """Devuelve una lista limpia y única de personajes conocidos del proyecto."""
     import re
-    
+
     # 1. Primero intentamos leer los personajes de las líneas semánticas (diálogos)
     scene_rows = connection.execute(
         "SELECT semantic_lines FROM scenes WHERE project_id = ?",
@@ -117,12 +117,12 @@ def get_project_character_names(
             """,
             (project_id,),
         ).fetchall()
-        
+
         for row in rows:
             name = row[0]
             if name:
                 # Limpiar: quitar (VO), (O.S.), y dos puntos
-                name = re.sub(r"\s*\(.*?\)", "", name).strip()
+                name = re.sub(r"\s\*\(**.*?**\)", "", name).strip()
                 name = name.rstrip(":").strip()
                 if name:
                     names.add(name.upper())
@@ -148,7 +148,7 @@ def list_project_characters(
         # Traemos no solo las líneas semánticas, sino también el body (la acción)
         scene_rows = connection.execute(
             """
-            SELECT scene_number, semantic_lines, body
+            SELECT production_number, scene_number, semantic_lines, body
             FROM scenes
             WHERE project_id = ?
             ORDER BY scene_number
@@ -186,7 +186,7 @@ def list_project_characters(
             """,
             (project_id,),
         ).fetchall()
-        
+
         if not known_char_rows:
              known_char_rows = connection.execute(
                 """
@@ -203,7 +203,7 @@ def list_project_characters(
     grouped: dict[str, dict] = {}
 
     for scene in scene_rows:
-        scene_number = int(scene["scene_number"])
+        scene_number = str(scene["production_number"] or scene["scene_number"]).strip()
         seen_in_scene: set[str] = set()
 
         # 1. Buscar personajes que HABLAN (semantic_lines)
@@ -216,7 +216,7 @@ def list_project_characters(
                 original_name = personaje["name"]
                 normalized = normalize_name(original_name)
                 name = aliases_map.get(normalized, original_name)
-                
+
                 key = name.casefold()
 
                 if not name or key in seen_in_scene:
@@ -232,24 +232,24 @@ def list_project_characters(
 
         # 2. Buscar personajes que NO HABLAN pero están en la acción (body)
         body_text = str(scene["body"] or "").upper()
-        
+
         for known_name in known_characters:
             if known_name in seen_in_scene:
                 continue
-                
+
             pattern = rf"(?<!\w){re.escape(known_name)}(?!\w)"
             match = re.search(pattern, body_text, re.IGNORECASE)
-            
+
             if match:
                 prefix = body_text[:match.start()].strip().upper()
                 if prefix.endswith("DE") or prefix.endswith("DEL"):
                     continue 
-                
+
                 # Aplicar alias al nombre
                 normalized = normalize_name(known_name)
                 final_name = aliases_map.get(normalized, known_name)
                 key = final_name.casefold()
-                
+
                 if key not in grouped:
                     grouped[key] = {"name": final_name, "scene_numbers": []}
                 if scene_number not in grouped[key]["scene_numbers"]:
@@ -261,7 +261,7 @@ def list_project_characters(
     for char in grouped.values():
         normalized = normalize_name(char["name"])
         primary = aliases_map.get(normalized, char["name"])
-        
+
         if primary not in unified:
             unified[primary] = {
                 "name": primary,
@@ -269,12 +269,22 @@ def list_project_characters(
                 "first_scene": char["scene_numbers"][0] if char["scene_numbers"] else 0,
                 "scene_numbers": [],
             }
-        
+
         unified[primary]["scene_count"] += len(char["scene_numbers"])
         unified[primary]["scene_numbers"].extend(char["scene_numbers"])
-        unified[primary]["scene_numbers"] = sorted(set(unified[primary]["scene_numbers"]))
+        unified[primary]["scene_numbers"] = list(set(unified[primary]["scene_numbers"]))
 
     characters = list(unified.values())
+
+    def sort_key(num_str):
+        match = re.match(r"(\d+)([A-Za-z]*)", str(num_str))
+        if match:
+            return (int(match.group(1)), match.group(2))
+        return (0, str(num_str))
+
+    for char in characters:
+        char["scene_numbers"] = sorted(char["scene_numbers"], key=sort_key)
+
     characters.sort(key=lambda c: c["name"].casefold())
 
     return {"characters": characters}

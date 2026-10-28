@@ -117,7 +117,7 @@ class CharacterAliasesIntegrationTests(unittest.TestCase):
         character = result["characters"][0]
         self.assertEqual(character["name"], "FELIPE AMADO")
         self.assertEqual(character["scene_count"], 2)
-        self.assertEqual(character["scene_numbers"], [1, 2])
+        self.assertEqual(character["scene_numbers"], ["1", "2"])
 
 
 if __name__ == "__main__":

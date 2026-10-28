@@ -1657,7 +1657,7 @@ function setActiveScene(
     });
 
   $("#sceneIdentity").textContent =
-  `ESCENA ${scene.scene_number}`;
+  `ESCENA ${scene.production_number || scene.scene_number}`;
 
   $("#sceneProductionNumber").value =
     scene.production_number || "";
