@@ -1411,3 +1411,21 @@ body.sidebar-collapsed .workspace {
 body.sidebar-collapsed .editor {
   width: 100% !important;
 }
+/* Ocultar footer y toolbar cuando NO estamos en el editor de guion */
+body:has(#productionView:not([hidden])) .scene-footer,
+body:has(#calendarView:not([hidden])) .scene-footer,
+body:has(#productionBreakdownView:not([hidden])) .scene-footer,
+body:has(#scheduleView:not([hidden])) .scene-footer,
+body:has(#reportsView:not([hidden])) .scene-footer,
+body:has(#characterDetailView:not([hidden])) .scene-footer {
+    display: none !important;
+}
+
+body:has(#productionView:not([hidden])) .editor-toolbar,
+body:has(#calendarView:not([hidden])) .editor-toolbar,
+body:has(#productionBreakdownView:not([hidden])) .editor-toolbar,
+body:has(#scheduleView:not([hidden])) .editor-toolbar,
+body:has(#reportsView:not([hidden])) .editor-toolbar,
+body:has(#characterDetailView:not([hidden])) .editor-toolbar {
+    display: none !important;
+}

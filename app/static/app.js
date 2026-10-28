@@ -741,6 +741,12 @@ async function loadSchedulePreview() {
   }
 
   const projectId = Number(state.project.id);
+
+  // CACHÉ: Si el plan ya está cargado para este proyecto, no volver a pedirlo
+  if (state.scheduleLoaded && state.scheduleProjectId === projectId && !state.scheduleOrderDirty) {
+      return;
+  }
+
   const requestToken = ++state.scheduleRequestToken;
   state.scheduleProjectId = projectId;
   state.scheduleShootRateSeconds = 420;

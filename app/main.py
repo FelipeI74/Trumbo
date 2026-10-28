@@ -816,62 +816,39 @@ def get_project_schedule_preview(
             "shoot_rate_seconds debe estar entre 1 y 3600",
         )
 
-    scheduling_input = _build_project_scheduling_input(
-        project_id
-    )
-
-    calculated = optimize_schedule(
-        scheduling_input["scenes"],
-        shoot_rate_seconds=shoot_rate_seconds,
-    )
-    fingerprint = _schedule_input_fingerprint(
-        scheduling_input["scenes"],
-        shoot_rate_seconds,
-    )
-
+    # 1. PRIMERO: Miramos si hay un plan guardado.
+    # Si lo hay, lo devolvemos INMEDIATAMENTE sin ejecutar CP-SAT.
     with connect() as connection:
         stored = connection.execute(
             """
-            SELECT days_json, input_fingerprint
+            SELECT days_json
             FROM schedule_manual_orders
             WHERE project_id = ?
             """,
             (project_id,),
         ).fetchone()
 
-    if stored is None or stored["input_fingerprint"] != fingerprint:
-        return calculated
+    if stored is not None:
+        try:
+            manual_days = json.loads(stored["days_json"])
+            return {
+                "best_schedule": {
+                    "days": manual_days,
+                },
+                "engine": "manual",
+                "fallback_used": False,
+            }
+        except (json.JSONDecodeError, TypeError):
+            # Si el JSON está corrupto, seguimos abajo y recalculamos
+            pass
 
-    try:
-        manual_days = json.loads(stored["days_json"])
-    except (json.JSONDecodeError, TypeError):
-        return calculated
-
-    validated_days = _validate_manual_schedule_days(
-        manual_days,
-        calculated.get("best_schedule", {}).get("days"),
+    # 2. Si no hay plan guardado, calculamos con CP-SAT.
+    scheduling_input = _build_project_scheduling_input(project_id)
+    calculated = optimize_schedule(
         scheduling_input["scenes"],
+        shoot_rate_seconds=shoot_rate_seconds,
     )
-    if validated_days is None:
-        return calculated
-
-    return {
-        **calculated,
-        "best_schedule": {
-            **calculated["best_schedule"],
-            "days": [
-                {
-                    **calculated_day,
-                    "scene_ids": manual_day["scene_ids"],
-                }
-                for calculated_day, manual_day in zip(
-                    calculated["best_schedule"]["days"],
-                    validated_days,
-                )
-            ],
-        },
-    }
-
+    return calculated
 
 @app.put("/api/projects/{project_id}/schedule-manual-order")
 def save_project_schedule_manual_order(

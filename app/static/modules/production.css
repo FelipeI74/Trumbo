@@ -1,114 +1,339 @@
-/* --- ESTILOS DEL STRIPBOARD --- */
+/* =========================================================
+   ADÜMN — STRIPBOARD / PLAN DE RODAJE
+   Layout principal, scroll interno y colores de producción
+   ========================================================= */
 
-/* Aseguramos que la vista se oculte si tiene el atributo hidden */
+/* Vista de producción */
 .production-view[hidden] {
-  display: none !important;
+    display: none !important;
 }
 
-.production-view {
-  height: 100%;
-  display: flex;
-  background: #111315;
-  color: #f4f0e8;
-  overflow: hidden;
+.production-view,
+#productionView {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: #111315;
+    color: #f4f0e8;
+    overflow: hidden;
+    box-sizing: border-box;
 }
 
+/* Contenedor maestro */
+.stripboard-wrapper {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: #111315;
+    box-sizing: border-box;
+}
+
+/* Barra superior */
+.stripboard-topbar {
+    display: flex;
+    flex: 0 0 auto;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 24px;
+    background: #1a1d20;
+    border-bottom: 1px solid #34383d;
+    box-sizing: border-box;
+}
+
+.stripboard-topbar h2 {
+    margin: 0;
+    font-size: 16px;
+    color: #f4f0e8;
+}
+
+/* Botón de fijar plan */
+.btn-primary {
+    flex: 0 0 auto;
+    background: #d8a64f;
+    color: #111315;
+    border: none;
+    padding: 8px 16px;
+    font-weight: bold;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-primary:disabled {
+    background: #666;
+    cursor: not-allowed;
+}
+
+/* Contenedor horizontal: pool + días */
 .stripboard-container {
-  display: flex;
-  width: 100%;
-  height: 100%;
-  gap: 20px;
-  padding: 20px;
-  box-sizing: border-box;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+    box-sizing: border-box;
 }
 
-/* Panel Izquierdo: Escenas sin asignar */
+/* Pool: escenas sin asignar */
 .stripboard-pool {
-  flex: 0 0 320px;
-  background: #1a1d20;
-  border: 1px solid #34383d;
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  padding: 15px;
-  overflow-y: auto;
+    display: flex;
+    flex: 0 0 280px;
+    flex-direction: column;
+    width: 280px;
+    min-width: 280px;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #111315;
+    border-right: 1px solid #34383d;
+    box-sizing: border-box;
 }
 
 .stripboard-pool h2 {
-  font-size: 16px;
-  margin-top: 0;
-  margin-bottom: 15px;
-  color: #d8a64f;
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 16px 16px 12px;
+    color: #d8a64f;
+    font-size: 16px;
+    line-height: 1.4;
 }
 
-/* Panel Derecho: Días de rodaje */
+/* Scroll vertical exclusivo del pool */
+#pool-cards {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    min-height: 0;
+    padding: 0 12px 16px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-gutter: stable;
+    box-sizing: border-box;
+}
+
+/* Zona derecha: scroll horizontal de días */
 .stripboard-days {
-  flex: 1;
-  display: flex;
-  gap: 15px;
-  overflow-x: auto;
-  padding-bottom: 15px;
+    display: flex;
+    flex: 1 1 0%;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 16px;
+    width: 0;
+    min-width: 0;
+    min-height: 0;
+    padding: 16px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-gutter: stable;
+    box-sizing: border-box;
+    scroll-behavior: smooth;
 }
 
+/* Columna de un día de rodaje */
 .strip-day {
-  flex: 0 0 260px;
-  background: #1a1d20;
-  border: 1px solid #34383d;
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  padding: 15px;
-  min-height: 400px;
+    display: flex;
+    flex: 0 0 330px;
+    flex-direction: column;
+    width: 330px;
+    min-width: 330px;
+    min-height: 0;
+    overflow: hidden;
+    background: #1a1d20;
+    border: 1px solid #34383d;
+    border-radius: 8px;
+    box-sizing: border-box;
 }
 
+/* Encabezado del día */
 .strip-day-header {
-  font-size: 16px;
-  font-weight: bold;
-  margin-bottom: 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #34383d;
-  color: #d8a64f;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid #34383d;
+    color: #d8a64f;
+    font-size: 16px;
+    font-weight: bold;
+    box-sizing: border-box;
 }
 
+/* Estadísticas del día */
 .strip-day-stats {
-  font-size: 11px;
-  color: #9da3a9;
-  margin-bottom: 15px;
+    flex: 0 0 auto;
+    padding: 8px 16px;
+    margin: 0;
+    color: #9da3a9;
+    font-size: 12px;
+    box-sizing: border-box;
 }
 
-/* Las Tarjetas (Tiras de producción) */
+/* Scroll vertical independiente de las tarjetas de cada día */
+.strip-day-cards {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    min-width: 0;
+    min-height: 0;
+    padding: 8px 12px 16px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-gutter: stable;
+    box-sizing: border-box;
+}
+
+/* Tarjetas de escenas */
 .strip-card {
-  padding: 10px;
-  border-radius: 4px;
-  margin-bottom: 8px;
-  cursor: grab;
-  font-size: 12px;
-  color: #111315;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-  transition: transform 0.1s;
+    display: block;
+    flex: 0 0 auto;
+    min-width: 0;
+    padding: 10px;
+    margin: 0;
+    border: 1px solid transparent;
+    border-left: 4px solid rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    cursor: grab;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #111315;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    overflow-wrap: anywhere;
+    box-sizing: border-box;
+    transition: transform 0.1s, box-shadow 0.1s;
 }
 
 .strip-card:active {
-  cursor: grabbing;
-  transform: scale(0.98);
+    cursor: grabbing;
+    transform: scale(0.98);
 }
 
-/* Colores de la Industria */
-.strip-card.int-day { background: #f4f0e8; }       /* Blanco */
-.strip-card.int-night { background: #6fa8dc; }     /* Azul */
-.strip-card.ext-day { background: #ffe599; }       /* Amarillo */
-.strip-card.ext-night { background: #93c47d; }     /* Verde */
-
 .strip-card-header {
-  font-weight: bold;
-  font-size: 13px;
-  margin-bottom: 4px;
+    margin-bottom: 4px;
+    font-size: 13px;
+    font-weight: bold;
 }
 
 .strip-card-body {
-  font-size: 11px;
-  opacity: 0.8;
+    font-size: 11px;
+    line-height: 1.4;
+    opacity: 0.85;
+}
+
+/* =========================================================
+   COLORES DE INDUSTRIA — STRIPBOARD
+   ========================================================= */
+
+/* INT / DÍA — Blanco */
+.strip-card.int-day {
+    background-color: #f4f0e8;
+    color: #111315;
+}
+
+/* EXT / DÍA — Amarillo */
+.strip-card.ext-day {
+    background-color: #ffe599;
+    color: #111315;
+}
+
+/* INT / NOCHE — Azul */
+.strip-card.int-night {
+    background-color: #6fa8dc;
+    color: #111315;
+}
+
+/* EXT / NOCHE — Verde */
+.strip-card.ext-night {
+    background-color: #93c47d;
+    color: #111315;
+}
+
+/* Escenas sin clasificación */
+.strip-card.scene-unclassified,
+.strip-card.scene-unclassified.ext-day,
+.strip-card.scene-unclassified.int-day,
+.strip-card.scene-unclassified.ext-night,
+.strip-card.scene-unclassified.int-night {
+    background-color: #333;
+    border-color: #555;
+    border-left-color: #777;
+    color: #ccc;
+}
+
+/* Mensajes de pool vacío o día sin escenas */
+.stripboard-pool #pool-cards > div:not(.strip-card),
+.strip-day-cards > div:not(.strip-card) {
+    flex: 0 0 auto;
+}
+
+/* Scrollbars */
+#pool-cards::-webkit-scrollbar,
+.strip-day-cards::-webkit-scrollbar,
+.stripboard-days::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+#pool-cards::-webkit-scrollbar-track,
+.strip-day-cards::-webkit-scrollbar-track,
+.stripboard-days::-webkit-scrollbar-track {
+    background: #111315;
+}
+
+#pool-cards::-webkit-scrollbar-thumb,
+.strip-day-cards::-webkit-scrollbar-thumb,
+.stripboard-days::-webkit-scrollbar-thumb {
+    background: #555b61;
+    border-radius: 4px;
+}
+
+#pool-cards::-webkit-scrollbar-thumb:hover,
+.strip-day-cards::-webkit-scrollbar-thumb:hover,
+.stripboard-days::-webkit-scrollbar-thumb:hover {
+    background: #737a82;
+}
+
+/* Pantallas más pequeñas */
+@media (max-width: 768px) {
+    .stripboard-topbar {
+        padding: 10px 12px;
+    }
+
+    .stripboard-pool {
+        flex-basis: 230px;
+        width: 230px;
+        min-width: 230px;
+    }
+
+    .stripboard-days {
+        gap: 12px;
+        padding: 12px;
+    }
+
+    .strip-day {
+        flex-basis: 280px;
+        width: 280px;
+        min-width: 280px;
+    }
 }

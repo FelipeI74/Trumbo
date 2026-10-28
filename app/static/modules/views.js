@@ -14,11 +14,15 @@ document.addEventListener("click", (event) => {
   if (prodView) prodView.hidden = true;
   if (calView) calView.hidden = true;
 
+  // Referencias a los elementos que queremos controlar
+  const footer = document.querySelector(".scene-footer");
+  const toolbar = document.querySelector(".editor-toolbar");
+
   // 2. Si el clic fue en "guion", restauramos el editor clásico
   if (view === "guion") {
     document.getElementById("screenplayViewport").hidden = false;
-    document.querySelector(".editor-toolbar").hidden = false;
-    document.querySelector(".scene-footer").hidden = false;
+    if (toolbar) toolbar.hidden = false;
+    if (footer) footer.hidden = false;
     return; // Terminamos aquí para no ocultar el editor
   }
 
@@ -33,8 +37,15 @@ document.addEventListener("click", (event) => {
     document.getElementById("characterDetailView").hidden = true;
     
     // Ocultar toolbar y footer
-    document.querySelector(".editor-toolbar").hidden = true;
-    document.querySelector(".scene-footer").hidden = true;
+    if (toolbar) toolbar.hidden = true;
+    if (footer) footer.hidden = true;
+
+    // Forzar que se oculten después de que app.js termine su ciclo,
+    // porque app.js vuelve a mostrarlos si detecta que está en "guion".
+    setTimeout(() => {
+        if (footer) footer.hidden = true;
+        if (toolbar) toolbar.hidden = true;
+    }, 0);
 
     // Mostrar la vista que corresponda
     if (view === "produccion") {
