@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ADÜMN V1.1</title>
+  <title>ADÜMN Alpha 0.3</title>
   
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="stylesheet" href="/static/modules/production.css">
-
+  
   <style>
     .production-breakdown-view { height: 100%; overflow: auto; padding: 28px 32px 48px; background: #111315; color: #f4f0e8; }
     .production-breakdown-header { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #34383d; }
@@ -39,6 +39,27 @@
 
     .calendar-view { height: 100%; overflow: auto; padding: 32px 40px 60px; background: #111315; color: #f4f0e8; }
 
+    /* Botones de proyecto: igualados en tamaño y alineación */
+    .topbar-project-row .project-action-btn {
+      height: 28px;
+      width: 28px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+    .topbar-project-row #newProjectButton { background: #d8a64f; color: #111315; }
+    .topbar-project-row #newProjectButton:hover { background: #e8b85f; }
+    .topbar-project-row #deleteProjectButton { background: #b91c1c; color: #ffffff; }
+    .topbar-project-row #deleteProjectButton:hover { background: #dc2626; }
+
     @media (max-width: 900px) { .production-breakdown-groups { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -47,16 +68,16 @@
 
   <header class="topbar">
     <div class="topbar-brand" style="display: flex; align-items: center;">
-      <img src="/static/img/logo-adumn.png" alt="ADÜMN" style="height: 60px; width: auto; margin-left: 10px;">
+      <img src="/static/img/logo-adumn.png" alt="ADÜMN" style="height: 110px; width: auto; margin-left: 10px;">
     </div>
     <button id="toggleSidebarButton" title="Mostrar u ocultar panel de escenas" style="background: none; border: 1px solid #34383d; color: #f4f0e8; border-radius: 4px; padding: 5px 10px; cursor: pointer; margin-right: 15px; margin-left: 10px; font-size: 18px;">☰</button>
     
     <div class="topbar-group">
-      <span class="topbar-label">Proyecto</span>
-      <div class="topbar-project-row">
+      <span class="topbar-label" style="text-transform: uppercase; font-weight: bold; letter-spacing: 0.05em; color: #d8a64f;">Proyecto</span>
+      <div class="topbar-project-row" style="display: flex; align-items: center; gap: 6px;">
         <select id="projectSelect" aria-label="Proyecto"></select>
-        <button id="newProjectButton" title="Nuevo proyecto">+</button>
-        <button id="deleteProjectButton" title="Eliminar proyecto actual" style="background: #b91c1c; color: white; border: none; border-radius: 4px; padding: 0 8px; cursor: pointer;">×</button>
+        <button id="newProjectButton" class="project-action-btn" title="Nuevo proyecto" aria-label="Nuevo proyecto">+</button>
+        <button id="deleteProjectButton" class="project-action-btn" title="Eliminar proyecto actual" aria-label="Eliminar proyecto actual">×</button>
       </div>
     </div>
     <span id="saveState">Guardado</span>
@@ -106,11 +127,11 @@
         <ul class="col-left-list">
           <li class="col-left-item">Configuración</li>
           <li class="col-left-item">Equipos</li>
-          <li class="col-left-item">Calendario</li>
+          <li class="col-left-item" id="sidebarCalendarButton">Calendario</li>
           <li class="col-left-item">Notas del proyecto</li>
         </ul>
       </div>
-      <div class="col-left-footer">ADÜMN V 1.1 • Local</div>
+      <div class="col-left-footer">v0.3.0 • Local</div>
     </aside>
 
     <aside class="sidebar">
@@ -177,8 +198,8 @@
         <div id="scheduleDays" class="schedule-days"></div>
       </section>
 
-      <!-- VISTA PRODUCCIÓN (SIN HIDDEN) -->
-      <section id="productionView" class="production-view" aria-label="Tablero de Producción">
+      <!-- VISTA PRODUCCIÓN -->
+      <section id="productionView" class="production-view" hidden aria-label="Tablero de Producción">
         <div id="stripboard-root"></div>
       </section>
 
@@ -239,7 +260,11 @@
       </section>
 
       <div id="characterDetailView" hidden></div>
-      <div class="scene-footer">
+
+      <!-- Barra de duración: solo visible en la vista "Guion".
+           La controla app.js (setMainView). Por defecto arranca visible
+           porque la vista inicial es "guion". -->
+      <div class="scene-footer" data-visible-in="guion">
         <span>Duración de escena activa</span>
         <strong id="sceneRuntime">00:00</strong>
       </div>
@@ -329,6 +354,7 @@
     </div>
   </div>
 
+  <!-- MODAL DE ALIASES -->
   <div id="aliasesModal" class="modal-overlay" hidden>
     <div class="modal-content">
       <header class="modal-header">
@@ -355,9 +381,10 @@
 
   <div id="autocompleteMenu" class="autocomplete-menu" hidden></div>
 
-  <!-- SCRIPTS -->
-  <script src="/static/app.js"></script>
+  <!-- SCRIPTS: El orden importa. Primero los módulos, luego app.js -->
   <script src="/static/modules/production.js"></script>
   <script src="/static/modules/calendar.js"></script>
+  <script src="/static/modules/views.js"></script>
+  <script src="/static/app.js"></script>
 </body>
 </html>

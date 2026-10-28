@@ -1,0 +1,114 @@
+/* --- ESTILOS DEL STRIPBOARD --- */
+
+/* Aseguramos que la vista se oculte si tiene el atributo hidden */
+.production-view[hidden] {
+  display: none !important;
+}
+
+.production-view {
+  height: 100%;
+  display: flex;
+  background: #111315;
+  color: #f4f0e8;
+  overflow: hidden;
+}
+
+.stripboard-container {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  gap: 20px;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+/* Panel Izquierdo: Escenas sin asignar */
+.stripboard-pool {
+  flex: 0 0 320px;
+  background: #1a1d20;
+  border: 1px solid #34383d;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  padding: 15px;
+  overflow-y: auto;
+}
+
+.stripboard-pool h2 {
+  font-size: 16px;
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #d8a64f;
+}
+
+/* Panel Derecho: Días de rodaje */
+.stripboard-days {
+  flex: 1;
+  display: flex;
+  gap: 15px;
+  overflow-x: auto;
+  padding-bottom: 15px;
+}
+
+.strip-day {
+  flex: 0 0 260px;
+  background: #1a1d20;
+  border: 1px solid #34383d;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  padding: 15px;
+  min-height: 400px;
+}
+
+.strip-day-header {
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #34383d;
+  color: #d8a64f;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.strip-day-stats {
+  font-size: 11px;
+  color: #9da3a9;
+  margin-bottom: 15px;
+}
+
+/* Las Tarjetas (Tiras de producción) */
+.strip-card {
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  cursor: grab;
+  font-size: 12px;
+  color: #111315;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  transition: transform 0.1s;
+}
+
+.strip-card:active {
+  cursor: grabbing;
+  transform: scale(0.98);
+}
+
+/* Colores de la Industria */
+.strip-card.int-day { background: #f4f0e8; }       /* Blanco */
+.strip-card.int-night { background: #6fa8dc; }     /* Azul */
+.strip-card.ext-day { background: #ffe599; }       /* Amarillo */
+.strip-card.ext-night { background: #93c47d; }     /* Verde */
+
+.strip-card-header {
+  font-weight: bold;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.strip-card-body {
+  font-size: 11px;
+  opacity: 0.8;
+}

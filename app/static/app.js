@@ -1,1792 +1,897 @@
 const state = {
-
   projects: [],
-
   project: null,
-
   document: null,
-
   documentLines: [],
-
   scenes: [],
-
   activeSceneId: null,
 
-
-
   // Cada escena administra su propio guardado.
-
   saveTimers: new Map(),
-
   saveRevisions: new Map(),
-
   savingScenes: new Set(),
-
-
 
   analysisTimer: null,
 
-
-
   activeLine: null,
-
   lineSelectionDrag: null,
-
   suppressLineSelectionClick: false,
-
   scheduleRequestToken: 0,
-
   scheduleProjectId: null,
-
   scheduleShootRateSeconds: 420,
-
   scheduleOrderDirty: false,
-
   scheduleOrderBusy: false,
-
   scheduleLoaded: false,
-
   isRendering: false,
-
   isHydratingScenesFromDocument: false,
-
   isReconcilingScenes: false,
-
   reconcileTimer: null,
-
   pendingReconcile: false,
-
   lineTypeSelectorPointerDown: false,
-
   activeMainView: "guion",
-
 };
-
-
 
 const LINE_TYPES = [
-
   "heading",
-
   "action",
-
   "character",
-
   "parenthetical",
-
   "dialogue",
-
   "transition",
-
 ];
 
-
-
 const LINE_LABELS = {
-
   heading: "ENCABEZADO",
-
   action: "ACCIÓN",
-
   character: "PERSONAJE",
-
   parenthetical: "PARENTÉTICO",
-
   dialogue: "DIÁLOGO",
-
   transition: "TRANSICIÓN",
-
 };
-
-
 
 const TAB_FORWARD = {
-
   heading: "action",
-
   action: "character",
-
   character: "parenthetical",
-
   parenthetical: "dialogue",
-
   dialogue: "transition",
-
   transition: "heading",
-
 };
-
-
 
 const TAB_BACKWARD = {
-
   heading: "transition",
-
   action: "heading",
-
   character: "action",
-
   parenthetical: "character",
-
   dialogue: "parenthetical",
-
   transition: "dialogue",
-
 };
-
-
 
 const LINE_TYPE_SELECTOR = true;
 
-
-
 const LINE_TYPE_SELECTOR_OPTIONS = [
-
   {
-
     value: "heading",
-
     label: "ENCABEZADO",
-
   },
-
   {
-
     value: "action",
-
     label: "ACCIÓN",
-
   },
-
   {
-
     value: "character",
-
     label: "PERSONAJE",
-
   },
-
   {
-
     value: "dialogue",
-
     label: "DIÁLOGO",
-
   },
-
   {
-
     value: "parenthetical",
-
     label: "PARÉNTESIS",
-
   },
-
   {
-
     value: "transition",
-
     label: "TRANSICIÓN",
-
   },
-
 ];
-
-
 
 const $ = selector => document.querySelector(selector);
 
-
-
 const HEADING_PREFIX_REGEX =
-
   /^(INT\.|EXT\.|INT\/EXT\.|I\/E\.)\s*/i;
 
-
-
 const HEADING_TOKEN_ONLY_REGEX =
-
   /^(INT\.|EXT\.|INT\/EXT\.|I\/E\.)$/i;
 
-
-
 const HEADING_COMPLETE_REGEX =
-
   /^(INT\.|EXT\.|INT\/EXT\.|I\/E\.)\s*.+/i;
 
-
-
 const TRANSITION_IN_REGEX =
-
   /^FADE IN:$/i;
 
-
-
 const TRANSITION_OUT_REGEX =
-
   /^(CUT TO:|FADE OUT:|MATCH CUT:|SMASH CUT:|JUMP CUT:|DISSOLVE TO:|WIPE TO:|CORTE A:|FUNDIDO A:|DISOLVENCIA A:)$/i;
 
-
-
 function escapeHtml(value) {
-
   return String(value ?? "")
-
     .replaceAll("&", "&amp;")
-
     .replaceAll("<", "&lt;")
-
     .replaceAll(">", "&gt;")
-
     .replaceAll('"', "&quot;")
-
     .replaceAll("'", "&#039;");
-
 }
-
-
 
 function isHeadingPrefixText(value) {
-
   return HEADING_PREFIX_REGEX.test(
-
     String(value || "").trim()
-
   );
-
 }
-
-
 
 function isHeadingTokenOnly(value) {
-
   return HEADING_TOKEN_ONLY_REGEX.test(
-
     String(value || "").trim()
-
   );
-
 }
-
-
 
 function isCompleteHeadingText(value) {
-
   const text = String(value || "").trim();
 
-
-
   return (
-
     HEADING_COMPLETE_REGEX.test(text) &&
-
     !isHeadingTokenOnly(text)
-
   );
-
 }
-
-
 
 function isValidSceneHeadingText(value) {
-
   const text = String(value || "").trim();
-
-
 
   if (!text) {
-
     return false;
-
   }
 
-
-
   return isHeadingPrefixText(text);
-
 }
-
-
 
 function isTransitionText(value) {
-
   const text = String(value || "").trim();
 
-
-
   return (
-
     TRANSITION_IN_REGEX.test(text) ||
-
     TRANSITION_OUT_REGEX.test(text)
-
   );
-
 }
-
-
 
 function formatSeconds(total = 0) {
-
   const safeTotal = Number.isFinite(Number(total)) ? Number(total) : 0;
-
   const minutes = Math.floor(safeTotal / 60).toString().padStart(2, "0");
-
   const seconds = Math.floor(safeTotal % 60).toString().padStart(2, "0");
 
-
-
   return `${minutes}:${seconds}`;
-
 }
 
-
-
 /* =====================================================================
-
  * Autocompletado de línea (encabezados y personajes)
-
  * ---------------------------------------------------------------------
-
  * Muestra una lista flotante debajo de la línea mientras se escribe.
-
  * Se navega con ↑ ↓, se acepta con Enter/Tab, se cierra con Escape.
-
  * Nunca modifica el texto sin elección del usuario.
-
  * ===================================================================== */
 
-
-
 (function injectLineSuggestStyles() {
-
   const style = document.createElement("style");
-
   style.textContent = `
-
     .adumn-line-suggest {
-
       position: absolute;
-
       z-index: 9999;
-
       background: #ffffff;
-
       color: #111111;
-
       border: 1px solid #cccccc;
-
       border-radius: 4px;
-
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-
       max-height: 220px;
-
       overflow-y: auto;
-
       font-family: inherit;
-
       font-size: 13px;
-
       min-width: 160px;
-
       padding: 4px 0;
-
       user-select: none;
-
     }
-
     .adumn-line-suggest[hidden] {
-
       display: none;
-
     }
-
     .adumn-line-suggest-item {
-
       padding: 5px 12px;
-
       cursor: pointer;
-
       white-space: nowrap;
-
     }
-
     .adumn-line-suggest-item.active,
-
     .adumn-line-suggest-item:hover {
-
       background: #f0f0f0;
-
     }
-
   `;
-
   (document.head || document.documentElement).appendChild(style);
-
 })();
-
-
 
 let lineSuggestEl = null;
 
-
-
 const lineSuggestState = {
-
   line: null,
-
   items: [],
-
   index: 0,
-
 };
 
-
-
 function ensureLineSuggestEl() {
-
   if (lineSuggestEl) {
-
     return lineSuggestEl;
-
   }
 
-
-
   lineSuggestEl = document.createElement("div");
-
   lineSuggestEl.className = "adumn-line-suggest";
-
   lineSuggestEl.hidden = true;
 
-
-
   lineSuggestEl.addEventListener(
-
     "mousedown",
-
     event => {
-
       const item = event.target.closest("[data-suggest-index]");
 
-
-
       if (!item) {
-
         return;
-
       }
 
-
-
       event.preventDefault();
-
       lineSuggestState.index = Number(item.dataset.suggestIndex);
-
       applyLineSuggestion();
-
     }
-
   );
-
-
 
   (document.body || document.documentElement).appendChild(lineSuggestEl);
 
-
-
   return lineSuggestEl;
-
 }
 
-
-
 function getKnownLocationsFromScenes() {
-
   const set = new Set();
 
-
-
   for (const scene of state.scenes || []) {
-
     const heading = String(scene.heading || "").trim();
 
-
-
     if (!heading) {
-
       continue;
-
     }
 
-
-
     const stripped = heading.replace(
-
       /^(INT\.|EXT\.|INT\/EXT\.|I\/E\.)\s*/i,
-
       ""
-
     );
-
-
 
     const parts = stripped.split(/\s*-\s*/);
 
-
-
     for (const part of parts) {
-
       const cleaned = part.trim();
 
-
-
       if (cleaned && cleaned.length < 40) {
-
         set.add(cleaned.toUpperCase());
-
       }
-
     }
-
   }
 
-
-
   return [...set].sort();
-
 }
-
-
 
 function getKnownCharactersFromScenes() {
-
   const set = new Set();
 
-
-
   for (const scene of state.scenes || []) {
-
     const lines = Array.isArray(scene.semantic_lines)
-
       ? scene.semantic_lines
-
       : [];
 
-
-
     for (const line of lines) {
-
       if (!line || line.type !== "character") {
-
         continue;
-
       }
-
-
 
         const name = String(line.text || "")
-
         .replace(/\s*\(.*$/, "")
-
         .trim();
 
-
-
       if (name) {
-
         set.add(name.toUpperCase());
-
       }
-
     }
-
   }
-
-
 
   return [...set].sort();
-
 }
 
-
-
 function computeSuggestionsFor(line) {
-
   const type = getLineType(line);
-
   const text = String(line.textContent || "").toUpperCase();
 
-
-
   if (type === "heading") {
-
     const fixed = [
-
       "INT.",
-
       "EXT.",
-
       "INT/EXT.",
-
       "I/E.",
-
       "DÍA",
-
       "NOCHE",
-
       "AMANECER",
-
       "ATARDECER",
-
       "TARDE",
-
     ];
 
-
-
     const locations = getKnownLocationsFromScenes();
-
     const all = [...fixed, ...locations];
 
-
-
     const tokens = text.split(/\s+/).filter(Boolean);
-
     const last = tokens[tokens.length - 1] || "";
 
-
-
     if (!last) {
-
       return all.slice(0, 10);
-
     }
-
-
 
     return all
-
       .filter(
-
         suggestion =>
-
           suggestion.toUpperCase().startsWith(last) &&
-
           suggestion.toUpperCase() !== last
-
       )
-
       .slice(0, 8);
-
   }
 
-
-
      if (type === "character") {
-
     const characters = getKnownCharactersFromScenes();
 
-
-
     // El autocompletado actúa solo sobre el nombre del personaje.
-
     // Si el usuario ya abrió un paréntesis —(VO), (O.S.), (CONT'D),
-
     // o cualquier otro atributo— no se muestran más sugerencias.
-
     // Así, escribir un atributo no interfiere con el nombre, y
-
     // presionar Enter crea la siguiente línea en lugar de aceptar
-
     // una sugerencia por accidente.
-
     const parenIndex = text.indexOf("(");
 
-
-
     if (parenIndex >= 0) {
-
       return [];
-
     }
-
-
 
     const namePart = text.trim();
 
-
-
     if (!namePart) {
-
       return characters.slice(0, 10);
-
     }
 
-
-
     return characters
-
       .filter(
-
         character =>
-
           character.startsWith(namePart) &&
-
           character !== namePart
-
       )
-
       .slice(0, 8);
-
   }
-
-
 
   return [];
-
 }
-
-
 
 function renderLineSuggestions() {
-
   if (!lineSuggestEl) {
-
     return;
-
   }
-
-
 
   lineSuggestEl.innerHTML = lineSuggestState.items
-
     .map(
-
       (item, index) => `
-
         <div
-
           class="adumn-line-suggest-item${
-
             index === lineSuggestState.index ? " active" : ""
-
           }"
-
           data-suggest-index="${index}"
-
         >
-
           ${escapeHtml(item)}
-
         </div>
-
       `
-
     )
-
     .join("");
-
 }
 
-
-
 function positionLineSuggestions(line) {
-
   if (!lineSuggestEl || !line) {
-
     return;
-
   }
-
-
 
   const rect = line.getBoundingClientRect();
 
-
-
   lineSuggestEl.style.left =
-
     `${rect.left + window.scrollX}px`;
 
-
-
   lineSuggestEl.style.top =
-
     `${rect.bottom + window.scrollY + 4}px`;
-
 }
 
-
-
 function showLineSuggestions(line) {
-
   if (!line) {
-
     hideLineSuggestions();
-
     return;
-
   }
-
-
 
   const items = computeSuggestionsFor(line);
 
-
-
   if (!items.length) {
-
     hideLineSuggestions();
-
     return;
-
   }
-
-
 
   ensureLineSuggestEl();
 
-
-
   lineSuggestState.line = line;
-
   lineSuggestState.items = items;
-
   lineSuggestState.index = 0;
-
-
 
   renderLineSuggestions();
-
   positionLineSuggestions(line);
 
-
-
   lineSuggestEl.hidden = false;
-
 }
-
-
 
 function hideLineSuggestions() {
-
   if (lineSuggestEl) {
-
     lineSuggestEl.hidden = true;
-
   }
-
-
 
   lineSuggestState.line = null;
-
   lineSuggestState.items = [];
-
   lineSuggestState.index = 0;
-
 }
 
-
-
 function moveLineSuggestions(delta) {
-
   if (!lineSuggestState.items.length) {
-
     return;
-
   }
-
-
 
   const length = lineSuggestState.items.length;
 
-
-
   lineSuggestState.index =
-
     (lineSuggestState.index + delta + length) % length;
 
-
-
   renderLineSuggestions();
-
 }
 
-
-
 function getCaretOffsetWithin(line) {
-
   const selection = window.getSelection();
 
-
-
   if (
-
     !selection ||
-
     !selection.rangeCount ||
-
     !line
-
   ) {
-
     return (line?.textContent || "").length;
-
   }
-
-
 
   const range = selection.getRangeAt(0);
 
-
-
   if (!line.contains(range.startContainer)) {
-
     return (line.textContent || "").length;
-
   }
-
-
 
   const probe = document.createRange();
 
-
-
   probe.selectNodeContents(line);
-
   probe.setEnd(range.startContainer, range.startOffset);
 
-
-
   return probe.toString().length;
-
 }
 
-
-
 function applyLineSuggestion() {
-
   const line = lineSuggestState.line;
-
   const suggestion =
-
     lineSuggestState.items[lineSuggestState.index];
 
-
-
   if (!line || !suggestion) {
-
     hideLineSuggestions();
-
     return false;
-
   }
 
-
-
   const type = getLineType(line);
-
   const fullText = String(line.textContent || "");
-
-
 
   let newText;
 
-
-
     if (type === "character") {
-
     // Conservar todo lo que el usuario haya escrito desde el primer "(",
-
     // esté cerrado o no. Solo se reemplaza el nombre del personaje.
-
     const parenIndex = fullText.indexOf("(");
 
-
-
     if (parenIndex >= 0) {
-
       const suffix = fullText.slice(parenIndex).trim();
-
       newText = `${suggestion} ${suffix}`;
-
     } else {
-
       newText = suggestion;
-
     }
-
   } else if (type === "heading") {
-
     // Reemplazar únicamente el segmento que se está escribiendo:
-
     // después del prefijo INT./EXT./INT\/EXT./I\/E. y después del último " - ".
-
     const cursor = getCaretOffsetWithin(line);
-
     const before = fullText.slice(0, cursor);
-
     const after = fullText.slice(cursor);
-
-
 
     const prefixMatch = before.match(
-
       /^(INT\.|EXT\.|INT\/EXT\.|I\/E\.)\s+/i
-
     );
-
     const afterPrefixIndex = prefixMatch
-
       ? prefixMatch[0].length
-
       : 0;
 
-
-
     const afterPrefix = before.slice(afterPrefixIndex);
-
     const lastSepMatch = afterPrefix.match(/.*\s-\s/);
-
     const segmentStart = lastSepMatch
-
       ? afterPrefixIndex + lastSepMatch[0].length
-
       : afterPrefixIndex;
 
-
-
     newText =
-
       before.slice(0, segmentStart) +
-
       suggestion +
-
       after;
-
   } else {
-
     const cursor = getCaretOffsetWithin(line);
-
     const before = fullText.slice(0, cursor);
-
     const after = fullText.slice(cursor);
 
-
-
     const beforeMatch = before.match(/\S*$/);
-
     const currentWordBefore = beforeMatch ? beforeMatch[0] : "";
-
     const beforeWithoutWord = before.slice(
-
       0,
-
       before.length - currentWordBefore.length
-
     );
 
-
-
     newText = beforeWithoutWord + suggestion + after;
-
   }
 
-
-
   line.textContent = newText;
-
   placeCaretAtEnd(line);
-
-
 
   hideLineSuggestions();
 
-
-
   const sceneNode = line.closest(".script-scene");
 
-
-
   // Mismas actualizaciones que una edición normal:
-
   // heading en memoria, delimitador, reconciliación diferida y guardado.
-
   updateSceneHeadingFromDom(sceneNode);
-
-
 
   scheduleSceneSave(sceneNode);
 
-
-
   const delimiterChanged = syncLineDelimiterState(line);
 
-
-
   if (delimiterChanged) {
-
     markPendingStructuralReconcile(line);
-
   }
 
-
-
   return true;
-
 }
 
-
-
 document.addEventListener(
-
   "mousedown",
-
   event => {
-
     if (!lineSuggestEl || lineSuggestEl.hidden) {
-
       return;
-
     }
-
-
 
     if (lineSuggestEl.contains(event.target)) {
-
       return;
-
     }
-
-
 
     const line = lineSuggestState.line;
 
-
-
     if (line && line.contains(event.target)) {
-
       return;
-
     }
 
-
-
     hideLineSuggestions();
-
   },
-
   true
-
 );
 
-
-
 /* =====================================================================
-
  * Fin del autocompletado de línea
-
  * ===================================================================== */
 
-
-
 function scheduleSceneLookup(schedulingInput) {
-
   return new Map(
-
     (schedulingInput?.scenes || []).map(scene => [scene.scene_id, scene])
-
   );
-
 }
 
-
-
 function renderSchedule(schedule, schedulingInput) {
-
   const sceneById = scheduleSceneLookup(schedulingInput);
-
   const days = schedule?.best_schedule?.days || [];
-
   const scheduleDays = $("#scheduleDays");
-
   scheduleDays.innerHTML = days.length
-
     ? days.map(day => `
-
         <article class="schedule-day" data-day="${escapeHtml(day.day)}">
-
           <div class="schedule-day-header">
-
             <h2>Jornada ${day.day}</h2>
-
             <span>Duración guion <strong>${formatSeconds(day.runtime_seconds)}</strong></span>
-
           </div>
-
           <div class="schedule-scenes">
-
             ${(day.scene_ids || []).map(sceneId => {
-
               const scene = sceneById.get(sceneId) || {};
-
               const cast = scene.scene_cast || scene.characters || [];
-
               return `
-
                 <div class="schedule-scene" draggable="true" data-scene-id="${escapeHtml(sceneId)}">
-
                   <span class="schedule-scene-number">${escapeHtml(scene.production_number || scene.scene_number || sceneId)}</span>
-
                   <span class="schedule-scene-heading">${escapeHtml(scene.heading || scene.location || "Sin locación")}</span>
-
                   <span class="schedule-scene-sublocation">${escapeHtml(scene.sublocation || "—")}</span>
-
                   <span class="schedule-scene-int-ext">${escapeHtml(scene.int_ext || "—")}</span>
-
                   <span class="schedule-scene-time">${escapeHtml(scene.time_of_day || "—")}</span>
-
                   <span class="schedule-scene-runtime">${formatSeconds(scene.runtime_seconds)}</span>
-
                   <span class="schedule-scene-cast">${escapeHtml(cast.join(", ") || "Sin elenco")}</span>
-
                 </div>
-
               `;
-
             }).join("")}
-
           </div>
-
           <div class="schedule-day-end">FIN JORNADA</div>
-
         </article>
-
       `).join("")
-
     : '<div class="empty">No hay jornadas para este proyecto.</div>';
-
-
 
   let draggedScene = null;
 
-
-
   scheduleDays.ondragstart = event => {
-
     draggedScene = event.target.closest(".schedule-scene");
-
     if (!draggedScene) return;
-
     event.dataTransfer.setData(
-
       "text/plain",
-
       draggedScene.dataset.sceneId
-
     );
-
     event.dataTransfer.effectAllowed = "move";
-
   };
-
-
 
   scheduleDays.ondragover = event => {
-
     const targetScene = event.target.closest(".schedule-scene");
-
     if (
-
       !draggedScene ||
-
       !targetScene ||
-
       draggedScene.parentElement !== targetScene.parentElement
-
     ) {
-
       return;
-
     }
-
     event.preventDefault();
-
     event.dataTransfer.dropEffect = "move";
-
   };
-
-
 
   scheduleDays.ondrop = event => {
-
     const targetScene = event.target.closest(".schedule-scene");
-
     if (
-
       !draggedScene ||
-
       !targetScene ||
-
       draggedScene === targetScene ||
-
       draggedScene.parentElement !== targetScene.parentElement
-
     ) {
-
       return;
-
     }
-
     event.preventDefault();
-
     const insertAfter =
-
       event.clientY >
-
       targetScene.getBoundingClientRect().top +
-
         targetScene.offsetHeight / 2;
-
     const scenes = [
-
       ...draggedScene.parentElement.children,
-
     ];
-
     const originalOrder = scenes.map(
-
       scene => Number(scene.dataset.sceneId)
-
     );
-
     const draggedIndex = scenes.indexOf(draggedScene);
-
     const targetIndex = scenes.indexOf(targetScene);
-
     scenes.splice(draggedIndex, 1);
-
     const insertIndex =
-
       targetIndex + (insertAfter ? 1 : 0) -
-
       (draggedIndex < targetIndex ? 1 : 0);
-
     scenes.splice(insertIndex, 0, draggedScene);
 
-
-
     let nightSeen = false;
-
     const hasDayAfterNight = scenes.some(card => {
-
       const timeOfDay = String(
-
         sceneById.get(Number(card.dataset.sceneId))?.time_of_day || ""
-
       )
-
         .trim()
-
         .toLowerCase()
-
         .normalize("NFD")
-
         .replace(/[\u0300-\u036f]/g, "");
 
-
-
       if (timeOfDay === "noche") {
-
         nightSeen = true;
-
       }
-
-
 
       return timeOfDay === "dia" && nightSeen;
-
     });
 
-
-
     if (hasDayAfterNight) {
-
       $("#scheduleStatus").textContent =
-
         "Las escenas de noche deben quedar al final de la jornada";
-
       return;
-
     }
-
-
 
     if (
-
       scenes.every(
-
         (scene, index) =>
-
           Number(scene.dataset.sceneId) === originalOrder[index]
-
       )
-
     ) {
-
       return;
-
     }
-
-
 
     targetScene.parentElement.insertBefore(
-
       draggedScene,
-
       insertAfter ? targetScene.nextSibling : targetScene
-
     );
-
     $("#scheduleStatus").textContent =
-
       "Orden modificado, aún no guardado";
-
     state.scheduleOrderDirty = true;
-
     updateScheduleOrderButtons();
-
   };
-
-
 
   scheduleDays.ondragend = () => {
-
     draggedScene = null;
-
   };
-
 }
-
-
 
 async function loadSchedulePreview() {
-
   if (!state.project) {
-
     return;
-
   }
-
-
 
   const projectId = Number(state.project.id);
-
   const requestToken = ++state.scheduleRequestToken;
-
   state.scheduleProjectId = projectId;
-
   state.scheduleShootRateSeconds = 420;
-
   const status = $("#scheduleStatus");
-
   status.textContent = "Generando plan...";
 
-
-
   try {
-
     const [schedule, schedulingInput] = await Promise.all([
-
       request(`/api/projects/${projectId}/schedule-preview`),
-
       request(`/api/projects/${projectId}/scheduling-input`),
-
     ]);
-
     if (
-
       requestToken !== state.scheduleRequestToken ||
-
       Number(state.project?.id) !== projectId
-
     ) {
-
       return;
-
     }
-
-
 
     renderSchedule(schedule, schedulingInput);
-
     state.scheduleOrderDirty = false;
-
     state.scheduleLoaded = true;
-
     updateScheduleOrderButtons();
-
     status.textContent = "Plan actualizado";
-
   } catch (error) {
-
     console.error(error);
-
     if (
-
       requestToken !== state.scheduleRequestToken ||
-
       Number(state.project?.id) !== projectId
-
     ) {
-
       return;
-
     }
-
     status.textContent =
-
       error.message || "No fue posible generar el plan.";
-
   }
-
 }
-
-
 
 function updateScheduleOrderButtons() {
-
   const saveButton = $("#saveScheduleOrderButton");
-
   const resetButton = $("#resetScheduleOrderButton");
-
   if (saveButton) {
-
     saveButton.disabled =
-
       state.scheduleOrderBusy || !state.scheduleOrderDirty;
-
   }
-
   if (resetButton) {
-
     resetButton.disabled =
-
       state.scheduleOrderBusy || !state.scheduleLoaded;
-
   }
-
 }
-
-
 
 function readManualScheduleDays() {
-
   return [
-
     ...$("#scheduleDays").querySelectorAll(".schedule-day"),
-
   ].map(day => ({
-
     day: Number(day.dataset.day),
-
     scene_ids: [
-
       ...day.querySelectorAll(".schedule-scene"),
-
     ].map(scene => Number(scene.dataset.sceneId)),
-
   }));
-
 }
-
-
 
 async function saveScheduleManualOrder() {
-
   const projectId = state.scheduleProjectId;
-
   if (!projectId || !state.scheduleOrderDirty || state.scheduleOrderBusy) {
-
     return;
-
   }
-
-
 
   const requestToken = ++state.scheduleRequestToken;
-
   state.scheduleOrderBusy = true;
-
   updateScheduleOrderButtons();
 
-
-
   try {
-
     await request(
-
       `/api/projects/${projectId}/schedule-manual-order`,
-
       {
-
         method: "PUT",
-
         body: JSON.stringify({
-
           days: readManualScheduleDays(),
-
           shoot_rate_seconds: state.scheduleShootRateSeconds,
-
         }),
-
       }
-
     );
 
-
-
     if (
-
       requestToken !== state.scheduleRequestToken ||
-
       Number(state.project?.id) !== projectId
-
     ) {
-
       return;
-
     }
-
-
 
     state.scheduleOrderDirty = false;
-
     state.scheduleOrderBusy = false;
-
     updateScheduleOrderButtons();
-
     await loadSchedulePreview();
-
   } catch (error) {
-
     console.error(error);
-
     if (
-
       requestToken !== state.scheduleRequestToken ||
-
       Number(state.project?.id) !== projectId
-
     ) {
-
       return;
-
     }
 
-
-
     state.scheduleOrderBusy = false;
-
     updateScheduleOrderButtons();
-
     $("#scheduleStatus").textContent =
-
       error.message || "No fue posible guardar el orden manual.";
-
   }
-
 }
-
-
 
 async function resetScheduleManualOrder() {
-
   const projectId = state.scheduleProjectId;
-
   if (!projectId || state.scheduleOrderBusy) {
-
     return;
-
   }
-
-
 
   const requestToken = ++state.scheduleRequestToken;
-
   state.scheduleOrderBusy = true;
-
   updateScheduleOrderButtons();
 
-
-
   try {
-
     await request(
-
       `/api/projects/${projectId}/schedule-manual-order`,
-
       { method: "DELETE" }
-
     );
 
-
-
     if (
-
       requestToken !== state.scheduleRequestToken ||
-
       Number(state.project?.id) !== projectId
-
     ) {
-
       return;
-
     }
-
-
 
     state.scheduleOrderDirty = false;
-
     state.scheduleOrderBusy = false;
-
     updateScheduleOrderButtons();
-
     await loadSchedulePreview();
-
   } catch (error) {
-
     console.error(error);
-
     if (
-
       requestToken !== state.scheduleRequestToken ||
-
       Number(state.project?.id) !== projectId
-
     ) {
-
       return;
-
     }
 
-
-
     state.scheduleOrderBusy = false;
-
     updateScheduleOrderButtons();
-
     $("#scheduleStatus").textContent =
-
       error.message || "No fue posible restaurar el plan calculado.";
-
   }
-
 }
-
-
 
 function setMainView(view) {
   state.activeMainView = view;
@@ -1794,10 +899,7 @@ function setMainView(view) {
   const screenplay = $("#screenplayViewport");
   const breakdown = $("#productionBreakdownView");
   const schedule = $("#scheduleView");
-  const reports = $("#reportsView");
-  const production = $("#productionView");
-  const calendar = $("#calendarView"); // <-- NUEVO
-
+  const reports = $("#reportsView"); // NUEVO
   const toolbar = $(".editor-toolbar");
   const footer = $(".scene-footer");
   const inspector = $(".inspector");
@@ -1806,16 +908,12 @@ function setMainView(view) {
   if (screenplay) screenplay.hidden = view !== "guion";
   if (breakdown) breakdown.hidden = view !== "desglose";
   if (schedule) schedule.hidden = view !== "plan-rodaje";
-  if (reports) reports.hidden = view !== "informes";
-  if (production) production.hidden = view !== "produccion";
-  if (calendar) calendar.hidden = view !== "calendario"; // <-- NUEVO
+  if (reports) reports.hidden = view !== "informes"; // NUEVO
 
   const isProductionView =
     view === "desglose" ||
     view === "plan-rodaje" ||
-    view === "informes" ||
-    view === "produccion" ||
-    view === "calendario"; // <-- NUEVO
+    view === "informes"; // NUEVO
 
   if (toolbar) toolbar.hidden = isProductionView;
   if (footer) footer.hidden = isProductionView;
@@ -1829,15 +927,8 @@ function setMainView(view) {
   if (view === "plan-rodaje") {
     loadSchedulePreview();
   }
-
-  if (view === "produccion" && typeof window.initProductionBoard === "function") {
-    window.initProductionBoard();
-  }
-
-  if (view === "calendario" && typeof window.initCalendar === "function") {
-    window.initCalendar(); // <-- NUEVO
-  }
 }
+
 async function request(url, options = {}) {
   const response = await fetch(url, {
     ...options,
@@ -1867,12002 +958,6002 @@ async function request(url, options = {}) {
 }
 
 function activeScene() {
-
   return (
-
     state.scenes.find(
-
       scene => scene.id === state.activeSceneId
-
     ) || null
-
   );
-
 }
-
-
 
 function sceneElement(sceneId) {
-
   return $(
-
     `.script-scene[data-scene-id="${sceneId}"]`
-
   );
-
 }
-
-
 
 function lineElements(sceneNode) {
-
   return [
-
     ...sceneNode.querySelectorAll(
-
       ":scope > .script-line"
-
     ),
-
   ];
-
 }
-
-
 
 function semanticStorageKey(sceneId) {
-
   return `trumbo-alpha-03-scene-${sceneId}`;
-
 }
-
-
 
 function normalizeSemanticLines(lines) {
-
   if (!Array.isArray(lines)) {
-
     return [];
-
   }
-
-
 
   return lines
-
     .filter(item =>
-
       item &&
-
       LINE_TYPES.includes(item.type) &&
-
       typeof item.text === "string"
-
     )
-
     .map(item => ({
-
       type: item.type,
-
       text: item.text,
-
     }));
-
 }
-
-
 
 function loadLegacySemanticLines(sceneId) {
-
   try {
-
     const stored = localStorage.getItem(
-
       semanticStorageKey(sceneId)
-
     );
-
-
 
     if (!stored) {
-
       return [];
-
     }
-
-
 
     return normalizeSemanticLines(
-
       JSON.parse(stored)
-
     );
-
   } catch (error) {
-
     console.warn(
-
       "No fue posible recuperar el formato semántico antiguo.",
-
       error
-
     );
-
-
 
     return [];
-
   }
-
 }
-
-
 
 function removeLegacySemanticLines(sceneId) {
-
   try {
-
     localStorage.removeItem(
-
       semanticStorageKey(sceneId)
-
     );
-
   } catch (error) {
-
     console.warn(
-
       "No fue posible limpiar el formato local antiguo.",
-
       error
-
     );
-
   }
-
 }
-
-
 
 function inferLineType(text, previousType = null) {
-
   const value = String(text || "").trim();
 
-
-
   if (!value) {
-
     return (
-
       previousType === "character" ||
-
       previousType === "parenthetical"
-
     )
-
       ? "dialogue"
-
       : "action";
-
   }
-
-
 
   if (isHeadingPrefixText(value)) {
-
     return "heading";
-
   }
-
-
 
   if (
-
     value.startsWith("(") &&
-
     value.endsWith(")")
-
   ) {
-
     return "parenthetical";
-
   }
-
-
 
   if (isTransitionText(value)) {
-
     return "transition";
-
   }
-
-
 
   const looksUppercase =
-
     value === value.toUpperCase() &&
-
     /[A-ZÁÉÍÓÚÜÑ]/.test(value);
 
-
-
   if (
-
     looksUppercase &&
-
     value.length <= 45 &&
-
     !/[.!?]$/.test(value)
-
   ) {
-
     return "character";
-
   }
-
-
 
   if (
-
     previousType === "character" ||
-
     previousType === "parenthetical" ||
-
     previousType === "dialogue"
-
   ) {
-
     return "dialogue";
-
   }
-
-
 
   return "action";
-
 }
-
-
 
 function normalizeCharacterCue(value) {
-
   return String(value || "")
-
     .trim()
-
     .replace(/\s+/g, " ")
-
     .toUpperCase();
-
 }
-
-
 
 function collectSceneCharacterCues(referenceLine) {
-
   const cues = new Set();
 
-
-
   const sceneNode =
-
     referenceLine?.closest(
-
       ".script-scene"
-
     );
-
-
 
   if (!sceneNode) {
-
     return cues;
-
   }
-
-
 
   lineElements(sceneNode)
-
     .filter(
-
       line =>
-
         getLineType(line) === "character"
-
     )
-
     .forEach(line => {
-
       const cue =
-
         normalizeCharacterCue(
-
           line.textContent
-
         );
 
-
-
       if (cue) {
-
         cues.add(cue);
-
       }
-
     });
-
-
 
   return cues;
-
 }
-
-
 
 function inferPastedLineType(
-
   text,
-
   previousType = null,
-
   options = {}
-
 ) {
-
   const {
-
     nextNonEmptyText = "",
-
     previousLineWasBlank = false,
-
     previousText = "",
-
     knownCharacterCues = new Set(),
-
   } = options;
 
-
-
   const value =
-
     String(text || "").trim();
 
-
-
   if (!value) {
-
     return "action";
-
   }
-
-
 
   if (isHeadingPrefixText(value)) {
-
     return "heading";
-
   }
-
-
 
   if (isTransitionText(value)) {
-
     return "transition";
-
   }
 
-
-
   if (
-
     value.startsWith("(") &&
-
     value.endsWith(")")
-
   ) {
-
     return "parenthetical";
-
   }
-
-
 
   if (
-
     previousType === "character" ||
-
     previousType === "parenthetical"
-
   ) {
-
     return "dialogue";
-
   }
-
-
 
   if (previousType === "dialogue" && previousLineWasBlank) {
-
     return "action";
-
   }
 
-
-
   if (
-
     previousType === "dialogue"
-
   ) {
-
-
 
     const previousValue =
-
       String(
-
         previousText || ""
-
       ).trim();
 
-
-
     const previousDialogueClosed =
-
       /[.!?]$/.test(
-
         previousValue
-
       );
 
-
-
     if (!previousDialogueClosed) {
-
       return "dialogue";
-
     }
-
-
 
     if (/^[a-záéíóúñü]/.test(value)) {
-
       return "dialogue";
-
     }
 
-
-
     return "action";
-
   }
-
-
 
   const normalizedCue =
-
     normalizeCharacterCue(value);
 
-
-
   const looksUppercaseCue =
-
     value === value.toUpperCase() &&
-
     /[A-ZÁÉÍÓÚÜÑ]/.test(value) &&
-
     value.length <= 45 &&
-
     !/[.!?]$/.test(value);
 
-
-
   const looksKnownCue =
-
     knownCharacterCues.has(
-
       normalizedCue
-
     );
-
-
 
   const nextText =
-
     String(
-
       nextNonEmptyText || ""
-
     ).trim();
 
-
-
   const nextCouldBeDialogue =
-
     !!nextText &&
-
     !isHeadingPrefixText(nextText) &&
-
     !isTransitionText(nextText);
 
-
-
   if (
-
     (looksUppercaseCue || looksKnownCue) &&
-
     nextCouldBeDialogue
-
   ) {
-
     return "character";
-
   }
-
-
 
   return "action";
-
 }
 
-
-
 function sceneToSemanticLines(scene) {
-
   const serverLines = normalizeSemanticLines(
-
     scene.semantic_lines
-
   );
-
-
 
   if (serverLines.length) {
-
     return serverLines;
-
   }
-
-
 
   // Recuperación temporal del formato guardado
-
   // por la versión anterior del editor.
-
   const legacyLines = loadLegacySemanticLines(
-
     scene.id
-
   );
 
-
-
   if (legacyLines.length) {
-
     scene.semantic_lines = legacyLines;
-
     return legacyLines;
-
   }
-
-
 
   // Compatibilidad con escenas antiguas que solo
-
   // tienen heading y body.
-
   const result = [];
 
-
-
   const heading =
-
     String(scene.heading || "").trim();
 
-
-
   if (heading) {
-
     result.push({
-
       type: "heading",
-
       text: heading,
-
     });
-
   }
-
-
 
   const bodyLines =
-
     String(scene.body || "")
-
       .split(/\r?\n/);
 
-
-
   let previousType =
-
     heading ? "heading" : "action";
 
-
-
   for (const text of bodyLines) {
-
     const type = inferLineType(
-
       text,
-
       previousType
-
     );
 
-
-
     result.push({
-
       type,
-
       text,
-
     });
-
-
 
     previousType = type;
-
   }
-
-
 
   if (!result.length) {
-
     result.push({
-
       type: "action",
-
       text: "",
-
     });
-
   }
-
-
 
   if (
-
     result.length === 1 &&
-
     result[0].type === "heading"
-
   ) {
-
     result.push({
-
       type: "action",
-
       text: "",
-
     });
-
   }
-
-
 
   scene.semantic_lines = result;
 
-
-
   return result;
-
 }
 
-
-
 function createLine(type = "action", text = "") {
-
   const line = document.createElement("div");
 
-
-
   line.className = `script-line ${type}`;
-
   line.dataset.type = type;
-
   line.contentEditable = "true";
-
   line.lang = "es";
-
-
 
   setLineSpellcheck(line);
 
-
-
   line.setAttribute(
-
     "role",
-
     "textbox"
-
   );
-
-
 
   line.setAttribute(
-
     "aria-label",
-
     LINE_LABELS[type] || "Línea"
-
   );
-
-
 
   line.setAttribute("lang", "es");
-
   line.setAttribute("autocorrect", "on");
-
-
 
   line.textContent = text;
 
-
-
   applyTransitionVariant(line);
-
   syncLineDelimiterState(line);
 
-
-
   line.addEventListener(
-
     "focus",
-
     handleLineFocus
-
   );
 
-
-
   line.addEventListener(
-
     "click",
-
     handleLineFocus
-
   );
 
-
-
   line.addEventListener(
-
     "mousedown",
-
     handleLineSelectionMouseDown
-
   );
 
-
-
   line.addEventListener(
-
     "mouseenter",
-
     handleLineSelectionMouseEnter
-
   );
 
-
-
   line.addEventListener(
-
     "keydown",
-
     handleLineKeydown
-
   );
 
-
-
   line.addEventListener(
-
     "input",
-
     handleLineInput
-
   );
 
-
-
   line.addEventListener(
-
     "blur",
-
     handleLineBlur
-
   );
-
-
 
   line.addEventListener(
-
     "paste",
-
     handleLinePaste
-
   );
-
-
 
   return line;
-
 }
 
-
-
 function createSceneNode(scene) {
-
   const section = document.createElement(
-
     "section"
-
   );
-
-
 
   section.className = "script-scene";
 
-
-
   section.dataset.sceneId =
-
     String(scene.id);
-
-
 
   section.dataset.sceneNumber =
-
     String(scene.scene_number);
 
-
-
   const storyboardButton = document.createElement(
-
     "button"
-
   );
-
-
 
   storyboardButton.type = "button";
-
   storyboardButton.className =
-
     "scene-storyboard-button";
-
   storyboardButton.textContent = "Storyboard";
-
   storyboardButton.title =
-
     "Abrir Storyboard de esta escena";
-
   storyboardButton.dataset.sceneId =
-
     String(scene.id);
-
   storyboardButton.addEventListener(
-
     "click",
-
     event => {
-
       event.preventDefault();
-
       event.stopPropagation();
 
-
-
       openStoryboardWindow(scene.id);
-
     }
-
   );
-
-
 
   section.appendChild(
-
     storyboardButton
-
   );
-
-
 
   const sceneNumberLabel = document.createElement(
-
     "span"
-
   );
-
-
 
   sceneNumberLabel.className =
-
     "scene-number-label";
-
   sceneNumberLabel.textContent =
-
     scene.production_number || scene.scene_number;
-
   section.appendChild(
-
     sceneNumberLabel
-
   );
 
-
-
   const semanticLines =
-
     sceneToSemanticLines(scene);
 
-
-
   semanticLines.forEach(item => {
-
     section.appendChild(
-
       createLine(
-
         item.type,
-
         item.text
-
       )
-
     );
-
   });
-
-
 
   ensureSceneStructure(section);
 
-
-
   return section;
-
 }
-
-
 
 function ensureSceneStructure(sceneNode) {
-
   let lines = lineElements(sceneNode);
 
-
-
   if (!lines.length) {
-
     sceneNode.append(
-
       createLine(
-
         "action",
-
         ""
-
       )
-
     );
 
-
-
     return;
-
   }
-
-
 
   if (lines.length === 1) {
-
     sceneNode.appendChild(
-
       createLine(
-
         "action",
-
         ""
-
       )
-
     );
-
   }
-
 }
 
-
-
 function renderScreenplay() {
-
   const editor = $("#screenplayEditor");
 
-
-
   editor.lang = "es";
-
   editor.spellcheck = true;
-
   editor.setAttribute("lang", "es");
-
   editor.setAttribute("spellcheck", "true");
-
   editor.setAttribute("autocorrect", "on");
 
-
-
   state.isRendering = true;
-
   editor.innerHTML = "";
 
-
-
   if (!state.scenes.length) {
-
     editor.append(
-
       createLine(
-
         "transition",
-
         "FADE IN:"
-
       ),
-
       createLine(
-
         "action",
-
         ""
-
       )
-
     );
-
-
 
     state.isRendering = false;
-
     return;
-
   }
 
-
-
   state.scenes.forEach(scene => {
-
     editor.appendChild(
-
       createSceneNode(scene)
-
     );
-
   });
-
-
 
   state.isRendering = false;
 
-
-
   setActiveScene(
-
     state.activeSceneId ||
-
       state.scenes[0]?.id,
-
     {
-
       scroll: false,
-
       focus: false,
-
     }
-
   );
-
 }
-
-
 
 let sceneListRenderTimer = null;
 
-
-
 function scheduleSceneListRender(delay = 200) {
-
   if (sceneListRenderTimer) {
-
     clearTimeout(sceneListRenderTimer);
-
   }
-
-
 
   sceneListRenderTimer = setTimeout(() => {
-
     sceneListRenderTimer = null;
-
     renderSceneList();
-
   }, delay);
-
 }
-
-
 
 function renderSceneList() {
-
   const container = $("#sceneList");
 
-
-
   if (!state.scenes.length) {
-
     container.innerHTML = `
-
       <div class="empty">
-
         El proyecto aún no tiene escenas.
-
       </div>
-
     `;
 
-
-
     return;
-
   }
-
-
 
   container.innerHTML =
-
     state.scenes.map((scene, index) => `
-
       <div
-
         class="scene-card ${
-
           scene.id === state.activeSceneId
-
             ? "active"
-
             : ""
-
         }"
-
         data-scene-id="${scene.id}"
-
       >
 
-
-
        <div class="scene-card-heading">
-
   ${
-
     escapeHtml(
-
       scene.production_number ||
-
       String(index + 1)
-
     )
-
   }.&nbsp;&nbsp;
-
   ${
-
     escapeHtml(
-
       scene.heading ||
-
       "Sin encabezado"
-
     )
-
   }
-
 </div>
 
-
-
         <div class="scene-card-runtime">
-
           ${
-
             formatSeconds(
-
               scene.runtime_seconds
-
             )
-
           }
-
         </div>
 
-
-
       </div>
-
     `).join("");
 
-
-
   container
-
     .querySelectorAll(".scene-card")
-
     .forEach(card => {
-
       card.addEventListener(
-
         "click",
-
         () => {
-
           const sceneId = Number(
-
             card.dataset.sceneId
-
           );
-
-
 
           setActiveScene(
-
             sceneId,
-
             {
-
               scroll: true,
-
               focus: false,
-
             }
-
           );
 
-
-
           if (state.activeMainView === "desglose") {
-
             const breakdownScene = document.querySelector(
-
               `.production-breakdown-scene[data-scene-id="${sceneId}"]`
-
             );
 
-
-
             if (breakdownScene) {
-
               breakdownScene.scrollIntoView({
-
                 behavior: "smooth",
-
                 block: "start",
-
               });
-
             }
-
           }
-
         }
-
       );
-
     });
-
 }
 
-
-
 function setActiveScene(
-
   sceneId,
-
   options = {}
-
 ) {
-
   const {
-
     scroll = false,
-
     focus = false,
-
   } = options;
 
-
-
   const scene = state.scenes.find(
-
     item =>
-
       item.id === Number(sceneId)
-
   );
 
-
-
   if (!scene) {
-
     return;
-
   }
-
-
 
   state.activeSceneId = scene.id;
 
-
-
   hideLineSuggestions();
 
-
-
   document
-
     .querySelectorAll(".script-scene")
-
     .forEach(node => {
-
       node.classList.toggle(
-
         "active",
-
         Number(
-
           node.dataset.sceneId
-
         ) === scene.id
-
       );
-
     });
-
-
 
   document
-
     .querySelectorAll(".scene-card")
-
     .forEach(card => {
-
       card.classList.toggle(
-
         "active",
-
         Number(
-
           card.dataset.sceneId
-
         ) === scene.id
-
       );
-
     });
-
-
 
   $("#sceneIdentity").textContent =
-
   `ESCENA ${scene.scene_number}`;
 
-
-
   $("#sceneProductionNumber").value =
-
     scene.production_number || "";
 
-
-
   $("#sceneSynopsis").value =
-
     scene.synopsis || "";
 
-
-
   $("#sceneRuntime").textContent =
-
     formatSeconds(
-
       scene.runtime_seconds
-
     );
 
-
-
   renderNotes(scene);
-
   renderBreakdown(scene);
-
   scheduleSceneAnalysis(0);
-
-
 
   const node = sceneElement(scene.id);
 
-
-
   if (scroll && node) {
-
     node.scrollIntoView({
-
       behavior: "smooth",
-
       block: "start",
-
     });
-
   }
-
-
 
   if (focus && node) {
-
     const target =
-
       node.querySelector(
-
         ".script-line.action"
-
       ) ||
-
       node.querySelector(
-
         ".script-line"
-
       );
 
-
-
     focusLine(
-
       target,
-
       true
-
     );
-
   }
-
 }
-
-
 
 function getLineType(line) {
-
   return line?.dataset.type || "action";
-
 }
-
-
 
 function setLineSpellcheck(line) {
-
   if (!line) {
-
     return;
-
   }
-
-
 
   const type = getLineType(line);
-
   const enabled =
-
     type !== "character" &&
-
     type !== "heading";
 
-
-
   line.spellcheck = enabled;
-
   line.lang = "es";
-
   line.setAttribute(
-
     "spellcheck",
-
     String(enabled)
-
   );
-
   line.setAttribute("lang", "es");
-
   line.setAttribute("autocorrect", enabled ? "on" : "off");
-
 }
-
-
 
 function isSceneDelimiterLine(line) {
-
   if (!line) {
-
     return false;
-
   }
-
-
 
   if (getLineType(line) !== "heading") {
-
     return false;
-
   }
-
-
 
   return isCompleteHeadingText(
-
     line.textContent || ""
-
   );
-
 }
-
-
 
 function syncLineDelimiterState(line) {
-
   if (!line) {
-
     return false;
-
   }
-
-
 
   const previous =
-
     line.dataset.sceneDelimiter === "1";
 
-
-
   const current =
-
     isSceneDelimiterLine(line);
 
-
-
   line.dataset.sceneDelimiter =
-
     current ? "1" : "0";
 
-
-
   return previous !== current;
-
 }
 
-
-
 function applyTransitionVariant(line) {
-
   if (!line) {
-
     return;
-
   }
-
-
 
   delete line.dataset.transitionVariant;
 
-
-
   if (getLineType(line) !== "transition") {
-
     return;
-
   }
-
-
 
   const text =
-
     (line.textContent || "").trim();
 
-
-
   if (TRANSITION_IN_REGEX.test(text)) {
-
     line.dataset.transitionVariant = "in";
-
     return;
-
   }
-
-
 
   if (isTransitionText(text)) {
-
     line.dataset.transitionVariant = "out";
-
   }
-
 }
 
-
-
 function setLineType(
-
   line,
-
   type,
-
   options = {}
-
 ) {
-
   if (
-
     !line ||
-
     !LINE_TYPES.includes(type)
-
   ) {
-
     return;
-
   }
 
-
-
   const {
-
     preserveCaret = false,
-
     skipSceneSplit = false,
-
   } = options;
 
-
-
   const selection =
-
     preserveCaret
-
       ? window.getSelection()
-
       : null;
-
-
 
   const offset =
-
     preserveCaret &&
-
     selection?.rangeCount
-
       ? selection
-
           .getRangeAt(0)
-
           .startOffset
-
       : null;
 
-
-
   LINE_TYPES.forEach(item => {
-
     line.classList.remove(item);
-
   });
 
-
-
   line.classList.add(type);
-
   line.dataset.type = type;
 
-
-
   line.setAttribute(
-
     "aria-label",
-
     LINE_LABELS[type] || "Línea"
-
   );
-
-
 
   setLineSpellcheck(line);
 
-
-
   if (
-
     type === "character" ||
-
     type === "heading" ||
-
     type === "transition"
-
   ) {
-
     const uppercaseText =
-
       (line.textContent || "").toUpperCase();
 
-
-
     if (
-
       line.textContent !== uppercaseText
-
     ) {
-
       line.textContent = uppercaseText;
 
-
-
       if (
-
         preserveCaret &&
-
         offset !== null &&
-
         line.firstChild
-
       ) {
-
         const range =
-
           document.createRange();
 
-
-
         const safeOffset =
-
           Math.min(
-
             offset,
-
             line.firstChild
-
               .textContent.length
-
           );
 
-
-
         range.setStart(
-
           line.firstChild,
-
           safeOffset
-
         );
-
-
 
         range.collapse(true);
 
-
-
         selection.removeAllRanges();
-
         selection.addRange(range);
-
       } else {
-
         placeCaretAtEnd(line);
-
       }
-
     }
-
   }
-
-
 
   applyTransitionVariant(line);
-
   syncLineDelimiterState(line);
 
-
-
   const lineIsActive =
-
     state.activeLine === line ||
-
     document.activeElement === line;
 
-
-
   if (lineIsActive) {
-
     updateModeLabel(type);
-
   }
-
-
 
   if (
-
     type === "heading" &&
-
     !skipSceneSplit
-
   ) {
-
     scheduleDocumentSceneReconciliation(0);
-
     return;
-
   }
-
-
 
   const sceneNode =
-
     line.closest(".script-scene");
 
-
-
   if (sceneNode) {
-
     scheduleSceneSave(sceneNode);
-
   }
-
 }
-
-
 
 function updateModeLabel(type) {
-
   $("#editorModeLabel").textContent =
-
     LINE_LABELS[type] ||
-
     String(type || "").toUpperCase();
 
-
-
   syncLineTypeSelector();
-
 }
 
-
-
 function syncLineTypeSelector() {
-
   const selector =
-
     $("#lineTypeSelector");
 
-
-
   if (!selector) {
-
     return;
-
   }
-
-
 
   if (!LINE_TYPE_SELECTOR) {
-
     selector.hidden = true;
-
     selector.disabled = true;
-
     return;
-
   }
-
-
 
   selector.hidden = false;
 
-
-
   const line =
-
     state.activeLine;
 
-
-
   if (!line) {
-
     selector.disabled = true;
-
     return;
-
   }
-
-
 
   const type = getLineType(line);
 
-
-
   selector.value =
-
     LINE_TYPES.includes(type)
-
       ? type
-
       : "action";
 
-
-
   selector.disabled = false;
-
 }
 
-
-
 function setupLineTypeSelector() {
-
   const selector =
-
     $("#lineTypeSelector");
 
-
-
   if (!selector) {
-
     return;
-
   }
-
-
 
   if (!LINE_TYPE_SELECTOR) {
-
     selector.hidden = true;
-
     selector.disabled = true;
-
     return;
-
   }
-
-
 
   selector.hidden = false;
 
-
-
   selector.addEventListener(
-
     "pointerdown",
-
     () => {
-
       state.lineTypeSelectorPointerDown = true;
-
     }
-
   );
-
-
 
   selector.addEventListener(
-
     "blur",
-
     () => {
-
       state.lineTypeSelectorPointerDown = false;
-
     }
-
   );
-
-
 
   selector.innerHTML =
-
     LINE_TYPE_SELECTOR_OPTIONS.map(option => `
-
       <option value="${option.value}">
-
         ${escapeHtml(option.label)}
-
       </option>
-
     `).join("");
 
-
-
   selector.addEventListener(
-
     "change",
-
     event => {
-
       const activeLine =
-
         state.activeLine;
 
-
-
       if (!activeLine) {
-
         syncLineTypeSelector();
-
         return;
-
       }
-
-
 
       const nextType =
-
         event.target.value;
 
-
-
       if (!LINE_TYPES.includes(nextType)) {
-
         syncLineTypeSelector();
-
         return;
-
       }
 
-
-
       setLineType(
-
         activeLine,
-
         nextType,
-
         {
-
           preserveCaret: true,
-
         }
-
       );
-
-
 
       focusLine(
-
         activeLine,
-
         false
-
       );
-
     }
-
   );
 
-
-
   syncLineTypeSelector();
-
 }
 
-
-
 function focusLine(
-
   line,
-
   atEnd = true
-
 ) {
-
   if (!line) {
-
     return;
-
   }
-
-
 
   line.focus();
 
-
-
   if (atEnd) {
-
     placeCaretAtEnd(line);
-
   }
-
-
 
   handleLineFocus({
-
     currentTarget: line,
-
   });
-
 }
-
-
 
 function placeCaretAtEnd(element) {
-
   const range =
-
     document.createRange();
 
-
-
   const selection =
-
     window.getSelection();
 
-
-
   range.selectNodeContents(element);
-
   range.collapse(false);
 
-
-
   selection.removeAllRanges();
-
   selection.addRange(range);
-
 }
-
-
 
 function placeCaretAtStart(element) {
-
   const range =
-
     document.createRange();
 
-
-
   const selection =
-
     window.getSelection();
-
-
 
   range.selectNodeContents(element);
-
   range.collapse(true);
 
-
-
   selection.removeAllRanges();
-
   selection.addRange(range);
-
 }
-
-
 
 function selectAllInCurrentScene(line) {
-
   const selection =
-
     window.getSelection();
-
-
 
   if (!selection) {
-
     return;
-
   }
-
-
 
   const sceneNode =
-
     line?.closest(".script-scene");
 
-
-
   const lines = sceneNode
-
     ? lineElements(sceneNode)
-
     : [...document.querySelectorAll("#screenplayEditor > .script-line")];
 
-
-
   if (!lines.length) {
-
     return;
-
   }
-
-
 
   const first = lines[0];
-
   const last =
-
     lines[lines.length - 1];
 
-
-
   const range =
-
     document.createRange();
 
-
-
   range.setStartBefore(first);
-
   range.setEndAfter(last);
 
-
-
   selection.removeAllRanges();
-
   selection.addRange(range);
-
 }
-
-
 
 function caretIsAtStart(element) {
-
   const selection =
-
     window.getSelection();
 
-
-
   if (
-
     !selection ||
-
     !selection.rangeCount
-
   ) {
-
     return false;
-
   }
-
-
 
   const range =
-
     selection.getRangeAt(0);
 
-
-
   if (!range.collapsed) {
-
     return false;
-
   }
 
-
-
   const probe =
-
     range.cloneRange();
 
-
-
   probe.selectNodeContents(element);
-
-
 
   probe.setEnd(
-
     range.endContainer,
-
     range.endOffset
-
   );
 
-
-
   return probe.toString().length === 0;
-
 }
 
-
-
 function caretIsAtEnd(element) {
-
   const selection =
-
     window.getSelection();
 
-
-
   if (
-
     !selection ||
-
     !selection.rangeCount
-
   ) {
-
     return false;
-
   }
-
-
 
   const range =
-
     selection.getRangeAt(0);
 
-
-
   if (!range.collapsed) {
-
     return false;
-
   }
 
-
-
   const probe =
-
     range.cloneRange();
-
-
 
   probe.selectNodeContents(element);
 
-
-
   probe.setStart(
-
     range.endContainer,
-
     range.endOffset
-
   );
-
-
 
   return probe.toString().length === 0;
-
 }
 
-
-
 function insertLineAfter(
-
   referenceLine,
-
   type,
-
   text = ""
-
 ) {
-
   const line = createLine(
-
     type,
-
     text
-
   );
-
-
 
   referenceLine.after(line);
 
-
-
   return line;
-
 }
-
-
 
 function nextTypeAfterEnter(line) {
-
   const type = getLineType(line);
-
   const content =
-
     (line?.textContent || "")
-
       .trim()
-
       .toUpperCase();
 
-
-
   if (
-
     content === "SUPER:" ||
-
     content === "GC:"
-
   ) {
-
     return "action";
-
   }
-
-
 
   if (type === "heading") {
-
     return "action";
-
   }
-
-
 
   if (type === "character") {
-
     return "dialogue";
-
   }
-
-
 
   if (type === "parenthetical") {
-
     return "dialogue";
-
   }
-
-
 
   if (type === "dialogue") {
-
     return "action";
-
   }
-
-
 
   if (type === "transition") {
-
     return "action";
-
   }
-
-
 
   return "action";
-
 }
 
-
-
 function splitLineAtCaret(
-
   line,
-
   nextType
-
 ) {
-
   const selection =
-
     window.getSelection();
 
-
-
   if (
-
     !selection ||
-
     !selection.rangeCount
-
   ) {
-
     return insertLineAfter(
-
       line,
-
       nextType,
-
       ""
-
     );
-
   }
 
-
-
   const range =
-
     selection.getRangeAt(0);
 
-
-
   const afterRange =
-
     range.cloneRange();
-
-
 
   afterRange.selectNodeContents(line);
 
-
-
   afterRange.setStart(
-
     range.endContainer,
-
     range.endOffset
-
   );
 
-
-
   const tail =
-
     afterRange.toString();
-
-
 
   afterRange.deleteContents();
 
-
-
   return insertLineAfter(
-
     line,
-
     nextType,
-
     tail
-
   );
-
 }
-
-
 
 function removeCurrentLineIfEmpty(line) {
-
   if (!line) {
-
     return false;
-
   }
-
-
 
   if ((line.textContent || "").trim()) {
-
     return false;
-
   }
-
-
 
   const sceneNode =
-
     line.closest(".script-scene");
 
-
-
   if (!sceneNode) {
-
     return false;
-
   }
-
-
 
   const siblings =
-
     sceneNode.querySelectorAll(
-
       ":scope > .script-line"
-
     );
-
-
 
   if (siblings.length <= 1) {
-
     line.textContent = "";
-
     focusLine(line, true);
-
     return false;
-
   }
-
-
 
   const target =
-
     line.previousElementSibling?.classList.contains(
-
       "script-line"
-
     )
-
       ? line.previousElementSibling
-
       : line.nextElementSibling;
 
-
-
   if (!target) {
-
     return false;
-
   }
 
-
-
   line.remove();
-
-
 
   focusLine(target, true);
-
   scheduleSceneSave(sceneNode);
 
-
-
   return true;
-
 }
 
-
-
 function mergeWithPreviousLine(line) {
-
   const previous =
-
     line.previousElementSibling;
 
-
-
   if (
-
     !previous ||
-
     !previous.classList.contains(
-
       "script-line"
-
     )
-
   ) {
-
     return false;
-
   }
-
-
 
   const previousLength =
-
     (previous.textContent || "").length;
 
-
-
   previous.textContent =
-
     `${previous.textContent || ""}${line.textContent || ""}`;
 
-
-
   line.remove();
-
   previous.focus();
 
-
-
   const selection =
-
     window.getSelection();
 
-
-
   const range =
-
     document.createRange();
 
-
-
   const node =
-
     previous.firstChild ||
-
     previous;
 
-
-
   try {
-
     range.setStart(
-
       node,
-
       Math.min(
-
         previousLength,
-
         node.textContent?.length || 0
-
       )
-
     );
-
   } catch (error) {
-
     range.selectNodeContents(previous);
-
     range.collapse(false);
-
   }
-
-
 
   range.collapse(true);
 
-
-
   selection.removeAllRanges();
-
   selection.addRange(range);
 
-
-
   return true;
-
 }
 
-
-
 function autocapitalizeLineStart(line) {
-
   if (!line) {
-
     return;
-
   }
-
-
 
   const original =
-
     line.textContent || "";
 
-
-
   const updated =
-
     original.replace(
-
       /^(\s*)([a-záéíóúñü])/,
-
       (match, spaces, first) =>
-
         `${spaces}${first.toUpperCase()}`
-
     );
 
-
-
   if (updated === original) {
-
     return;
-
   }
 
-
-
   const selection =
-
     window.getSelection();
 
-
-
   const offset =
-
     selection?.rangeCount
-
       ? selection
-
           .getRangeAt(0)
-
           .startOffset
-
       : null;
-
-
 
   line.textContent = updated;
 
-
-
   if (
-
     offset !== null &&
-
     line.firstChild
-
   ) {
-
     const range =
-
       document.createRange();
 
-
-
     const safeOffset =
-
       Math.min(
-
         offset,
-
         line.firstChild
-
           .textContent.length
-
       );
 
-
-
     range.setStart(
-
       line.firstChild,
-
       safeOffset
-
     );
-
-
 
     range.collapse(true);
 
-
-
     selection.removeAllRanges();
-
     selection.addRange(range);
-
   }
-
 }
 
-
-
 function handleLineFocus(event) {
-
   const line =
-
     event.currentTarget;
-
-
 
   state.activeLine = line;
 
-
-
   const preserveSelection =
-
     state.suppressLineSelectionClick;
-
-
 
   state.suppressLineSelectionClick = false;
 
-
-
   if (!preserveSelection) {
-
     document
-
       .querySelectorAll(
-
         ".script-line.selected-line"
-
       )
-
       .forEach(node => {
-
         node.classList.remove(
-
           "selected-line"
-
         );
-
       });
 
-
-
     line.classList.add(
-
       "selected-line"
-
     );
-
   }
-
-
 
   syncLineTypeSelector();
 
-
-
   updateModeLabel(
-
     getLineType(line)
-
   );
-
-
 
   const sceneNode =
-
     line.closest(".script-scene");
 
-
-
   if (sceneNode) {
-
     setActiveScene(
-
       Number(
-
         sceneNode.dataset.sceneId
-
       ),
-
       {
-
         scroll: false,
-
         focus: false,
-
       }
-
     );
-
   }
-
 }
-
-
 
 function handleLineSelectionMouseDown(event) {
-
   state.lineSelectionDrag = {
-
     start: event.currentTarget,
-
     current: event.currentTarget,
-
     moved: false,
-
   };
 
-
-
   document
-
     .querySelectorAll(
-
       ".script-line.selected-line"
-
     )
-
     .forEach(node => {
-
       node.classList.remove(
-
         "selected-line"
-
       );
-
     });
-
 }
-
-
 
 function handleLineSelectionMouseEnter(event) {
-
   const drag =
-
     state.lineSelectionDrag;
 
-
-
   if (!drag || !(event.buttons & 1)) {
-
     return;
-
   }
-
-
 
   drag.current = event.currentTarget;
-
   drag.moved = drag.current !== drag.start;
 
-
-
   if (drag.moved) {
-
     event.preventDefault();
-
     window.getSelection()?.removeAllRanges();
-
   }
-
-
 
   const lines = allDocumentLines(
-
     $("#screenplayEditor")
-
   );
-
   const startIndex = lines.indexOf(drag.start);
-
   const currentIndex = lines.indexOf(drag.current);
 
-
-
   if (startIndex === -1 || currentIndex === -1) {
-
     return;
-
   }
-
-
 
   const rangeStart = Math.min(
-
     startIndex,
-
     currentIndex
-
   );
-
   const rangeEnd = Math.max(
-
     startIndex,
-
     currentIndex
-
   );
-
-
 
   lines.forEach((line, index) => {
-
     line.classList.toggle(
-
       "selected-line",
-
       index >= rangeStart && index <= rangeEnd
-
     );
-
   });
-
 }
-
-
 
 function markPendingStructuralReconcile(line) {
-
   if (!line) {
-
     return;
-
   }
 
-
-
   line.dataset.pendingStructuralReconcile =
-
     "1";
-
 }
 
-
-
 function handleLineBlur(event) {
-
   const line =
-
     event.currentTarget;
 
-
-
   const nextTarget =
-
     event.relatedTarget;
-
-
 
   hideLineSuggestions();
 
-
-
   if (
-
     state.lineTypeSelectorPointerDown ||
-
     nextTarget?.id ===
-
     "lineTypeSelector"
-
   ) {
-
     return;
-
   }
 
-
-
   if (
-
     nextTarget?.classList?.contains(
-
       "script-line"
-
     )
-
   ) {
-
     if (
-
       line?.dataset
-
         ?.pendingStructuralReconcile ===
-
       "1"
-
     ) {
-
       markPendingStructuralReconcile(
-
         nextTarget
-
       );
-
-
 
       line.dataset.pendingStructuralReconcile =
-
         "0";
-
     }
 
-
-
     return;
-
   }
-
-
 
   if (state.activeLine === line) {
-
     state.activeLine = null;
 
-
-
     line.classList.remove(
-
       "selected-line"
-
     );
 
-
-
     updateModeLabel("action");
-
     syncLineTypeSelector();
-
   }
-
-
 
   if (
-
     line?.dataset
-
       ?.pendingStructuralReconcile !==
-
     "1"
-
   ) {
-
     return;
-
   }
-
-
 
   line.dataset.pendingStructuralReconcile =
-
     "0";
 
-
-
   scheduleDocumentSceneReconciliation();
-
 }
-
-
 
 function normalizeLineForReconciliation(
-
   line,
-
   isFirstLineInChunk = false
-
 ) {
-
   if (!line) {
-
     return;
-
   }
-
-
 
   const type = getLineType(line);
-
   const text =
-
     String(line.textContent || "").trim();
 
-
-
   // Evita que queden headings vacíos
-
   // dentro de una escena tras ediciones
-
   // o selecciones amplias de texto.
-
   if (
-
     type === "heading" &&
-
     !text &&
-
     !isFirstLineInChunk
-
   ) {
-
     setLineType(line, "action", {
-
       preserveCaret: false,
-
       skipSceneSplit: true,
-
     });
-
   }
-
 }
-
-
 
 function handleHeadingTab(line) {
-
   const text =
-
     (line.textContent || "").trimEnd();
 
-
-
   // Después de INT., EXT., INT/EXT., I/E., etc.,
-
   // TAB agrega un espacio y deja el cursor al final.
-
   if (
-
     /^(INT\.|EXT\.|INT\/EXT\.|I\/E\.)$/i.test(
-
       text
-
     )
-
   ) {
-
     line.textContent =
-
       `${text} `;
-
-
 
     placeCaretAtEnd(line);
 
-
-
     return;
-
   }
-
-
 
   // Evita duplicar el separador.
-
   if (
-
     text.endsWith("-")
-
   ) {
-
     line.textContent =
-
       `${text} `;
-
-
 
     placeCaretAtEnd(line);
 
-
-
     return;
-
   }
-
-
 
   // Entre locación, sublocación y momento del día.
-
   line.textContent =
-
     `${text} - `;
 
-
-
   placeCaretAtEnd(line);
-
 }
-
-
 
 function allDocumentLines(editor) {
-
   return [
-
     ...editor.querySelectorAll(
-
       ".script-line"
-
     ),
-
   ];
-
 }
-
-
 
 function deriveSceneChunksFromDocument(lines) {
-
   const chunks = [];
-
   const prefaceLines = [];
-
   let currentChunk = null;
 
-
-
   lines.forEach(line => {
-
     const text =
-
       String(line.textContent || "").trim();
 
-
-
     if (isCompleteHeadingText(text)) {
-
       if (getLineType(line) !== "heading") {
-
         setLineType(line, "heading", {
-
           preserveCaret: false,
-
           skipSceneSplit: true,
-
         });
-
       }
-
-
 
       if (currentChunk) {
-
         chunks.push(currentChunk);
-
       }
 
-
-
       currentChunk = {
-
         heading: text,
-
         lines: [line],
-
       };
 
-
-
       return;
-
     }
-
-
 
     if (!currentChunk) {
-
       prefaceLines.push(line);
-
       return;
-
     }
-
-
 
     currentChunk.lines.push(line);
-
   });
 
-
-
   if (currentChunk) {
-
     chunks.push(currentChunk);
-
   }
-
-
 
   return {
-
     prefaceLines,
-
     chunks,
-
   };
-
 }
-
-
 
 function renderNoActiveScene() {
-
   $("#sceneIdentity")
-
     .textContent =
-
       "SIN ESCENA";
 
-
-
   $("#sceneSynopsis")
-
     .value = "";
 
-
-
   $("#sceneRuntime")
-
     .textContent =
-
       "00:00";
 
-
-
   renderNotes(null);
-
   renderBreakdown(null);
 
-
-
   $("#scriptAnalysis")
-
     .innerHTML = `
-
       <div class="empty">
-
         No hay una escena activa.
-
       </div>
-
     `;
 
-
-
 }
-
-
 
 async function syncSceneRecordsToChunkCount(chunkCount) {
-
   if (!state.project) {
-
     return;
-
   }
-
-
 
   while (state.scenes.length < chunkCount) {
-
     const created =
-
       await request(
-
         `/api/projects/${state.project.id}/scenes`,
-
         {
-
           method: "POST",
-
           body: JSON.stringify({}),
-
         }
-
       );
-
-
 
     created.notes =
-
       created.notes || [];
 
-
-
     created.breakdown_items =
-
       created.breakdown_items || [];
 
-
-
     state.scenes.push(created);
-
   }
-
-
 
   while (state.scenes.length > chunkCount) {
-
     const removed = state.scenes.pop();
 
-
-
     try {
-
       await request(
-
         `/api/scenes/${removed.id}`,
-
         {
-
           method: "DELETE",
-
         }
-
       );
-
     } catch (error) {
-
       console.error(
-
         "No fue posible eliminar escena durante reconciliación.",
-
         error
-
       );
-
     }
-
   }
-
 }
 
-
-
 async function reconcileScenesFromDocument() {
-
   if (!state.project) {
-
     return false;
-
   }
-
-
 
   const editor =
-
     $("#screenplayEditor");
 
-
-
   if (!editor) {
-
     return false;
-
   }
-
-
 
   if (state.isReconcilingScenes) {
-
     state.pendingReconcile = true;
-
     return false;
-
   }
-
-
 
   state.isReconcilingScenes = true;
 
-
-
   try {
-
     const sourceLines =
-
       allDocumentLines(editor);
 
-
-
     const {
-
       prefaceLines,
-
       chunks,
-
     } = deriveSceneChunksFromDocument(
-
       sourceLines
-
     );
-
-
 
     setSaveState(
-
       "Sincronizando escenas…",
-
       "saving"
-
     );
-
-
 
     await syncSceneRecordsToChunkCount(
-
       chunks.length
-
     );
 
-
-
     renumberScenesLocally();
-
-
 
     const sceneNodes = [];
 
-
-
     chunks.forEach(
-
       (chunk, index) => {
-
         const scene =
-
           state.scenes[index];
 
-
-
         if (!scene) {
-
           return;
-
         }
 
-
-
         const section =
-
           document.createElement(
-
             "section"
-
           );
-
-
 
         section.className =
-
           "script-scene";
 
-
-
         section.dataset.sceneId =
-
           String(scene.id);
-
-
 
         section.dataset.sceneNumber =
-
           String(
-
             scene.scene_number
-
           );
-
-
 
         const storyboardButton = document.createElement(
-
           "button"
-
         );
-
-
 
         storyboardButton.type = "button";
-
         storyboardButton.className =
-
           "scene-storyboard-button";
-
         storyboardButton.textContent = "Storyboard";
-
         storyboardButton.title =
-
           "Abrir Storyboard de esta escena";
-
         storyboardButton.dataset.sceneId =
-
           String(scene.id);
 
-
-
         storyboardButton.addEventListener(
-
           "click",
-
           event => {
-
             event.preventDefault();
-
             event.stopPropagation();
 
-
-
             openStoryboardWindow(scene.id);
-
           }
-
         );
-
-
 
         section.appendChild(
-
           storyboardButton
-
         );
-
-
 
         const sceneNumberLabel = document.createElement(
-
           "span"
-
         );
-
-
 
         sceneNumberLabel.className =
-
           "scene-number-label";
-
         sceneNumberLabel.textContent =
-
           scene.production_number || scene.scene_number;
-
         section.appendChild(
-
           sceneNumberLabel
-
         );
 
-
-
         chunk.lines.forEach((line, lineIndex) => {
-
           normalizeLineForReconciliation(
-
             line,
-
             lineIndex === 0
-
           );
 
-
-
           section.appendChild(line);
-
         });
-
-
 
         ensureSceneStructure(section);
 
-
-
         scene.heading =
-
           chunk.heading;
 
-
-
         sceneNodes.push(section);
-
       }
-
     );
-
-
 
     editor.innerHTML = "";
 
-
-
     prefaceLines.forEach(line => {
-
       editor.appendChild(line);
-
     });
-
-
 
     sceneNodes.forEach(node => {
-
       editor.appendChild(node);
-
     });
 
-
-
     if (state.scenes.length) {
-
       const stillActive =
-
         state.scenes.some(
-
           scene =>
-
             scene.id ===
-
             state.activeSceneId
-
         );
 
-
-
       if (!stillActive) {
-
         state.activeSceneId =
-
           state.scenes[0].id;
-
       }
-
     } else {
-
       state.activeSceneId = null;
-
     }
-
-
 
     renderSceneList();
 
-
-
     if (state.activeSceneId) {
-
       setActiveScene(
-
         state.activeSceneId,
-
         {
-
           scroll: false,
-
           focus: false,
-
         }
-
       );
-
     } else {
-
       renderNoActiveScene();
-
     }
-
-
 
     for (const sceneNode of sceneNodes) {
-
       await saveSceneNode(sceneNode);
-
     }
 
-
-
     setSaveState(
-
       "Guardado",
-
       "saved"
-
     );
-
-
 
     return true;
-
   } catch (error) {
-
     console.error(error);
 
-
-
     setSaveState(
-
       "Error de sincronización",
-
       "error"
-
     );
-
-
 
     return false;
-
   } finally {
-
     state.isReconcilingScenes = false;
 
-
-
     if (state.pendingReconcile) {
-
       state.pendingReconcile = false;
-
       scheduleDocumentSceneReconciliation(120);
-
     }
-
   }
-
 }
-
-
 
 function scheduleDocumentSceneReconciliation(
-
   delay = 180
-
 ) {
-
   if (state.reconcileTimer) {
-
     clearTimeout(
-
       state.reconcileTimer
-
     );
-
   }
-
-
 
   state.reconcileTimer =
-
     setTimeout(() => {
-
       state.reconcileTimer = null;
-
       reconcileScenesFromDocument();
-
     }, delay);
-
 }
-
-
 
 async function materializeScenesFromDraftDocument() {
-
   return reconcileScenesFromDocument();
-
 }
 
-
-
 function handleLineKeydown(event) {
-
   const line =
-
     event.currentTarget;
 
-
-
   const type =
-
     getLineType(line);
 
-
-
   // --- Navegación del autocompletado (encabezados / personajes) ---
-
     if (
-
     lineSuggestEl &&
-
     !lineSuggestEl.hidden &&
-
     lineSuggestState.line === line &&
-
     lineSuggestState.items.length
-
   ) {
-
     if (event.key === "ArrowDown") {
-
       event.preventDefault();
-
       moveLineSuggestions(1);
-
       return;
-
     }
-
-
 
     if (event.key === "ArrowUp") {
-
       event.preventDefault();
-
       moveLineSuggestions(-1);
-
       return;
-
     }
-
-
 
     if (
-
       (event.key === "Enter" && !event.shiftKey) ||
-
       (event.key === "Tab" && !event.shiftKey)
-
     ) {
-
       event.preventDefault();
-
-
 
       const typeBefore = getLineType(line);
-
       const applied = applyLineSuggestion();
 
-
-
       // Si la línea era un personaje, después de aceptar la
-
       // sugerencia se crea una línea de diálogo debajo, lista
-
       // para escribir.
-
       if (applied && typeBefore === "character") {
-
         const sceneNode = line.closest(".script-scene");
 
-
-
         if (sceneNode) {
-
           const dialogueLine = insertLineAfter(
-
             line,
-
             "dialogue",
-
             ""
-
           );
-
-
 
           focusLine(dialogueLine, true);
-
           scheduleSceneSave(sceneNode);
-
         }
-
       }
 
-
-
       return;
-
     }
-
-
 
     if (event.key === "Escape") {
-
       event.preventDefault();
-
       hideLineSuggestions();
-
       return;
-
     }
-
   }
-
-
 
   // --- Copiar selección múltiple ---
-
   if (
-
     (event.ctrlKey || event.metaKey) &&
-
     !event.shiftKey &&
-
     !event.altKey &&
-
     event.key.toLowerCase() === "c"
-
   ) {
-
     const selected = [
-
       ...document.querySelectorAll(
-
         ".script-line.selected-line"
-
       ),
-
     ];
 
-
-
     if (selected.length > 1) {
-
       event.preventDefault();
 
-
-
       const text = selected
-
         .map(item => item.textContent || "")
-
         .join("\n");
 
-
-
       const fallbackCopy = () => {
-
         const helper = document.createElement("textarea");
-
         helper.value = text;
-
         helper.style.position = "fixed";
-
         helper.style.opacity = "0";
-
         document.body.appendChild(helper);
-
         helper.select();
 
-
-
         try {
-
           document.execCommand("copy");
-
         } catch (error) {
-
           console.error(
-
             "No fue posible copiar la selección.",
-
             error
-
           );
-
         }
 
-
-
         document.body.removeChild(helper);
-
       };
 
-
-
       if (
-
         navigator.clipboard &&
-
         typeof navigator.clipboard.writeText === "function"
-
       ) {
-
         navigator.clipboard
-
           .writeText(text)
-
           .catch(error => {
-
             console.error(
-
               "No fue posible copiar la selección con navigator.clipboard.",
-
               error
-
             );
-
             fallbackCopy();
-
           });
-
       } else {
-
         fallbackCopy();
-
       }
 
-
-
       return;
-
     }
-
   }
-
-
 
   if (
-
     (event.ctrlKey || event.metaKey) &&
-
     !event.shiftKey &&
-
     !event.altKey &&
-
     event.key.toLowerCase() === "a"
-
   ) {
-
     event.preventDefault();
-
     selectAllInCurrentScene(line);
-
     return;
-
   }
 
-
-
      if (event.key === "Tab") {
-
     event.preventDefault();
-
-
 
     const sceneNode = line.closest(".script-scene");
 
-
-
     if (!sceneNode) {
-
       return;
-
     }
 
-
-
     // Shift+Tab cancela el Tab anterior: si la línea actual es
-
     // un personaje vacío, se elimina y el foco vuelve a la anterior.
-
     if (event.shiftKey) {
-
       if (
-
         getLineType(line) === "character" &&
-
         !(line.textContent || "").trim()
-
       ) {
-
         const siblings = lineElements(sceneNode);
 
-
-
         if (siblings.length > 1) {
-
           const previous = line.previousElementSibling;
-
-
 
           line.remove();
 
-
-
           if (
-
             previous &&
-
             previous.classList.contains("script-line")
-
           ) {
-
             focusLine(previous, true);
-
           }
 
-
-
           scheduleSceneSave(sceneNode);
-
         }
-
       }
 
-
-
       return;
-
     }
-
-
 
     const hasContent = !!(line.textContent || "").trim();
-
     const currentType = getLineType(line);
 
-
-
     // En un encabezado, Tab construye la estructura:
-
     // INT. LOCACIÓN - SUBLOCACIÓN - DÍA
-
     if (currentType === "heading") {
-
       handleHeadingTab(line);
-
       scheduleSceneSave(sceneNode);
-
       return;
-
     }
-
-
 
     // Línea vacía que no es personaje: se convierte en personaje
-
     // para escribir el cue directamente.
-
     if (!hasContent && currentType !== "character") {
-
       setLineType(line, "character", {
-
         preserveCaret: true,
-
         skipSceneSplit: true,
-
       });
 
-
-
       focusLine(line, true);
-
       scheduleSceneSave(sceneNode);
-
       return;
-
     }
-
-
 
     // Personaje vacío: no hay nada que hacer.
-
     if (!hasContent && currentType === "character") {
-
       return;
-
     }
-
-
 
     // Cualquier otra línea con contenido: se crea un personaje
-
     // debajo, listo para escribir el cue.
-
     const cueLine = insertLineAfter(
-
       line,
-
       "character",
-
       ""
-
     );
-
-
 
     focusLine(cueLine, true);
-
     scheduleSceneSave(sceneNode);
 
-
-
     return;
-
   }
-
    if (event.key === "Enter") {
-
     event.preventDefault();
-
-
 
     if (event.shiftKey) {
-
       document.execCommand(
-
         "insertLineBreak"
-
       );
 
-
-
       return;
-
     }
-
-
 
     const nextType =
-
       nextTypeAfterEnter(line);
 
-
-
     const nextLine =
-
       splitLineAtCaret(
-
         line,
-
         nextType
-
       );
-
-
 
     if (nextType === "heading") {
-
       nextLine.textContent = "INT. ";
-
     }
-
-
 
     focusLine(
-
       nextLine,
-
       true
-
     );
-
-
 
     scheduleSceneSave(
-
       nextLine.closest(
-
         ".script-scene"
-
       )
-
     );
-
-
 
     markPendingStructuralReconcile(
-
       nextLine
-
     );
 
-
-
     return;
-
   }
 
-
-
   if (
-
     event.key === "Delete" ||
-
     event.key === "Del"
-
   ) {
-
     const sceneNode =
-
       line.closest(".script-scene");
 
-
-
     if (removeCurrentLineIfEmpty(line)) {
-
       event.preventDefault();
 
-
-
       updateSceneHeadingFromDom(
-
         sceneNode
-
       );
 
-
-
       return;
-
     }
-
-
 
     if ((line.textContent || "").trim()) {
-
       return;
-
     }
-
   }
 
-
-
   if (
-
     event.key === "Backspace" &&
-
     caretIsAtStart(line) &&
-
     !(
-
       line.closest(
-
         ".script-scene"
-
       )?.firstElementChild === line
-
     )
-
   ) {
-
     event.preventDefault();
 
-
-
     const sceneNode =
-
       line.closest(
-
         ".script-scene"
-
       );
-
-
 
     if (
-
       mergeWithPreviousLine(line)
-
     ) {
-
       updateSceneHeadingFromDom(
-
         sceneNode
-
       );
-
-
 
       scheduleSceneSave(
-
         sceneNode
-
       );
-
     }
 
-
-
     return;
-
   }
 
-
-
   if (
-
     event.key === "ArrowUp" &&
-
     caretIsAtStart(line)
-
   ) {
-
     const previous =
-
       line.previousElementSibling;
 
-
-
     if (
-
       previous &&
-
       previous.classList.contains(
-
         "script-line"
-
       )
-
     ) {
-
       event.preventDefault();
 
-
-
       focusLine(
-
         previous,
-
         true
-
       );
-
     }
 
-
-
     return;
-
   }
 
-
-
   if (
-
     event.key === "ArrowDown" &&
-
     caretIsAtEnd(line)
-
   ) {
-
     const next =
-
       line.nextElementSibling;
 
-
-
     if (
-
       next &&
-
       next.classList.contains(
-
         "script-line"
-
       )
-
     ) {
-
       event.preventDefault();
 
-
-
       focusLine(
-
         next,
-
         false
-
       );
 
-
-
       placeCaretAtStart(next);
-
     }
-
   }
-
 }
 
-
-
 function handleLineInput(event) {
-
   if (state.isRendering) {
-
     return;
-
   }
-
-
 
   const line =
-
     event.currentTarget;
 
-
-
   const type =
-
     getLineType(line);
 
-
-
   if (
-
     type === "action" ||
-
     type === "dialogue" ||
-
     type === "parenthetical"
-
   ) {
-
     autocapitalizeLineStart(line);
-
   }
 
-
-
   if (
-
     type === "character" ||
-
     type === "heading" ||
-
     type === "transition"
-
   ) {
-
     const selection =
-
       window.getSelection();
 
-
-
     const offset =
-
       selection?.rangeCount
-
         ? selection
-
             .getRangeAt(0)
-
             .startOffset
-
         : null;
 
-
-
     const uppercaseText =
-
       (line.textContent || "")
-
         .toUpperCase();
 
-
-
     if (
-
       line.textContent !==
-
       uppercaseText
-
     ) {
-
       line.textContent =
-
         uppercaseText;
 
-
-
       if (
-
         offset !== null &&
-
         line.firstChild
-
       ) {
-
         const range =
-
           document.createRange();
 
-
-
         const safeOffset =
-
           Math.min(
-
             offset,
-
             line.firstChild
-
               .textContent.length
-
           );
 
-
-
         range.setStart(
-
           line.firstChild,
-
           safeOffset
-
         );
-
-
 
         range.collapse(true);
 
-
-
         selection.removeAllRanges();
-
         selection.addRange(range);
-
       }
-
     }
-
   }
-
-
 
   const lineText =
-
     (line.textContent || "")
-
       .trim();
 
-
-
   if (
-
     type !== "heading" &&
-
     isHeadingPrefixText(lineText)
-
   ) {
-
     setLineType(
-
       line,
-
       "heading",
-
       {
-
         preserveCaret: true,
-
         // Durante escritura no reconciliamos
-
         // estructura de escenas en caliente.
-
         skipSceneSplit: true,
-
       }
-
     );
-
   }
-
-
 
   if (
-
     getLineType(line) !== "transition" &&
-
     isTransitionText(lineText)
-
   ) {
-
     setLineType(
-
       line,
-
       "transition",
-
       {
-
         preserveCaret: true,
-
       }
-
     );
-
   }
-
-
 
   const sceneNode =
-
     line.closest(".script-scene");
 
-
-
   updateSceneHeadingFromDom(
-
     sceneNode
-
   );
-
-
 
   scheduleSceneSave(
-
     sceneNode
-
   );
 
-
-
   const delimiterChanged =
-
     syncLineDelimiterState(line);
 
-
-
   if (delimiterChanged) {
-
     // Se difiere a blur para no destruir
-
     // el nodo contenteditable activo.
-
     markPendingStructuralReconcile(
-
       line
-
     );
-
   }
-
-
 
   // --- Autocompletado según el tipo actual ---
-
   const finalType = getLineType(line);
 
-
-
   if (
-
     finalType === "heading" ||
-
     finalType === "character"
-
   ) {
-
     showLineSuggestions(line);
-
   } else {
-
     hideLineSuggestions();
-
   }
-
 }
 
-
-
 function handleLinePaste(event) {
-
   event.preventDefault();
 
-
-
   const text =
-
     event.clipboardData
-
       ?.getData("text/plain")
-
       ?.replace(/\r/g, "");
 
-
-
   if (text == null) {
-
     return;
-
   }
 
-
-
   const line =
-
     event.currentTarget;
 
-
-
   const parts =
-
     text.split("\n");
 
-
-
   const previousTypeBeforePaste =
-
     getLineType(line);
 
-
-
   const knownCharacterCues =
-
     collectSceneCharacterCues(line);
 
-
-
   if (parts.length === 1) {
-
     document.execCommand(
-
       "insertText",
-
       false,
-
       parts[0]
-
     );
-
-
 
     scheduleDocumentSceneReconciliation();
 
-
-
     return;
-
   }
-
-
 
   const nextNonEmptyTextFrom = startIndex => {
-
     for (
-
       let index = startIndex;
-
       index < parts.length;
-
       index += 1
-
     ) {
-
       const candidate =
-
         String(
-
           parts[index] || ""
-
         ).trim();
 
-
-
       if (candidate) {
-
         return candidate;
-
       }
-
     }
-
-
 
     return "";
-
   };
 
-
-
   const firstPart =
-
     parts[0] || "";
 
-
-
   const firstType =
-
     inferPastedLineType(
-
       firstPart,
-
       previousTypeBeforePaste,
-
       {
-
         nextNonEmptyText:
-
           nextNonEmptyTextFrom(1),
-
         previousLineWasBlank: false,
-
         knownCharacterCues,
-
       }
-
     );
 
-
-
   setLineType(
-
     line,
-
     firstType,
-
     {
-
       preserveCaret: true,
-
       skipSceneSplit: true,
-
     }
-
   );
-
-
 
   if (firstType === "character") {
-
     const normalizedCue =
-
       normalizeCharacterCue(firstPart);
 
-
-
     if (normalizedCue) {
-
       knownCharacterCues.add(
-
         normalizedCue
-
       );
-
     }
-
   }
 
-
-
   document.execCommand(
-
     "insertText",
-
     false,
-
     firstPart
-
   );
-
-
 
   let reference = line;
 
-
-
   let previousType =
-
     firstType;
 
-
-
   let previousLineWasBlank =
-
     String(firstPart).trim() === "";
 
-
-
   let previousText =
-
     firstPart;
 
-
-
   for (
-
     let index = 1;
-
     index < parts.length;
-
     index += 1
-
   ) {
-
     const part = parts[index];
 
-
-
     const type =
-
       inferPastedLineType(
-
         part,
-
         previousType,
-
         {
-
           nextNonEmptyText:
-
             nextNonEmptyTextFrom(
-
               index + 1
-
             ),
-
           previousLineWasBlank,
-
           previousText,
-
           knownCharacterCues,
-
         }
-
       );
-
-
 
     const next =
-
       insertLineAfter(
-
         reference,
-
         type,
-
         part
-
       );
-
-
 
     reference = next;
-
     previousType = type;
 
-
-
     if (type === "character") {
-
       const normalizedCue =
-
         normalizeCharacterCue(part);
 
-
-
       if (normalizedCue) {
-
         knownCharacterCues.add(
-
           normalizedCue
-
         );
-
       }
-
     }
-
-
 
     previousLineWasBlank =
-
       String(part || "").trim() === "";
 
-
-
     previousText = part;
-
   }
-
-
 
   focusLine(
-
     reference,
-
     true
-
   );
-
-
 
   scheduleSceneSave(
-
     reference.closest(
-
       ".script-scene"
-
     )
-
   );
-
-
 
   scheduleDocumentSceneReconciliation();
-
 }
-
-
 
 function updateSceneHeadingFromDom(
-
   sceneNode
-
 ) {
-
   if (!sceneNode) {
-
     return;
-
   }
 
-
-
   const sceneId =
-
     Number(
-
       sceneNode.dataset.sceneId
-
     );
-
-
 
   const scene =
-
     state.scenes.find(
-
       item =>
-
         item.id === sceneId
-
     );
-
-
 
   const headingLine =
-
     sceneNode.querySelector(
-
       ":scope > .script-line.heading"
-
     );
 
-
-
   if (!scene) {
-
     return;
-
   }
-
-
 
   scene.heading =
-
     (
-
       headingLine?.textContent ||
-
       ""
-
     ).trim();
 
-
-
   scheduleSceneListRender();
-
 }
-
-
 
 function maybeCollapseSceneWithoutHeading(sceneNode) {
-
   scheduleDocumentSceneReconciliation(0);
-
   return false;
-
 }
-
-
 
 async function collapseLeadingHeadinglessScene() {
-
   return reconcileScenesFromDocument();
-
 }
-
-
 
 async function splitSceneAtHeading(
-
   line,
-
   options = {}
-
 ) {
-
   scheduleDocumentSceneReconciliation(0);
-
 }
-
-
 
 function renumberScenesLocally() {
-
   state.scenes.forEach(
-
     (scene, index) => {
-
       scene.scene_number =
-
         index + 1;
 
-
-
       const node =
-
         sceneElement(scene.id);
 
-
-
       if (node) {
-
         node.dataset.sceneNumber =
-
           String(
-
             scene.scene_number
-
           );
-
       }
-
     }
-
   );
-
 }
-
-
 
 function serializeSceneNode(sceneNode) {
-
   const lines = lineElements(sceneNode);
 
-
-
   const semanticLines = lines.map(line => ({
-
     type: getLineType(line),
-
     text: line.textContent || "",
-
   }));
 
-
-
   const headingLine =
-
     lines.find(
-
       line => getLineType(line) === "heading"
-
     );
-
-
 
   const heading =
-
     headingLine
-
       ? (headingLine.textContent || "")
-
           .trim()
-
       : "";
 
-
-
   const bodyLines = headingLine
-
     ? lines
-
         .filter(line => line !== headingLine)
-
         .map(line => line.textContent || "")
-
     : lines.map(
-
         line => line.textContent || ""
-
       );
 
-
-
   return {
-
     heading,
-
     body: bodyLines.join("\n"),
-
     semantic_lines: semanticLines,
-
   };
-
 }
-
-
 
 function currentSceneRevision(sceneId) {
-
   return state.saveRevisions.get(sceneId) || 0;
-
 }
-
-
 
 function sceneHasPendingSave(sceneId) {
-
   return (
-
     state.saveTimers.has(sceneId) ||
-
     state.savingScenes.has(sceneId)
-
   );
-
 }
-
-
 
 function scheduleSceneSave(sceneNode) {
-
   if (!sceneNode) {
-
     return;
-
   }
 
-
-
   const sceneId =
-
     Number(sceneNode.dataset.sceneId);
-
-
 
   if (!sceneId) {
-
     return;
-
   }
-
-
 
   const previousTimer =
-
     state.saveTimers.get(sceneId);
 
-
-
   if (previousTimer) {
-
     clearTimeout(previousTimer);
-
   }
-
-
 
   const revision =
-
     currentSceneRevision(sceneId) + 1;
 
-
-
   state.saveRevisions.set(
-
     sceneId,
-
     revision
-
   );
 
-
-
   if (sceneId === state.activeSceneId) {
-
     setSaveState(
-
       "Editando…",
-
       "editing"
-
     );
-
   }
-
-
 
   const timer = setTimeout(() => {
-
     state.saveTimers.delete(sceneId);
 
-
-
     saveSceneById(
-
       sceneId,
-
       revision
-
     );
-
   }, 650);
 
-
-
   state.saveTimers.set(
-
     sceneId,
-
     timer
-
   );
-
-
 
   if (sceneId === state.activeSceneId) {
-
     scheduleSceneAnalysis(850);
-
   }
-
 }
-
-
 
 async function saveSceneById(
-
   sceneId,
-
   revision = currentSceneRevision(sceneId)
-
 ) {
-
   const node = sceneElement(sceneId);
 
-
-
   if (!node) {
-
     return;
-
   }
-
-
 
   await saveSceneNode(
-
     node,
-
     revision
-
   );
-
 }
 
-
-
 async function saveSceneNode(
-
   sceneNode,
-
   revision = null
-
 ) {
-
   if (!sceneNode) {
-
     return;
-
   }
-
-
 
   const sceneId =
-
     Number(sceneNode.dataset.sceneId);
 
-
-
   if (state.savingScenes.has(sceneId)) {
-
     return;
-
   }
-
-
 
   const scene = state.scenes.find(
-
     item => item.id === sceneId
-
   );
 
-
-
   if (!scene) {
-
     return;
-
   }
-
-
 
   const saveRevision =
-
     revision ??
-
     currentSceneRevision(sceneId);
 
-
-
   const serialized =
-
     serializeSceneNode(sceneNode);
 
-
-
   const synopsis =
-
     sceneId === state.activeSceneId
-
       ? $("#sceneSynopsis").value
-
       : scene.synopsis || "";
 
-
-
   const currentSemanticLines =
-
     normalizeSemanticLines(
-
       scene.semantic_lines
-
     );
 
-
-
   const isUnchanged =
-
     (serialized.heading || "") ===
-
       (scene.heading || "") &&
-
     (serialized.body || "") ===
-
       (scene.body || "") &&
-
     (synopsis || "") ===
-
       (scene.synopsis || "") &&
-
     JSON.stringify(serialized.semantic_lines) ===
-
       JSON.stringify(currentSemanticLines);
 
-
-
   if (isUnchanged) {
-
     const isLatestRevision =
-
       saveRevision ===
-
       currentSceneRevision(sceneId);
 
-
-
     if (
-
       sceneId === state.activeSceneId &&
-
       isLatestRevision
-
     ) {
-
       setSaveState("Guardado", "saved");
-
     }
 
-
-
     return;
-
   }
-
-
 
   state.savingScenes.add(sceneId);
 
-
-
   if (sceneId === state.activeSceneId) {
-
     setSaveState(
-
       "Guardando…",
-
       "saving"
-
     );
-
   }
 
-
-
   try {
-
     const updated = await request(
-
       `/api/scenes/${sceneId}`,
-
       {
-
         method: "PATCH",
-
         body: JSON.stringify({
-
           heading: serialized.heading,
-
           body: serialized.body,
-
           semantic_lines:
-
             serialized.semantic_lines,
-
           synopsis,
-
         }),
-
       }
-
     );
-
-
 
     Object.assign(
-
       scene,
-
       updated
-
     );
-
-
 
     scene.semantic_lines =
-
       normalizeSemanticLines(
-
         updated.semantic_lines
-
       );
-
-
 
     removeLegacySemanticLines(
-
       sceneId
-
     );
 
-
-
     const isLatestRevision =
-
       saveRevision ===
-
       currentSceneRevision(sceneId);
 
-
-
     if (
-
       sceneId === state.activeSceneId &&
-
       isLatestRevision
-
     ) {
-
       $("#sceneRuntime").textContent =
-
         formatSeconds(
-
           scene.runtime_seconds
-
         );
 
-
-
       setSaveState(
-
         "Guardado",
-
         "saved"
-
       );
-
     }
-
-
 
     renderSceneList();
-
     await updateProjectRuntime();
-
   } catch (error) {
-
     console.error(
-
       `No fue posible guardar la escena ${sceneId}.`,
-
       error
-
     );
 
-
-
     const isLatestRevision =
-
       saveRevision ===
-
       currentSceneRevision(sceneId);
-
-
 
     if (
-
       sceneId === state.activeSceneId &&
-
       isLatestRevision
-
     ) {
-
       setSaveState(
-
         "Error al guardar",
-
         "error"
-
       );
-
     }
-
   } finally {
-
     const hasNewerRevision =
-
       saveRevision <
-
       currentSceneRevision(sceneId);
-
-
 
     state.savingScenes.delete(sceneId);
 
-
-
     if (hasNewerRevision) {
-
       await saveSceneById(
-
         sceneId,
-
         currentSceneRevision(sceneId)
-
       );
-
       return;
-
     }
-
-
 
     const isLatestRevision = true;
 
-
-
     if (
-
       sceneId === state.activeSceneId &&
-
       isLatestRevision
-
     ) {
-
       scheduleSceneAnalysis(1500);
-
     }
-
   }
-
 }
 
-
-
 async function saveProductionNumber() {
-
   const scene = activeScene();
 
-
-
   if (!scene) {
-
     return;
-
   }
 
-
-
   try {
-
     const updated = await request(
-
       `/api/scenes/${scene.id}`,
-
       {
-
         method: "PATCH",
-
         body: JSON.stringify({
-
           production_number:
-
             $("#sceneProductionNumber").value
-
         }),
-
       }
-
     );
-
-
 
     Object.assign(scene, updated);
 
-
-
     const productionNumber = String(
-
       $("#sceneProductionNumber").value || ""
-
     ).trim();
-
     const compoundNumber = productionNumber.match(
-
       /^(\d+)[A-Za-z]+$/
-
     );
-
-
 
     if (compoundNumber) {
-
       const sceneIndex = state.scenes.indexOf(scene);
-
       const firstFollowingNumber = Number(compoundNumber[1]) + 1;
 
-
-
       for (
-
         let index = sceneIndex + 1;
-
         index < state.scenes.length;
-
         index += 1
-
       ) {
-
         const followingScene = state.scenes[index];
-
         followingScene.production_number = String(
-
           firstFollowingNumber + index - sceneIndex - 1
-
         );
-
         await request(
-
           `/api/scenes/${followingScene.id}`,
-
           {
-
             method: "PATCH",
-
             body: JSON.stringify({
-
               production_number: followingScene.production_number,
-
             }),
-
           }
-
         );
-
       }
-
     }
 
-
-
     $("#sceneProductionNumber").value =
-
       scene.production_number || "";
 
-
-
     renderSceneList();
-
   } catch (error) {
-
     console.error(
-
       "No fue posible guardar el número de escena.",
-
       error
-
     );
-
   }
-
 }
-
-
 
 function scheduleSynopsisSave() {
-
   const scene =
-
     activeScene();
 
-
-
   const node =
-
     scene
-
       ? sceneElement(scene.id)
-
       : null;
 
-
-
   if (node) {
-
     scheduleSceneSave(node);
-
   }
-
 }
-
-
 
 async function updateProjectRuntime() {
-
   if (!state.project) {
-
     return;
-
   }
-
-
 
   try {
-
     const runtime =
-
       await request(
-
         `/api/projects/${state.project.id}/runtime`
-
       );
 
-
-
     $("#projectRuntime")
-
       .textContent =
-
         runtime.formatted ||
-
         formatSeconds(
-
           runtime.runtime_seconds ||
-
           0
-
         );
-
   } catch (error) {
-
     console.error(
-
       "No fue posible actualizar la duración.",
-
       error
-
     );
-
   }
-
 }
-
-
 
 function scheduleSceneAnalysis(
-
   delay = 500
-
 ) {
-
   clearTimeout(
-
     state.analysisTimer
-
   );
 
-
-
   state.analysisTimer =
-
     setTimeout(
-
       analyzeActiveScene,
-
       delay
-
     );
-
 }
-
-
 
 const breakdownAnalysisSyncing = new Set();
-
 const breakdownAnalysisWaiters = new Map();
-
 const breakdownAnalysisLoading = new Set();
-
 const breakdownAnalysisSynced = new Set();
-
 const breakdownAnalysisRetried = new Set();
 
-
-
 function normalizeBreakdownKey(category, name) {
-
   return `${String(category || "").trim().toLowerCase()}::${String(name || "").trim().toLowerCase()}`;
-
 }
 
-
-
 function analysisElementToBreakdownCategory(elementType) {
-
   const type = String(elementType || "").trim().toLowerCase();
 
-
-
   const categoryMap = {
-
     character: "character",
-
     cast: "character",
-
     location: "location",
 
-
-
     prop: "prop",
-
     props: "prop",
-
     object: "prop",
 
-
-
     wardrobe: "wardrobe",
-
     costume: "wardrobe",
 
-
-
     extra: "extra",
-
     extras: "extra",
 
-
-
     vehicle: "vehicle",
-
     vehicles: "vehicle",
 
-
-
     animal: "animal",
-
     animals: "animal",
-
-
 
     makeup: "makeup",
 
-
-
     stunt: "stunt",
 
-
-
     fx: "fx",
-
     vfx: "fx",
-
     sfx: "fx",
-
     special_effect: "fx",
-
     equipment: "equipment",
-
     special_equipment: "equipment",
-
   };
 
-
-
   return categoryMap[type] || type;
-
 }
 
-
-
 async function syncAnalysisToBreakdown(
-
   scene,
-
   analysis,
-
   options = {}
-
 ) {
-
   if (!scene?.id || !analysis) return;
 
-
-
   if (breakdownAnalysisSyncing.has(scene.id)) {
-
     return new Promise(resolve => {
-
       const waiters = breakdownAnalysisWaiters.get(scene.id) || [];
-
       waiters.push(resolve);
-
       breakdownAnalysisWaiters.set(scene.id, waiters);
-
     });
-
   }
-
-
 
   breakdownAnalysisSyncing.add(scene.id);
 
-
-
   try {
-
     scene.breakdown_items = scene.breakdown_items || [];
 
-
-
     const existingItems = new Map(
-
       scene.breakdown_items.map(item => [
-
         normalizeBreakdownKey(
-
           item.category,
-
           item.name
-
         ),
-
         item,
-
       ])
-
     );
-
-
 
     const existingKeys = new Set(existingItems.keys());
 
-
-
     const candidates = [];
 
-
-
     for (const characterName of analysis.characters || []) {
-
       const name = String(characterName || "").trim();
-
-
 
       if (!name) continue;
 
-
-
       candidates.push({
-
         category: "character",
-
         name,
-
       });
-
     }
 
-
-
     for (const element of analysis.production_elements || []) {
-
       const name = String(element.name || "").trim();
-
       const category = analysisElementToBreakdownCategory(
-
         element.element_type
-
       );
-
-
 
       if (!name || !category) continue;
 
-
-
       candidates.push({
-
         category,
-
         name,
-
       });
-
     }
-
-
 
     const currentAnalysisKeys = new Set(
-
       candidates.map(candidate =>
-
         normalizeBreakdownKey(
-
           candidate.category,
-
           candidate.name
-
         )
-
       )
-
     );
 
-
-
       for (const item of scene.breakdown_items) {
-
       const itemKey = normalizeBreakdownKey(
-
         item.category,
-
         item.name
-
       );
-
-
 
             
-
       if (
-
         item.source !== "analysis" ||
-
         item.state === "confirmed" ||
-
         currentAnalysisKeys.has(itemKey)
-
       ) {
-
         continue;
-
       }
-
       
-
       const updated = await request(
-
         `/api/breakdown/${item.id}`,
-
         {
-
           method: "PATCH",
-
           body: JSON.stringify({
-
             state: "rejected",
-
           }),
-
         }
-
       );
 
-
-
       Object.assign(item, updated);
-
     }
-
-
 
     const seenCandidates = new Set();
 
-
-
     for (const candidate of candidates) {
-
       const key = normalizeBreakdownKey(
-
         candidate.category,
-
         candidate.name
-
       );
 
-
-
       if (seenCandidates.has(key)) {
-
         continue;
-
       }
-
-
 
       seenCandidates.add(key);
 
-
-
       if (existingKeys.has(key)) {
-
         const existing = existingItems.get(key);
-
         // Si el personaje está en el backend (candidates) pero el frontend lo tiene rechazado,
-
         // lo reactivamos automáticamente.
-
         if (existing && existing.state === "rejected") {
-
           try {
-
             const updated = await request(
-
               `/api/breakdown/${existing.id}`,
-
               {
-
                 method: "PATCH",
-
                 body: JSON.stringify({
-
                   state: "detected",
-
                 }),
-
               }
-
             );
-
-
 
             Object.assign(existing, updated);
-
           } catch (error) {
-
             console.error(
-
               "No fue posible reactivar el elemento detectado.",
-
               {
-
                 id: existing.id,
-
                 name: candidate.name,
-
                 category: candidate.category,
-
                 error,
-
               }
-
             );
-
           }
-
         }
 
-
-
         continue;
-
       }
-
-
 
       try {
-
         const item = await request(
-
           `/api/scenes/${scene.id}/breakdown`,
-
           {
-
             method: "POST",
-
             body: JSON.stringify({
-
               category: candidate.category,
-
               name: candidate.name,
-
               source: "analysis",
-
               state: "detected",
-
             }),
-
           }
-
         );
-
-
 
         scene.breakdown_items.push(item);
-
         existingKeys.add(key);
-
         existingItems.set(key, item);
-
       } catch (error) {
-
         console.error(
-
           "No fue posible crear el elemento detectado.",
-
           {
-
             name: candidate.name,
-
             category: candidate.category,
-
             error,
-
           }
-
         );
-
       }
-
     }
-
-
 
     if (options.render !== false) {
-
       renderBreakdown(scene);
-
     }
-
-
 
     if (state.activeMainView === "desglose") {
-
       renderProductionBreakdown();
-
     }
-
     return true;
-
   } catch (error) {
-
     console.error(
-
       "No fue posible sincronizar el reconocimiento con el desglose.",
-
       error
-
     );
-
   } finally {
-
     breakdownAnalysisSyncing.delete(scene.id);
-
     const waiters = breakdownAnalysisWaiters.get(scene.id) || [];
-
     breakdownAnalysisWaiters.delete(scene.id);
-
     waiters.forEach(resolve => resolve(false));
-
   }
-
 }
 
-
-
 function ensureBreakdownAnalysisSync(scene) {
-
   if (!scene?.id || !state.project?.id) {
-
     return;
-
   }
-
-
 
   const key = `${state.project.id}:${scene.id}`;
 
-
-
   if (
-
     breakdownAnalysisSynced.has(key) ||
-
     breakdownAnalysisLoading.has(key)
-
   ) {
-
     return;
-
   }
-
-
 
   breakdownAnalysisLoading.add(key);
 
-
-
   request(`/api/scenes/${scene.id}/analysis`)
-
     .then(analysis =>
-
       syncAnalysisToBreakdown(
-
         scene,
-
         analysis,
-
         { render: false }
-
       )
-
     )
-
     .then(synced => {
-
       if (synced === false) {
-
         if (!breakdownAnalysisRetried.has(key)) {
-
           breakdownAnalysisRetried.add(key);
-
           setTimeout(() => ensureBreakdownAnalysisSync(scene), 0);
-
         }
-
         return;
-
       }
 
-
-
       breakdownAnalysisSynced.add(key);
-
       renderProductionBreakdown();
-
     })
-
     .catch(error => {
-
       console.error(
-
         "No fue posible sincronizar el análisis del desglose.",
-
         error
-
       );
-
     })
-
     .finally(() => {
-
       breakdownAnalysisLoading.delete(key);
-
     });
-
 }
-
-
 
 async function analyzeActiveScene() {
-
   const scene = activeScene();
 
-
-
   if (!scene) {
-
     return;
-
   }
-
-
 
   if (sceneHasPendingSave(scene.id)) {
-
     clearTimeout(
-
       state.analysisTimer
-
     );
-
-
 
     state.analysisTimer = setTimeout(
-
       analyzeActiveScene,
-
       500
-
     );
 
-
-
     return;
-
   }
-
-
 
   try {
-
     const analysis = await request(
-
       `/api/scenes/${scene.id}/analysis`
-
     );
-
-
 
     // La respuesta podría llegar después de que
-
     // el usuario cambió a otra escena.
-
     if (
-
       scene.id !== state.activeSceneId
-
     ) {
-
       return;
-
     }
-
-
 
     await syncAnalysisToBreakdown(
-
       scene,
-
       analysis
-
     );
-
-
 
     renderScriptAnalysis(
-
       analysis
-
     );
-
   } catch (error) {
-
     if (
-
       scene.id === state.activeSceneId
-
     ) {
-
       $("#scriptAnalysis").innerHTML =
-
         `<div class="empty">No fue posible analizar la escena.</div>`;
-
     }
 
-
-
     console.error(error);
-
   }
-
 }
-
-
 
 function renderScriptAnalysis(
-
   analysis
-
 ) {
-
   const counts =
-
     analysis?.counts || {};
 
-
-
   const chips =
-
     Object
-
       .entries({
-
         heading: "Encabezados",
-
         action: "Acción",
-
         character: "Personajes",
-
         dialogue: "Diálogos",
-
         parenthetical: "Parentéticos",
-
         transition: "Transiciones",
-
       })
-
       .map(
-
         ([key, label]) => `
-
           <div class="analysis-chip">
-
             <span>
-
               ${escapeHtml(label)}
-
             </span>
 
-
-
             <strong>
-
               ${escapeHtml(counts[key] || 0)}
-
             </strong>
-
           </div>
-
         `
-
       )
-
       .join("");
-
-
 
   const characters =
-
     analysis?.characters?.length
-
       ? `
-
         <div class="analysis-section">
-
           <div class="analysis-section-title">
-
             Personajes
-
           </div>
-
-
 
           <ul class="analysis-list">
-
             ${analysis.characters
-
               .map(
-
                 character => `
-
                   <li>
-
                     ${escapeHtml(character)}
-
                   </li>
-
                 `
-
               )
-
               .join("")}
-
           </ul>
-
         </div>
-
       `
-
       : `
-
         <div class="analysis-section">
-
           <div class="analysis-section-title">
-
             Personajes
-
           </div>
-
-
 
           <div class="analysis-empty">
-
             Aún no se detectan personajes.
-
           </div>
-
         </div>
-
       `;
-
-
 
   const events =
-
     analysis?.events?.length
-
       ? `
-
         <div class="analysis-section">
-
           <div class="analysis-section-title">
-
             Eventos
-
           </div>
-
-
 
           <ul class="analysis-list">
-
             ${analysis.events
-
               .map(
-
                 event => `
-
                   <li>
-
                     <strong>
-
                       ${escapeHtml(event.title || "Evento")}
-
                     </strong>
-
                   </li>
-
                 `
-
               )
-
               .join("")}
-
           </ul>
-
         </div>
-
       `
-
       : `
-
         <div class="analysis-section">
-
           <div class="analysis-section-title">
-
             Eventos
-
           </div>
-
-
 
           <div class="analysis-empty">
-
             Aún no se detectan eventos.
-
           </div>
-
         </div>
-
       `;
-
-
 
   const productionElements =
-
     analysis?.production_elements?.length
-
       ? `
-
         <div class="analysis-section">
-
           <div class="analysis-section-title">
-
             Elementos de producción
-
           </div>
-
-
 
           ${Object.entries(
-
             analysis.production_elements.reduce(
-
               (groups, element) => {
-
                 const key = element.element_type || "unknown";
-
                 if (!groups[key]) {
-
                   groups[key] = [];
-
                 }
-
                 groups[key].push(element);
-
                 return groups;
-
               },
-
               {}
-
             )
-
           )
-
             .map(
-
               ([group, items]) => `
-
                 <div class="analysis-group">
-
                   <div class="analysis-group-title">
-
                     ${escapeHtml(group)}
-
                   </div>
-
-
 
                   <ul class="analysis-list">
-
                     ${items
-
                       .map(
-
                         item => `
-
                           <li>
-
                             ${escapeHtml(item.name || "Elemento")}
-
                           </li>
-
                         `
-
                       )
-
                       .join("")}
-
                   </ul>
-
                 </div>
-
               `
-
             )
-
             .join("")}
-
         </div>
-
       `
-
       : `
-
         <div class="analysis-section">
-
           <div class="analysis-section-title">
-
             Elementos de producción
-
           </div>
-
-
 
           <div class="analysis-empty">
-
             Aún no se detectan elementos de producción.
-
           </div>
-
         </div>
-
       `;
 
-
-
   $("#scriptAnalysis")
-
     .innerHTML = `
-
       <div class="analysis-grid">
-
         ${chips}
-
       </div>
-
-
 
       <div class="analysis-stack">
-
         ${characters}
-
         ${events}
-
         ${productionElements}
-
       </div>
-
     `;
-
 }
-
-
 
 function renderNotes(scene) {
-
   const container =
-
     $("#notesList");
 
-
-
   if (
-
     !scene?.notes?.length
-
   ) {
-
     container.innerHTML = `
-
       <div class="empty">
-
         No hay notas.
-
       </div>
-
     `;
 
-
-
     return;
-
   }
 
-
-
   container.innerHTML =
-
     scene.notes
-
       .map(
-
         note => `
-
           <div class="item">
-
             <div class="item-meta">
-
               ${
-
                 escapeHtml(
-
                   note.category ||
-
                   "general"
-
                 )
-
               }
-
             </div>
-
-
 
             <div>
-
               ${
-
                 escapeHtml(
-
                   note.body
-
                 )
-
               }
-
             </div>
-
           </div>
-
         `
-
       )
-
       .join("");
-
 }
 
-
-
 const BREAKDOWN_CATEGORY_LABELS = {
-
   character: "Personajes",
-
   cast: "Personajes",
-
   scene_cast: "Personajes",
-
   location: "Locaciones",
-
   prop: "Arte / Utilería",
-
   art: "Arte / Utilería",
-
   wardrobe: "Vestuario",
-
   extra: "Extras",
-
   extras: "Extras",
-
   vehicle: "Vehículos",
-
   animal: "Animales",
-
   makeup: "Maquillaje",
-
   stunt: "Stunts / Riesgo",
-
   fx: "VFX / SFX",
-
   vfx: "VFX / SFX",
-
   sfx: "VFX / SFX",
-
   equipment: "Equipamiento / Necesidades especiales",
-
   special_equipment:
-
     "Equipamiento / Necesidades especiales",
-
 };
 
-
-
 const BREAKDOWN_CATEGORY_ORDER = [
-
   "Personajes",
-
   "Locaciones",
-
   "Arte / Utilería",
-
   "Vestuario",
-
   "Extras",
-
   "Vehículos",
-
   "Animales",
-
   "Maquillaje",
-
   "Stunts / Riesgo",
-
   "VFX / SFX",
-
   "Equipamiento / Necesidades especiales",
-
 ];
 
-
-
 function renderProductionBreakdown() {
-
   const container =
-
     $("#productionBreakdownScenes");
 
-
-
   const summary =
-
     $("#productionBreakdownSummary");
 
-
-
   if (!container || !summary) {
-
     return;
-
   }
-
-
 
   const scenes =
-
     state.scenes || [];
 
-
-
   const visibleItems =
-
     scenes.flatMap(scene =>
-
       (scene.breakdown_items || [])
-
         .filter(
-
           item =>
-
             item.state !== "rejected"
-
         )
-
     );
 
-
-
   summary.textContent =
-
     `${scenes.length} escenas · ${visibleItems.length} elementos activos`;
 
-
-
   if (!scenes.length) {
-
     container.innerHTML = `
-
       <div class="production-breakdown-empty">
-
         El proyecto no tiene escenas.
-
       </div>
-
     `;
 
-
-
     return;
-
   }
 
-
-
   container.innerHTML =
-
     scenes.map(scene => {
 
-
-
       const groups =
-
         new Map();
 
-
-
       (scene.breakdown_items || [])
-
         .forEach(item => {
 
-
-
           if (
-
             item.state === "rejected"
-
           ) {
-
             return;
-
           }
-
-
 
           const label =
-
             BREAKDOWN_CATEGORY_LABELS[
-
               item.category
-
             ] ||
-
             item.category ||
-
             "Otros";
 
-
-
           if (!groups.has(label)) {
-
             groups.set(
-
               label,
-
               []
-
             );
-
           }
 
-
-
           groups
-
             .get(label)
-
             .push(item);
-
         });
 
-
-
       const orderedLabels = [
-
         ...BREAKDOWN_CATEGORY_ORDER
-
           .filter(
-
             label =>
-
               groups.has(label)
-
           ),
-
-
 
         ...[...groups.keys()]
-
           .filter(
-
             label =>
-
               !BREAKDOWN_CATEGORY_ORDER
-
                 .includes(label)
-
           ),
-
       ];
 
-
-
       const groupsMarkup =
-
         orderedLabels.length
-
           ? orderedLabels
-
               .map(label => {
 
-
-
                 const items =
-
                   groups.get(label) || [];
 
-
-
                 return `
-
                   <div class="production-breakdown-group">
 
-
-
                     <div class="production-breakdown-group-title">
-
                       ${escapeHtml(label)}
-
                     </div>
-
-
 
                     <div class="production-breakdown-group-items">
-
                       ${
-
                         items
-
                           .map(
-
                             item =>
-
                               escapeHtml(
-
                                 item.name
-
                               )
-
                           )
-
                           .join(" · ")
-
                       }
-
                     </div>
 
-
-
                   </div>
-
                 `;
-
               })
-
               .join("")
-
           : `
-
               <div class="production-breakdown-empty">
-
                 Sin elementos de producción registrados.
-
               </div>
-
             `;
 
-
-
       return `
-
         <article
-
           class="production-breakdown-scene"
-
           data-scene-id="${scene.id}"
-
         >
-
-
 
           <header class="production-breakdown-scene-header">
 
-
-
             <div class="production-breakdown-scene-number">
-
   Escena ${
-
     escapeHtml(
-
       scene.production_number ||
-
       scene.scene_number
-
     )
-
   }
-
 </div>
 
-
-
             <h2 class="production-breakdown-scene-heading">
-
               ${
-
                 escapeHtml(
-
                   scene.heading ||
-
                   "Sin encabezado"
-
                 )
-
               }
-
             </h2>
-
-
 
           </header>
 
-
-
           <div class="production-breakdown-groups">
-
             ${groupsMarkup}
-
           </div>
-
-
 
         </article>
-
       `;
-
     })
-
     .join("");
-
 }
-
-
 
 function renderBreakdown(scene) {
-
   const container =
-
     $("#breakdownList");
 
-
-
   const categoryFilter =
-
     $("#breakdownFilterCategory")
-
       ?.value || "all";
-
-
 
   const stateFilter =
-
     $("#breakdownFilterState")
-
       ?.value || "all";
 
-
-
   const items =
-
     scene?.breakdown_items?.filter(item => {
-
       const isActive =
-
         item.state !== "rejected";
 
-
-
       const byCategory =
-
         categoryFilter === "all" ||
-
         item.category === categoryFilter;
 
-
-
       const byState =
-
         stateFilter === "all" ||
-
         item.state === stateFilter;
 
-
-
       return isActive && byCategory && byState;
-
     }) || [];
 
-
-
   if (
-
     !items.length
-
   ) {
-
     container.innerHTML = `
-
       <div class="empty">
-
         No hay elementos para el filtro actual.
-
       </div>
-
     `;
 
-
-
     return;
-
   }
-
-
 
   container.innerHTML =
-
     items
-
       .map(
-
         item => `
-
           <div class="item">
-
             <div class="item-meta">
-
               ${
-
                 escapeHtml(
-
                   item.category
-
                 )
-
               }
-
               ·
-
               ${
-
                 escapeHtml(
-
                   item.state
-
                 )
-
               }
-
             </div>
-
-
 
             <div>
-
               ${
-
                 escapeHtml(
-
                   item.name
-
                 )
-
               }
-
             </div>
-
-
 
             <div class="inline-form">
-
               <button
-
                 type="button"
-
                 class="secondary"
-
                 data-breakdown-id="${item.id}"
-
                 data-breakdown-state="confirmed"
-
               >
-
                 Confirmar
-
               </button>
-
-
 
               <button
-
                 type="button"
-
                 class="secondary"
-
                 data-breakdown-id="${item.id}"
-
                 data-breakdown-state="rejected"
-
               >
-
                 Rechazar
-
               </button>
-
             </div>
-
           </div>
-
         `
-
       )
-
       .join("");
-
 }
-
-
 
 function exportProjectPdf() {
-
   if (!state.project) {
-
     return;
-
   }
-
-
 
   const includeNumbers = window.confirm(
-
     "¿Incluir números de escena?\n\nAceptar = Formato Producción (con números)\nCancelar = Formato Spec (sin números)"
-
   );
-
-
 
   // Abrimos el PDF en una pestaña nueva para previsualizarlo
-
   const url = `/api/projects/${state.project.id}/export/pdf?include_scene_numbers=${includeNumbers}`;
-
   window.open(url, "_blank");
-
 }
-
-
 
 async function updateBreakdownItemState(
-
   itemId,
-
   nextState
-
 ) {
-
   const scene =
-
     activeScene();
 
-
-
   if (!scene) {
-
     return;
-
   }
-
-
 
   try {
-
     const updated = await request(
-
       `/api/breakdown/${itemId}`,
-
       {
-
         method: "PATCH",
-
         body: JSON.stringify({
-
           state: nextState,
-
         }),
-
       }
-
     );
-
-
 
     scene.breakdown_items =
-
       (scene.breakdown_items || []).map(item =>
-
         item.id === updated.id
-
           ? {
-
               ...item,
-
               ...updated,
-
             }
-
           : item
-
       );
 
-
-
     renderBreakdown(scene);
-
   } catch (error) {
-
     console.error(error);
 
-
-
     alert(
-
       "No fue posible actualizar el estado del elemento."
-
     );
-
   }
-
 }
-
-
 
 function proposeSynopsis() {
-
   const scene =
-
     activeScene();
-
-
 
   if (!scene) {
-
     return;
-
   }
-
-
 
   const node =
-
     sceneElement(
-
       scene.id
-
     );
-
-
 
   if (!node) {
-
     return;
-
   }
-
-
 
   const {
-
     body,
-
   } = serializeSceneNode(
-
     node
-
   );
 
-
-
   const normalized =
-
     body
-
       .replace(
-
         /\n+/g,
-
         " "
-
       )
-
       .replace(
-
         /\s+/g,
-
         " "
-
       )
-
       .trim();
-
-
 
   if (!normalized) {
-
     return;
-
   }
-
-
 
   const firstSentence =
-
     normalized
-
       .match(
-
         /^(.{1,220}?[.!?])(?:\s|$)/
-
       )?.[1] ||
-
     normalized.slice(
-
       0,
-
       180
-
     );
-
-
 
   $("#sceneSynopsis")
-
     .value =
-
       firstSentence;
 
-
-
   scheduleSynopsisSave();
-
 }
-
-
 
 async function addNote() {
-
   const scene =
-
     activeScene();
-
-
 
   const body =
-
     $("#noteInput")
-
       .value
-
       .trim();
 
-
-
   if (
-
     !scene ||
-
     !body
-
   ) {
-
     return;
-
   }
 
-
-
   try {
-
     const note =
-
       await request(
-
         `/api/scenes/${scene.id}/notes`,
-
         {
-
           method: "POST",
-
           body: JSON.stringify({
-
             body,
-
             category:
-
               "general",
-
           }),
-
         }
-
       );
-
-
 
     scene.notes =
-
       scene.notes || [];
 
-
-
     scene.notes.unshift(
-
       note
-
     );
-
-
 
     $("#noteInput")
-
       .value = "";
-
-
 
     renderNotes(scene);
-
   } catch (error) {
-
     console.error(error);
 
-
-
     alert(
-
       "No fue posible agregar la nota."
-
     );
-
   }
-
 }
 
-
-
 async function addBreakdownItem() {
-
   const scene =
-
     activeScene();
 
-
-
   const name =
-
     $("#breakdownName")
-
       .value
-
       .trim();
 
-
-
   const category =
-
     $("#breakdownCategory")
-
       .value;
 
-
-
   const stateValue =
-
     $("#breakdownState")
-
       ?.value || "confirmed";
 
-
-
   if (
-
     !scene ||
-
     !name
-
   ) {
-
     return;
-
   }
 
-
-
   try {
-
     const item =
-
       await request(
-
         `/api/scenes/${scene.id}/breakdown`,
-
         {
-
           method: "POST",
-
           body: JSON.stringify({
-
             category,
-
             name,
-
             source:
-
               "manual",
-
             state:
-
               stateValue,
-
           }),
-
         }
-
       );
 
-
-
     scene.breakdown_items =
-
       scene.breakdown_items ||
-
       [];
 
-
-
     scene
-
       .breakdown_items
-
       .push(item);
 
-
-
     $("#breakdownName")
-
       .value = "";
-
-
 
     renderBreakdown(scene);
 
-
-
     scheduleSceneAnalysis(
-
       0
-
     );
-
   } catch (error) {
-
     console.error(error);
 
-
-
     alert(
-
       "No fue posible agregar el elemento."
-
     );
-
   }
-
 }
-
-
 
 async function createProject() {
-
   const title =
-
     window.prompt(
-
       "Título del proyecto"
-
     );
-
-
 
   if (!title?.trim()) {
-
     return;
-
   }
 
-
-
   try {
-
     const project =
-
       await request(
-
         "/api/projects",
-
         {
-
           method: "POST",
-
           body: JSON.stringify({
-
             title:
-
               title.trim(),
 
-
-
             format:
-
               "feature",
-
           }),
-
         }
-
       );
-
-
 
     await loadProjects(
-
       project.id
-
     );
-
   } catch (error) {
-
     console.error(error);
 
-
-
     alert(
-
       "No fue posible crear el proyecto."
-
     );
-
   }
-
 }
 
-
-
 async function createScene() {
-
   if (!state.project) {
-
     return;
-
   }
 
-
-
   try {
-
     const scene =
-
       await request(
-
         `/api/projects/${state.project.id}/scenes`,
-
         {
-
           method: "POST",
-
           body: JSON.stringify({}),
-
         }
-
       );
 
-
-
     scene.notes =
-
       scene.notes || [];
 
-
-
     scene.breakdown_items =
-
       scene.breakdown_items || [];
 
-
-
     state.scenes.push(
-
       scene
-
     );
-
-
 
     renumberScenesLocally();
 
-
-
     const node =
-
       createSceneNode(
-
         scene
-
       );
 
-
-
     $("#screenplayEditor")
-
       .appendChild(node);
 
-
-
     state.activeSceneId =
-
       scene.id;
-
-
 
     renderSceneList();
 
-
-
     setActiveScene(
-
       scene.id,
-
       {
-
         scroll: true,
-
         focus: true,
-
       }
-
     );
-
-
 
     const focusTarget =
-
       node.querySelector(
-
         ".script-line.transition"
-
       ) ||
-
       node.querySelector(
-
         ".script-line.heading"
-
       ) ||
-
       node.querySelector(
-
         ".script-line"
-
       );
-
-
 
     if (focusTarget) {
-
       focusLine(
-
         focusTarget,
-
         true
-
       );
-
     }
-
   } catch (error) {
-
     console.error(error);
 
-
-
     alert(
-
       "No fue posible crear la escena."
-
     );
-
   }
-
 }
-
-
 
 async function loadProjects(
-
   preferredProjectId = null
-
 ) {
-
   state.projects =
-
     await request(
-
       "/api/projects"
-
     );
 
-
-
   $("#projectSelect")
-
     .innerHTML =
-
       state.projects
-
         .map(
-
           project => `
-
             <option value="${project.id}">
-
               ${
-
                 escapeHtml(
-
                   project.title
-
                 )
-
               }
-
             </option>
-
           `
-
         )
-
         .join("");
 
-
-
   const projectId =
-
     preferredProjectId ||
-
     state.projects[0]?.id;
 
-
-
   if (projectId) {
-
     await loadProject(
-
       projectId
-
     );
-
-
 
     return;
-
   }
-
-
 
   state.project = null;
-
   state.scenes = [];
-
   state.activeSceneId = null;
-
   breakdownAnalysisLoading.clear();
-
   breakdownAnalysisSynced.clear();
-
   breakdownAnalysisRetried.clear();
 
-
-
   $("#projectTitle")
-
     .value = "";
 
-
-
   renderSceneList();
-
   renderScreenplay();
-
 }
 
-
-
 async function loadProject(
-
   projectId
-
 ) {
-
   state.scheduleRequestToken += 1;
-
   state.scheduleOrderDirty = false;
-
   state.scheduleOrderBusy = false;
-
   state.scheduleLoaded = false;
-
   state.scheduleProjectId = Number(projectId);
-
   updateScheduleOrderButtons();
 
-
-
   breakdownAnalysisLoading.clear();
-
   breakdownAnalysisSynced.clear();
-
   breakdownAnalysisRetried.clear();
 
-
-
   let loadedFromDocument = false;
-
   let mustUseLegacy = false;
 
-
-
   try {
-
     const response = await fetch(
-
       `/api/projects/${projectId}/document`,
-
       {
-
         headers: {
-
           "Content-Type": "application/json",
-
         },
-
       }
-
     );
-
-
 
     if (!response.ok) {
-
       if (response.status === 404) {
-
         mustUseLegacy = true;
-
       } else {
-
         const detail = await response
-
           .json()
-
           .catch(() => ({
-
             detail: "Error inesperado",
-
           }));
 
-
-
         throw new Error(
-
           detail.detail ||
-
           `Error ${response.status}`
-
         );
-
       }
-
     } else {
-
       const documentResponse =
-
         await response.json();
 
-
-
       const derivedScenes =
-
         documentResponse.derived_scenes || [];
 
-
-
       const hasUnsafeDerivedScenes =
-
         derivedScenes.some(
-
           scene =>
-
             scene?.id == null ||
-
             scene?.structural_conflict === true
-
         );
 
-
-
       if (hasUnsafeDerivedScenes) {
-
         mustUseLegacy = true;
-
       } else {
-
         state.project =
-
           documentResponse.project;
 
-
-
         state.document =
-
           documentResponse.document;
 
-
-
         state.documentLines =
-
           documentResponse.lines || [];
 
-
-
         state.scenes =
-
           derivedScenes;
 
-
-
         loadedFromDocument = true;
-
       }
-
     }
-
   } catch (error) {
-
     if (!mustUseLegacy) {
-
       throw error;
-
     }
-
   }
 
-
-
   if (!loadedFromDocument) {
-
     const legacy =
-
       await request(
-
         `/api/projects/${projectId}`
-
       );
-
-
 
     state.project =
-
       legacy.project;
 
-
-
     state.scenes =
-
       legacy.scenes || [];
 
-
-
     state.document = null;
-
     state.documentLines = [];
-
   }
-
-
 
   state.activeSceneId =
-
     state.scenes[0]?.id ??
-
     null;
 
-
-
   $("#characterDetailView")
-
     .hidden = true;
 
-
-
   $("#sidebarContextTitle")
-
     .textContent =
-
       "Escenas";
 
-
-
   $("#newSceneButton")
-
     .hidden = false;
-
-
 
   $(".sidebar-search-row")
-
     .hidden = false;
-
-
 
   $(".sidebar-footer")
-
     .hidden = false;
 
-
-
   document
-
     .querySelectorAll("#elementList [data-element-view]")
-
     .forEach(element => {
-
       element.classList.toggle(
-
         "active",
-
         element.dataset.elementView === "scenes"
-
       );
-
     });
 
-
-
   $("#projectSelect")
-
     .value =
-
       String(projectId);
 
-
-
   $("#projectTitle")
-
     .value =
-
       state.project.title ||
-
       "";
 
-
-
   renderSceneList();
-
   renderScreenplay();
 
-
-
   if (state.activeSceneId) {
-
     setActiveScene(
-
       state.activeSceneId,
-
       {
-
         scroll: false,
-
         focus: false,
-
       }
-
     );
-
   } else {
-
     renderNoActiveScene();
-
   }
-
-
 
   if (!loadedFromDocument) {
-
     await collapseLeadingHeadinglessScene();
-
   }
-
-
 
   await updateProjectRuntime();
 
-
-
   setMainView(state.activeMainView);
-
 }
-
-
 
 function setSaveState(
-
   text,
-
   stateName = ""
-
 ) {
-
   const indicator =
-
     $("#saveState");
 
-
-
   indicator.textContent =
-
     text;
 
-
-
   indicator.dataset.state =
-
     stateName;
-
 }
-
-
 
 function setupTabs() {
-
   document
-
     .querySelectorAll(".tab")
-
     .forEach(tab => {
-
       tab.addEventListener(
-
         "click",
-
         () => {
-
           document
-
             .querySelectorAll(
-
               ".tab"
-
             )
-
             .forEach(item => {
-
               item.classList.remove(
-
                 "active"
-
               );
-
             });
-
-
 
           document
-
             .querySelectorAll(
-
               ".panel"
-
             )
-
             .forEach(panel => {
-
               panel.classList.remove(
-
                 "active"
-
               );
-
             });
-
-
 
           tab.classList.add(
-
             "active"
-
           );
-
-
 
           const panel =
-
             $(
-
               `#panel-${tab.dataset.tab}`
-
             );
-
-
 
           if (panel) {
-
             panel.classList.add(
-
               "active"
-
             );
-
           }
-
         }
-
       );
-
     });
-
 }
-
-
 
 function toggleInspector() {
-
   const collapsed =
-
     document.body.classList.toggle(
-
       "inspector-collapsed"
-
     );
-
-
 
   const button =
-
     $("#toggleInspectorButton");
-
-
 
   if (!button) {
-
     return;
-
   }
-
-
 
   button.textContent =
-
     collapsed
-
       ? "Inspector ▸"
-
       : "Inspector ◂";
 
-
-
   button.setAttribute(
-
     "aria-pressed",
-
     String(collapsed)
-
   );
-
 }
-
-
 
 function setupEvents() {
-
   $("#elementList")
-
     .addEventListener(
-
       "click",
-
       async event => {
-
         const item = event.target.closest("[data-element-view]");
 
-
-
         if (!item) {
-
           return;
-
         }
-
-
 
         document
-
           .querySelectorAll("#elementList [data-element-view]")
-
           .forEach(element => {
-
             element.classList.toggle("active", element === item);
-
           });
 
-
-
         const view = item.dataset.elementView;
-
         const title = $("#sidebarContextTitle");
-
         const newSceneButton = $("#newSceneButton");
-
         const searchRow = $(".sidebar-search-row");
-
         const footer = $(".sidebar-footer");
 
-
-
                if (view === "characters") {
-
           title.textContent = "Personajes";
-
           newSceneButton.hidden = true;
-
           searchRow.hidden = true;
-
           footer.hidden = true;
-
-
 
           // Mostrar el botón de Alias solo en esta pestaña
-
           const manageAliasesBtn = document.getElementById("manageAliasesButton");
-
           if (manageAliasesBtn) manageAliasesBtn.style.display = "block";
 
-
-
           if (!state.project) {
-
             return;
-
           }
 
-
-
           const response = await request(
-
             `/api/projects/${state.project.id}/characters`
-
           );
-
           const characters = response.characters || [];
 
-
-
           $("#sceneList").innerHTML = characters.length
-
             ? characters.map(character => `
-
                 <div
-
                   class="scene-card"
-
                   data-character-name="${escapeHtml(character.name)}"
-
                   data-character-first-scene="${character.first_scene}"
-
                   data-character-scene-count="${character.scene_count}"
-
                   data-character-scene-numbers="${character.scene_numbers.join(", ")}"
-
                 >
-
                   <div class="scene-card-heading">${escapeHtml(character.name)}</div>
-
                   <div class="scene-card-runtime">
-
                     ${character.scene_count} escenas · ${character.scene_numbers.join(", ")}
-
                   </div>
-
                 </div>
-
               `).join("")
-
             : '<div class="empty">No hay personajes.</div>';
 
-
-
           return;
-
         }
-
-
 
         if (view === "locations") {
-
           title.textContent = "Locaciones";
-
           newSceneButton.hidden = true;
-
           searchRow.hidden = true;
-
           footer.hidden = true;
 
-
-
           if (!state.project) {
-
             return;
-
           }
 
-
-
           const response = await request(
-
             `/api/projects/${state.project.id}/locations`
-
           );
-
           const locations = response.locations || [];
 
-
-
           $("#sceneList").innerHTML = locations.length
-
             ? locations.map(location => `
-
                 <div
-
                   class="scene-card"
-
                   data-location-name="${escapeHtml(location.name)}"
-
                   data-location-first-scene="${location.first_scene}"
-
                   data-location-scene-count="${location.scene_count}"
-
                   data-location-scene-numbers="${location.scene_numbers.join(", ")}"
-
                 >
-
                   <div class="scene-card-heading">${escapeHtml(location.name)}</div>
-
                   <div class="scene-card-runtime">
-
                     ${location.scene_count} escenas · ${location.scene_numbers.join(", ")}
-
                   </div>
-
                 </div>
-
               `).join("")
-
             : '<div class="empty">No hay locaciones.</div>';
 
-
-
           return;
-
         }
-
-
 
         if (view === "resources") {
-
           title.textContent = "Arte / Utilería";
-
           newSceneButton.hidden = true;
-
           searchRow.hidden = true;
-
           footer.hidden = true;
 
-
-
           if (!state.project) {
-
             return;
-
           }
-
-
 
           const response = await request(
-
             `/api/projects/${state.project.id}/resources`
-
           );
-
           const resources = response.resources || [];
 
-
-
           $("#sceneList").innerHTML = resources.length
-
             ? resources.map(resource => `
-
                 <div
-
                   class="scene-card"
-
                   data-resource-name="${escapeHtml(resource.name)}"
-
                   data-resource-category="${escapeHtml(resource.category)}"
-
                   data-resource-first-scene="${resource.first_scene}"
-
                   data-resource-scene-count="${resource.scene_count}"
-
                   data-resource-scene-numbers="${resource.scene_numbers.join(", ")}"
-
                 >
-
                   <div class="scene-card-heading">${escapeHtml(resource.name)}</div>
-
                   <div class="scene-card-runtime">
-
                     ${escapeHtml(resource.category)} · ${resource.scene_count} escenas · ${resource.scene_numbers.join(", ")}
-
                   </div>
-
                 </div>
-
               `).join("")
-
             : '<div class="empty">No hay recursos.</div>';
 
-
-
           return;
-
         }
-
-
 
                if (view === "scenes") {
-
           title.textContent = "Escenas";
-
           newSceneButton.hidden = false;
-
           searchRow.hidden = false;
-
           footer.hidden = false;
-
           
-
           // Ocultar el botón de Alias en esta pestaña
-
           const manageAliasesBtn = document.getElementById("manageAliasesButton");
-
           if (manageAliasesBtn) manageAliasesBtn.style.display = "none";
 
-
-
           $("#characterDetailView").hidden = true;
-
           if (state.activeMainView === "guion") {
-
             $("#screenplayViewport").hidden = false;
-
           }
-
           renderSceneList();
-
         }
-
       }
-
     );
-
-
 
   $("#sceneList")
-
     .addEventListener(
-
       "click",
-
       event => {
-
         const character = event.target.closest("[data-character-name]");
-
         const location = event.target.closest("[data-location-name]");
-
         const resource = event.target.closest("[data-resource-name]");
 
-
-
         if (!character && !location && !resource) {
-
           return;
-
         }
-
-
 
         const detail = character || location || resource;
-
         const name = character
-
           ? detail.dataset.characterName
-
           : location
-
             ? detail.dataset.locationName
-
             : detail.dataset.resourceName;
-
         const firstScene = character
-
           ? detail.dataset.characterFirstScene
-
           : location
-
             ? detail.dataset.locationFirstScene
-
             : detail.dataset.resourceFirstScene;
-
         const sceneCount = character
-
           ? detail.dataset.characterSceneCount
-
           : location
-
             ? detail.dataset.locationSceneCount
-
             : detail.dataset.resourceSceneCount;
-
         const sceneNumbers = character
-
           ? detail.dataset.characterSceneNumbers
-
           : location
-
             ? detail.dataset.locationSceneNumbers
-
             : detail.dataset.resourceSceneNumbers;
-
         const category = resource
-
           ? detail.dataset.resourceCategory
-
           : "";
 
-
-
         $("#screenplayViewport").hidden = true;
-
         $("#characterDetailView").hidden = false;
-
         $("#characterDetailView").innerHTML = `
-
           <h2>${escapeHtml(name)}</h2>
-
           ${category ? `<p>Categoría: ${escapeHtml(category)}</p>` : ""}
-
           <p>Primera aparición: escena ${escapeHtml(firstScene)}</p>
-
           <p>Cantidad de escenas: ${escapeHtml(sceneCount)}</p>
-
           <p>Números de escena: ${escapeHtml(sceneNumbers)}</p>
-
         `;
-
       }
-
     );
-
-
 
   $("#projectSelect")
-
     .addEventListener(
-
       "change",
-
       event => {
-
         loadProject(
-
           event.target.value
-
         ).catch(error => {
-
           console.error(error);
 
-
-
           alert(
-
             "No fue posible cargar el proyecto."
-
           );
-
         });
-
       }
-
     );
-
-
 
   $("#newProjectButton")
-
     .addEventListener(
-
       "click",
-
       createProject
-
     );
-
       // Borrar proyecto
-
   const deleteProjectBtn = document.getElementById("deleteProjectButton");
-
   if (deleteProjectBtn) {
-
     deleteProjectBtn.addEventListener("click", async () => {
-
       if (!state.project) return;
 
-
-
       const confirmed = window.confirm(
-
         `¿Estás seguro de que quieres eliminar el proyecto "${state.project.title}"?\n\nEsta acción no se puede deshacer.`
-
       );
-
       if (!confirmed) return;
 
-
-
       try {
-
         await request(`/api/projects/${state.project.id}`, {
-
           method: "DELETE",
-
         });
-
         // Recargar la lista de proyectos y seleccionar el primero disponible
-
         await loadProjects();
-
       } catch (error) {
-
         console.error(error);
-
         alert("No fue posible eliminar el proyecto.");
-
       }
-
     });
-
   }
-
-
 
   $("#newSceneButton")
-
     .addEventListener(
-
       "click",
-
       createScene
-
     );
-
-
 
   $("#sceneProductionNumber")
-
     .addEventListener(
-
       "change",
-
       saveProductionNumber
-
     );
-
-
 
   $("#sceneSynopsis")
-
     .addEventListener(
-
       "input",
-
       scheduleSynopsisSave
-
     );
-
-
 
   $("#suggestSynopsisButton")
-
     .addEventListener(
-
       "click",
-
       proposeSynopsis
-
     );
-
-
 
   $("#addNoteButton")
-
     .addEventListener(
-
       "click",
-
       addNote
-
     );
-
-
 
   $("#addBreakdownButton")
-
     .addEventListener(
-
       "click",
-
       addBreakdownItem
-
     );
-
-
 
   $("#exportPdfButton")
-
     .addEventListener(
-
       "click",
-
       exportProjectPdf
-
     );
-
-
 
   $("#generateScheduleButton")
-
     .addEventListener(
-
       "click",
-
       loadSchedulePreview
-
     );
-
-
 
   if (!$("#saveScheduleOrderButton").dataset.listenerRegistered) {
-
     $("#saveScheduleOrderButton").dataset.listenerRegistered = "true";
-
     $("#saveScheduleOrderButton").addEventListener(
-
       "click",
-
       saveScheduleManualOrder
-
     );
-
   }
-
-
 
   if (!$("#resetScheduleOrderButton").dataset.listenerRegistered) {
-
     $("#resetScheduleOrderButton").dataset.listenerRegistered = "true";
-
     $("#resetScheduleOrderButton").addEventListener(
-
       "click",
-
       resetScheduleManualOrder
-
     );
-
   }
-
-
 
   $("#breakdownFilterCategory")
-
     .addEventListener(
-
       "change",
-
       () => {
-
         renderBreakdown(activeScene());
-
       }
-
     );
-
-
 
   $("#breakdownFilterState")
-
     .addEventListener(
-
       "change",
-
       () => {
-
         renderBreakdown(activeScene());
-
       }
-
     );
-
-
 
   $("#breakdownList")
-
     .addEventListener(
-
       "click",
-
       event => {
-
         const target =
-
           event.target.closest(
-
             "[data-breakdown-id][data-breakdown-state]"
-
           );
-
-
 
         if (!target) {
-
           return;
-
         }
-
-
 
         const itemId = Number(
-
           target.dataset.breakdownId
-
         );
-
-
 
         const nextState =
-
           target.dataset.breakdownState;
 
-
-
         if (!itemId || !nextState) {
-
           return;
-
         }
-
-
 
         updateBreakdownItemState(
-
           itemId,
-
           nextState
-
         );
-
       }
-
     );
-
-
 
   $("#noteInput")
-
     .addEventListener(
-
       "keydown",
-
       event => {
-
         if (
-
           event.key ===
-
           "Enter"
-
         ) {
-
           event.preventDefault();
-
           addNote();
-
         }
-
       }
-
     );
-
-
 
   $("#breakdownName")
-
     .addEventListener(
-
       "keydown",
-
       event => {
-
         if (
-
           event.key ===
-
           "Enter"
-
         ) {
-
           event.preventDefault();
-
           addBreakdownItem();
-
         }
-
       }
-
     );
-
-
 
   $("#projectTitle")
-
     .addEventListener(
-
       "change",
-
       async event => {
-
         if (!state.project) {
-
           return;
-
         }
-
-
 
         const title =
-
           event.target.value
-
             .trim();
 
-
-
         if (!title) {
-
           event.target.value =
-
             state.project.title;
 
-
-
           return;
-
         }
-
-
 
         try {
-
           const updated =
-
             await request(
-
               `/api/projects/${state.project.id}`,
-
               {
-
                 method:
-
                   "PATCH",
 
-
-
                 body:
-
                   JSON.stringify({
-
                     title,
-
                   }),
-
               }
-
             );
 
-
-
           state.project = {
-
             ...state.project,
-
             ...updated,
-
           };
 
-
-
           await loadProjects(
-
             state.project.id
-
           );
-
         } catch (error) {
-
           console.error(error);
 
-
-
           alert(
-
             "No fue posible actualizar el título del proyecto."
-
           );
-
         }
-
       }
-
     );
-
-
 
   const inspectorButton =
-
     $("#toggleInspectorButton");
 
-
-
   if (inspectorButton) {
-
     inspectorButton.addEventListener(
-
       "click",
-
       toggleInspector
-
     );
-
   }
-
-
 
   window.addEventListener(
-
     "beforeunload",
-
     event => {
-
       const hasPendingChanges =
-
         state.saveTimers.size > 0 ||
-
         state.savingScenes.size > 0;
 
-
-
       if (!hasPendingChanges) {
-
         return;
-
       }
 
-
-
       event.preventDefault();
-
       event.returnValue = "";
-
     }
-
   );
-
 }
-
-
 
 setupTabs();
-
 setupLineTypeSelector();
-
 setupEvents();
 
-
-
 loadProjects()
-
   .catch(error => {
-
     console.error(error);
 
-
-
     alert(
-
       "No fue posible iniciar ADÜMN."
-
     );
-
   });
-
-
 
 // Navegación principal
-
 {
-
   const mainNavTabs = document.querySelectorAll(".main-nav-tab");
-
   mainNavTabs.forEach(tab => {
-
     tab.addEventListener("click", () => {
-
       mainNavTabs.forEach(t => t.classList.remove("active"));
-
       tab.classList.add("active");
-
       setMainView(tab.dataset.view);
-
     });
-
   });
-
 }
-
-
 
 let storyboardSceneId = null;
-
 let storyboardShots = [];
-
 let storyboardShotId = null;
 
-
-
 function openStoryboardWindow(sceneId) {
-
   if (!state.project?.id) {
-
     return;
-
   }
-
-
 
   const scene = state.scenes.find(
-
     item =>
-
       Number(item.id) ===
-
       Number(sceneId)
-
   );
-
-
 
   const sceneNumber =
-
     scene?.production_number || scene?.scene_number || "";
 
-
-
   window.open(
-
     `/static/storyboard.html?project=${state.project.id}&scene=${sceneId}&sceneNumber=${encodeURIComponent(sceneNumber)}&v=${Date.now()}`,
-
     "_blank",
-
     "width=1200,height=800,resizable=yes,scrollbars=yes"
-
   );
-
 }
 
-
-
 function openStoryboard(sceneId) {
-
   const overlay =
-
     document.getElementById("storyboardOverlay");
 
-
-
   const title =
-
     document.getElementById("storyboardSceneTitle");
 
-
-
   if (!overlay) {
-
     return;
-
   }
-
-
 
   storyboardSceneId = Number(sceneId);
 
-
-
   const scene = state.scenes.find(
-
     item => Number(item.id) === storyboardSceneId
-
   );
 
-
-
   if (title) {
-
     title.textContent = scene
-
       ? `Escena ${scene.scene_number}`
-
       : "Escena";
-
   }
-
-
 
   overlay.hidden = false;
-
   loadStoryboardShots();
-
 }
 
-
-
 function renderStoryboardShots(shots) {
-
   const list =
-
     document.getElementById("storyboardShotList");
 
-
-
   if (!list) {
-
     return;
-
   }
-
-
 
   storyboardShots = shots;
 
-
-
   if (!shots.length) {
-
     list.innerHTML =
-
       '<div class="empty">Sin planos</div>';
-
     return;
-
   }
-
-
 
   list.innerHTML = shots
-
     .map(
-
       (shot, index) => `
-
         <button
-
           type="button"
-
           class="storyboard-shot-item"
-
           data-shot-id="${shot.id}"
-
           draggable="true"
-
         >
-
           Plano ${index + 1}
-
           · ${escapeHtml(shot.shot_type || "Sin tipo")}
-
         </button>
-
       `
-
     )
-
     .join("");
-
 }
 
-
-
 function selectStoryboardShot(shotId) {
-
   const shot = storyboardShots.find(
-
     item => item.id === shotId
-
   );
 
-
-
   if (!shot) {
-
     return;
-
   }
-
-
 
   storyboardShotId = shot.id;
 
-
-
   document
-
     .querySelectorAll(".storyboard-shot-item")
-
     .forEach(button => {
-
       button.classList.toggle(
-
         "active",
-
         button.dataset.shotId === shot.id
-
       );
-
     });
 
-
-
   document.getElementById("shotTypeInput").value =
-
     shot.shot_type || "";
 
-
-
   document.getElementById("shotMovementInput").value =
-
     shot.camera_movement || "";
 
-
-
   document.getElementById("shotDescriptionInput").value =
-
     shot.description || "";
 
-
-
   document.getElementById("shotNotesInput").value =
-
     shot.notes || "";
-
 }
-
-
 
 async function saveStoryboardShotMetadata() {
-
   if (!storyboardShotId || !state.project?.id) {
-
     return;
-
   }
 
-
-
   try {
-
     const updated = await request(
-
       `/api/projects/${state.project.id}/shots/${storyboardShotId}`,
-
       {
-
         method: "PATCH",
-
         body: JSON.stringify({
-
           shot_type:
-
             document.getElementById("shotTypeInput").value,
-
           camera_movement:
-
             document.getElementById("shotMovementInput").value,
-
           description:
-
             document.getElementById("shotDescriptionInput").value,
-
           notes:
-
             document.getElementById("shotNotesInput").value,
-
         }),
-
       }
-
     );
-
-
 
     const index = storyboardShots.findIndex(
-
       shot => shot.id === storyboardShotId
-
     );
-
-
 
     if (index !== -1) {
-
       storyboardShots[index] = updated;
-
     }
 
-
-
     renderStoryboardShots(storyboardShots);
-
     selectStoryboardShot(storyboardShotId);
-
   } catch (error) {
-
     console.error(
-
       "No fue posible guardar el plano.",
-
       error
-
     );
-
   }
-
 }
-
-
 
 async function loadStoryboardShots() {
-
   if (!storyboardSceneId || !state.project?.id) {
-
     return;
-
   }
 
-
-
   try {
-
     const shots = await request(
-
       `/api/projects/${state.project.id}/scenes/${storyboardSceneId}/shots`
-
     );
-
-
 
     renderStoryboardShots(shots);
-
   } catch (error) {
-
     console.error(
-
       "No fue posible cargar los planos.",
-
       error
-
     );
-
   }
-
 }
 
-
-
 async function createStoryboardShot() {
-
   if (!storyboardSceneId || !state.project?.id) {
-
     return;
-
   }
 
-
-
   try {
-
     const shot = await request(
-
       `/api/projects/${state.project.id}/scenes/${storyboardSceneId}/shots`,
-
       {
-
         method: "POST",
-
         body: JSON.stringify({}),
-
       }
-
     );
 
-
-
     await loadStoryboardShots();
-
-
 
     selectStoryboardShot(shot.id);
 
-
-
   } catch (error) {
-
     console.error(
-
       "No fue posible crear el plano.",
-
       error
-
     );
-
   }
-
 }
 
-
-
 async function deleteStoryboardShot() {
-
   if (!storyboardShotId || !state.project?.id) {
-
     return;
-
   }
-
-
 
   const confirmed = window.confirm(
-
     "¿Eliminar este plano?"
-
   );
 
-
-
   if (!confirmed) {
-
     return;
-
   }
 
-
-
   try {
-
     await request(
-
       `/api/projects/${state.project.id}/shots/${storyboardShotId}`,
-
       {
-
         method: "DELETE",
-
       }
-
     );
-
-
 
     storyboardShotId = null;
 
-
-
     document.getElementById("shotTypeInput").value = "";
-
     document.getElementById("shotMovementInput").value = "";
-
     document.getElementById("shotDescriptionInput").value = "";
-
     document.getElementById("shotNotesInput").value = "";
 
-
-
     await loadStoryboardShots();
-
   } catch (error) {
-
     console.error(
-
       "No fue posible eliminar el plano.",
-
       error
-
     );
-
   }
-
 }
-
-
 
 function closeStoryboard() {
-
   const overlay =
-
     document.getElementById("storyboardOverlay");
 
-
-
   if (!overlay) {
-
     return;
-
   }
-
-
 
   overlay.hidden = true;
-
   storyboardSceneId = null;
-
 }
 
-
-
 document.addEventListener("click", event => {
-
   const storyboardButton =
-
     event.target.closest(".scene-storyboard-button");
 
-
-
   if (storyboardButton) {
-
     event.preventDefault();
-
     event.stopPropagation();
-
-
 
     openStoryboardWindow(
-
       storyboardButton.dataset.sceneId
-
     );
 
-
-
     return;
-
   }
 
-
-
   if (
-
     event.target.closest("#closeStoryboardButton")
-
   ) {
-
     event.preventDefault();
-
     event.stopPropagation();
-
-
 
     closeStoryboard();
 
-
-
     return;
-
   }
-
   const shotButton =
-
     event.target.closest(".storyboard-shot-item");
 
-
-
   if (shotButton) {
-
     event.preventDefault();
-
     event.stopPropagation();
-
-
 
     selectStoryboardShot(
-
       shotButton.dataset.shotId
-
     );
 
-
-
     return;
-
   }
-
   if (
-
     event.target.closest("#deleteStoryboardShotButton")
-
   ) {
-
     event.preventDefault();
-
     event.stopPropagation();
-
-
 
     deleteStoryboardShot();
 
-
-
     return;
-
   }
-
   if (
-
     event.target.closest("#newShotButton")
-
   ) {
-
     event.preventDefault();
-
     event.stopPropagation();
 
-
-
     createStoryboardShot();
-
   }
-
 }, true);
 
-
-
 [
-
   "shotTypeInput",
-
   "shotMovementInput",
-
   "shotDescriptionInput",
-
   "shotNotesInput",
-
 ].forEach(id => {
-
   document
-
     .getElementById(id)
-
     ?.addEventListener(
-
       "change",
-
       saveStoryboardShotMetadata
-
     );
-
 });
-
-
 
 let draggedStoryboardShotId = null;
 
-
-
 document.addEventListener("dragstart", event => {
-
   const shotButton =
-
     event.target.closest(".storyboard-shot-item");
 
-
-
   if (!shotButton) {
-
     return;
-
   }
-
-
 
   draggedStoryboardShotId =
-
     shotButton.dataset.shotId;
 
-
-
   event.dataTransfer.effectAllowed = "move";
-
 });
-
-
 
 document.addEventListener("dragover", event => {
-
   const shotButton =
-
     event.target.closest(".storyboard-shot-item");
-
-
 
   if (!shotButton) {
-
     return;
-
   }
 
-
-
   event.preventDefault();
-
   event.dataTransfer.dropEffect = "move";
-
 });
-
-
 
 document.addEventListener("drop", async event => {
-
   const targetButton =
-
     event.target.closest(".storyboard-shot-item");
 
-
-
   if (
-
     !targetButton ||
-
     !draggedStoryboardShotId ||
-
     !storyboardSceneId ||
-
     !state.project?.id
-
   ) {
-
     return;
-
   }
-
-
 
   event.preventDefault();
 
-
-
   const buttons = [
-
     ...document.querySelectorAll(
-
       ".storyboard-shot-item"
-
     ),
-
   ];
 
-
-
   const draggedButton = buttons.find(
-
     button =>
-
       button.dataset.shotId ===
-
       draggedStoryboardShotId
-
   );
-
-
 
   if (
-
     !draggedButton ||
-
     draggedButton === targetButton
-
   ) {
-
     draggedStoryboardShotId = null;
-
     return;
-
   }
-
-
 
   const rect =
-
     targetButton.getBoundingClientRect();
 
-
-
   const insertAfter =
-
     event.clientY >
-
     rect.top + rect.height / 2;
 
-
-
   if (insertAfter) {
-
     targetButton.after(draggedButton);
-
   } else {
-
     targetButton.before(draggedButton);
-
   }
-
-
 
   const shotIds = [
-
     ...document.querySelectorAll(
-
       ".storyboard-shot-item"
-
     ),
-
   ].map(
-
     button => button.dataset.shotId
-
   );
 
-
-
   try {
-
     await request(
-
       `/api/projects/${state.project.id}/scenes/${storyboardSceneId}/reorder`,
-
       {
-
         method: "POST",
-
         body: JSON.stringify({
-
           shot_ids: shotIds,
-
         }),
-
       }
-
     );
-
-
 
     await loadStoryboardShots();
-
   } catch (error) {
-
     console.error(
-
       "No fue posible reordenar los planos.",
-
       error
-
     );
-
   } finally {
-
     draggedStoryboardShotId = null;
-
   }
-
 });
 
-
-
 const storyboardOverlay =
-
   document.getElementById("storyboardOverlay");
 
-
-
 const storyboardHeader =
-
   document.querySelector(".storyboard-header");
 
-
-
 let storyboardDragging = false;
-
 let storyboardDragOffsetX = 0;
-
 let storyboardDragOffsetY = 0;
 
-
-
 storyboardHeader?.addEventListener(
-
   "mousedown",
-
   event => {
-
     if (
-
       event.target.closest(
-
         ".storyboard-header-actions"
-
       )
-
     ) {
-
       return;
-
     }
-
-
 
     storyboardDragging = true;
 
-
-
     const rect =
-
       storyboardOverlay.getBoundingClientRect();
 
-
-
     storyboardDragOffsetX =
-
       event.clientX - rect.left;
 
-
-
     storyboardDragOffsetY =
-
       event.clientY - rect.top;
-
   }
-
 );
 
-
-
 document.addEventListener("mousemove", event => {
-
   if (
-
     !storyboardDragging ||
-
     !storyboardOverlay
-
   ) {
-
     return;
-
   }
-
-
 
   storyboardOverlay.style.left =
-
     `${event.clientX - storyboardDragOffsetX}px`;
 
-
-
   storyboardOverlay.style.top =
-
     `${event.clientY - storyboardDragOffsetY}px`;
-
 });
 
-
-
 document.addEventListener("mouseup", () => {
-
   if (
-
     state.lineSelectionDrag?.moved
-
   ) {
-
     state.suppressLineSelectionClick = true;
-
   }
-
-
 
   state.lineSelectionDrag = null;
-
 });
-
-
 
 document.addEventListener("selectstart", event => {
-
   if (state.lineSelectionDrag?.moved) {
-
     event.preventDefault();
-
   }
-
 });
-
-
 
 document.addEventListener("mouseup", () => {
-
   storyboardDragging = false;
-
 });
-
-
 
 document
-
   .getElementById("openStoryboardWindowButton")
-
   ?.addEventListener("click", event => {
-
     event.preventDefault();
-
     event.stopPropagation();
 
-
-
     const scene = state.scenes.find(
-
       item =>
-
         Number(item.id) ===
-
         Number(storyboardSceneId)
-
     );
-
-
 
     const sceneNumber =
-
       scene?.production_number ||
-
       scene?.scene_number ||
-
       "";
 
-
-
     window.open(
-
       `/static/storyboard.html?project=${state.project.id}&scene=${storyboardSceneId}&sceneNumber=${encodeURIComponent(sceneNumber)}&v=${Date.now()}`,
-
       "_blank",
-
       "width=1200,height=800,resizable=yes,scrollbars=yes"
-
     );
-
   });
-
 // --- Lógica para descargar el PDF del desglose ---
-
 document.addEventListener("DOMContentLoaded", () => {
-
   const downloadPdfBtn = document.getElementById("downloadBreakdownPdfButton");
-
   
-
   if (downloadPdfBtn) {
-
     downloadPdfBtn.addEventListener("click", async () => {
-
       const projectId = document.getElementById("projectSelect")?.value;
-
       if (!projectId) return;
-
-
 
       const originalText = downloadPdfBtn.textContent;
-
       downloadPdfBtn.textContent = 'Generando PDF...';
-
       downloadPdfBtn.disabled = true;
 
-
-
       try {
-
         const response = await fetch(`/api/projects/${projectId}/export/breakdown-pdf`);
-
         if (!response.ok) throw new Error('Error al generar el PDF');
 
-
-
         const blob = await response.blob();
-
         const url = window.URL.createObjectURL(blob);
-
         const a = document.createElement('a');
-
         a.href = url;
-
         
-
         const projectTitle = document.getElementById('projectSelect')?.selectedOptions[0]?.text || 'Proyecto';
-
         const safeName = projectTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-
         
-
         a.download = `desglose_${safeName}.pdf`;
-
         document.body.appendChild(a);
-
         a.click();
-
         a.remove();
-
         window.URL.revokeObjectURL(url);
-
       } catch (error) {
-
         console.error(error);
-
         alert('Hubo un error al generar el PDF del desglose.');
-
       } finally {
-
         downloadPdfBtn.textContent = originalText;
-
         downloadPdfBtn.disabled = false;
-
       }
-
     });
-
   }
-
 });
-
   // Botón para descargar el PDF del Plan de Rodaje
-
   const downloadScheduleBtn = document.getElementById("downloadSchedulePdfButton");
-
   if (downloadScheduleBtn) {
-
     downloadScheduleBtn.addEventListener("click", async () => {
-
       const projectId = document.getElementById("projectSelect")?.value;
-
       if (!projectId) return;
-
-
 
       const originalText = downloadScheduleBtn.textContent;
-
       downloadScheduleBtn.textContent = 'Generando Plan...';
-
       downloadScheduleBtn.disabled = true;
 
-
-
       try {
-
         const response = await fetch(`/api/projects/${projectId}/export/schedule-pdf`);
-
         if (!response.ok) throw new Error('Error al generar el PDF');
 
-
-
         const blob = await response.blob();
-
         const url = window.URL.createObjectURL(blob);
-
         const a = document.createElement('a');
-
         a.href = url;
-
         
-
         const projectTitle = document.getElementById('projectSelect')?.selectedOptions[0]?.text || 'Proyecto';
-
         const safeName = projectTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-
         
-
         a.download = `plan_rodaje_${safeName}.pdf`;
-
         document.body.appendChild(a);
-
         a.click();
-
         a.remove();
-
         window.URL.revokeObjectURL(url);
-
       } catch (error) {
-
         console.error(error);
-
         alert('Hubo un error al generar el PDF del Plan de Rodaje.');
-
       } finally {
-
         downloadScheduleBtn.textContent = originalText;
-
         downloadScheduleBtn.disabled = false;
-
       }
-
     });
-
   }
-
   // --- CONEXIÓN DEL BOTÓN DEL PLAN DE RODAJE ---
-
 document.addEventListener("DOMContentLoaded", () => {
-
   const btn = document.getElementById("downloadSchedulePdfButton");
-
   
-
   if (btn) {
-
     btn.addEventListener("click", async () => {
-
       const projectId = document.getElementById("projectSelect")?.value;
-
       if (!projectId) return;
 
-
-
       const originalText = btn.textContent;
-
       btn.textContent = 'Generando...';
-
       btn.disabled = true;
 
-
-
       try {
-
         const response = await fetch(`/api/projects/${projectId}/export/schedule-pdf`);
-
         if (!response.ok) throw new Error('Error al generar el PDF');
 
-
-
         const blob = await response.blob();
-
         const url = window.URL.createObjectURL(blob);
-
         const a = document.createElement('a');
-
         a.href = url;
-
         
-
         const projectTitle = document.getElementById('projectSelect')?.selectedOptions[0]?.text || 'Proyecto';
-
         const safeName = projectTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-
         
-
         a.download = `plan_rodaje_${safeName}.pdf`;
-
         document.body.appendChild(a);
-
         a.click();
-
         a.remove();
-
         window.URL.revokeObjectURL(url);
-
       } catch (error) {
-
         console.error(error);
-
         alert('Hubo un error al generar el PDF del Plan de Rodaje.');
-
       } finally {
-
         btn.textContent = originalText;
-
         btn.disabled = false;
-
       }
-
     });
-
   } else {
-
     console.warn("No se encontró el botón downloadSchedulePdfButton");
-
   }
-
 });
-
 async function loadAliases() {
-
   if (!state.project) return;
-
   
-
   try {
-
     const response = await request(`/api/projects/${state.project.id}/character-aliases`);
-
     const aliases = response.aliases || [];
-
     
-
     const container = document.getElementById("aliasesList");
-
     if (!container) return;
-
     
-
     if (aliases.length === 0) {
-
       container.innerHTML = '<div style="color: #9da3a9; font-size: 13px;">No hay alias configurados.</div>';
-
       return;
-
     }
-
     
-
     container.innerHTML = aliases.map(a => `
-
       <div class="alias-row">
-
         <span><strong>${escapeHtml(a.primary_name)}</strong> ← ${escapeHtml(a.alias_name)}</span>
-
         <button class="secondary" onclick="removeAlias('${a.alias_name.replace(/'/g, "\\'")}')" style="padding: 2px 8px; font-size: 11px;">Eliminar</button>
-
       </div>
-
     `).join("");
-
   } catch (error) {
-
     console.error("Error cargando alias:", error);
-
   }
-
 }
-
-
 
 async function addAlias() {
-
   if (!state.project) return;
-
   
-
   const primaryInput = document.getElementById("aliasPrimaryInput");
-
   const aliasInput = document.getElementById("aliasSecondaryInput");
-
   
-
   const primary = primaryInput.value.trim();
-
   const alias = aliasInput.value.trim();
-
   
-
   if (!primary || !alias) {
-
     alert("Ambos campos son obligatorios.");
-
     return;
-
   }
-
   
-
   if (primary.toUpperCase() === alias.toUpperCase()) {
-
     alert("El alias no puede ser igual al nombre principal.");
-
     return;
-
   }
-
   
-
   try {
-
     // 1. Obtener los alias actuales
-
     const current = await request(`/api/projects/${state.project.id}/character-aliases`);
-
     const aliases = current.aliases || [];
-
     
-
     // 2. Verificar que el alias no exista ya
-
     const exists = aliases.some(a => a.alias_name.toUpperCase() === alias.toUpperCase());
-
     if (exists) {
-
       alert("Ese alias ya existe para este proyecto.");
-
       return;
-
     }
-
     
-
     // 3. Agregar el nuevo alias
-
     aliases.push({ primary_name: primary, alias_name: alias });
-
     
-
     // 4. Enviar la lista completa
-
     await request(`/api/projects/${state.project.id}/character-aliases`, {
-
       method: "PUT",
-
       body: JSON.stringify({ aliases }),
-
     });
-
     
-
     // 5. Limpiar inputs y recargar la lista
-
     primaryInput.value = "";
-
     aliasInput.value = "";
-
     loadAliases();
-
   } catch (error) {
-
     console.error("Error agregando alias:", error);
-
     alert("No fue posible agregar el alias. Revisa la consola para más detalles.");
-
   }
-
 }
-
-
 
 async function removeAlias(aliasName) {
-
   if (!state.project) return;
-
   
-
   try {
-
     const current = await request(`/api/projects/${state.project.id}/character-aliases`);
-
     const aliases = (current.aliases || []).filter(a => a.alias_name !== aliasName);
-
     
-
     await request(`/api/projects/${state.project.id}/character-aliases`, {
-
       method: "PUT",
-
       body: JSON.stringify({ aliases }),
-
     });
-
     
-
     loadAliases();
-
   } catch (error) {
-
     console.error("Error eliminando alias:", error);
-
   }
-
 }
-
-
 
 // Configurar eventos del modal de alias (al final del setupEvents)
-
 const manageAliasesBtn = document.getElementById("manageAliasesButton");
-
 if (manageAliasesBtn) {
-
   manageAliasesBtn.addEventListener("click", () => {
-
     document.getElementById("aliasesModal").hidden = false;
-
     loadAliases();
-
   });
-
 }
-
-
 
 const closeAliasesBtn = document.getElementById("closeAliasesModal");
-
 if (closeAliasesBtn) {
-
   closeAliasesBtn.addEventListener("click", () => {
-
     document.getElementById("aliasesModal").hidden = true;
-
   });
-
 }
-
-
 
 const addAliasBtn = document.getElementById("addAliasButton");
-
 if (addAliasBtn) {
-
   addAliasBtn.addEventListener("click", addAlias);
-
 }
-
 // --- Lógica de apertura del modal de Alias (delegación de eventos) ---
-
 document.addEventListener("click", (event) => {
-
   // Abrir modal al hacer clic en el botón "Alias"
-
   if (event.target.closest("#manageAliasesButton")) {
-
     const modal = document.getElementById("aliasesModal");
-
     if (modal) {
-
       modal.hidden = false;
-
       modal.style.display = "flex"; // Forzar display por si el CSS falla
-
       loadAliases(); // Cargar la lista de alias
-
     }
-
   }
-
-
 
   // Cerrar modal al hacer clic en la "X"
-
   if (event.target.closest("#closeAliasesModal")) {
-
     const modal = document.getElementById("aliasesModal");
-
     if (modal) {
-
       modal.hidden = true;
-
       modal.style.display = "none";
-
     }
-
   }
-
-
 
   // Cerrar modal al hacer clic fuera de él
-
   if (event.target.id === "aliasesModal") {
-
     event.target.hidden = true;
-
     event.target.style.display = "none";
-
   }
-
 });
-
-
 
 // --- Agregar Alias ---
-
 document.addEventListener("click", async (event) => {
-
   if (event.target.closest("#addAliasButton")) {
-
     const primary = document.getElementById("aliasPrimaryInput").value.trim();
-
     const alias = document.getElementById("aliasSecondaryInput").value.trim();
-
     
-
     if (!primary || !alias) {
-
       alert("Ambos campos son obligatorios.");
-
       return;
-
     }
-
     
-
     try {
-
       const projectId = document.getElementById("projectSelect").value;
-
       const current = await request(`/api/projects/${projectId}/character-aliases`);
-
       const aliases = current.aliases || [];
-
       aliases.push({ primary_name: primary, alias_name: alias });
-
       
-
       await request(`/api/projects/${projectId}/character-aliases`, {
-
         method: "PUT",
-
         body: JSON.stringify({ aliases }),
-
       });
-
       
-
       document.getElementById("aliasPrimaryInput").value = "";
-
       document.getElementById("aliasSecondaryInput").value = "";
-
       loadAliases();
-
     } catch (error) {
-
       console.error(error);
-
       alert("No fue posible agregar el alias.");
-
     }
-
   }
-
 });
-
 // --- DELEGACIÓN DE EVENTOS PARA EL MODAL DE ALIAS ---
-
 document.addEventListener("click", (event) => {
-
   // 1. Abrir modal
-
   if (event.target.closest("#manageAliasesButton")) {
-
     const modal = document.getElementById("aliasesModal");
-
     if (modal) {
-
       modal.hidden = false;
-
       modal.style.display = "flex";
-
       loadAliases(); // Carga la lista
-
     }
-
   }
-
-
 
   // 2. Cerrar modal (botón X)
-
   if (event.target.closest("#closeAliasesModal")) {
-
     const modal = document.getElementById("aliasesModal");
-
     if (modal) {
-
       modal.hidden = true;
-
       modal.style.display = "none";
-
     }
-
   }
-
-
 
   // 3. Cerrar modal (clic fuera)
-
   if (event.target.id === "aliasesModal") {
-
     event.target.hidden = true;
-
     event.target.style.display = "none";
-
   }
-
-
 
   // 4. Agregar Alias
-
   if (event.target.closest("#addAliasButton")) {
-
     addAlias();
-
   }
-
 });
-
 // --- CONTROL DEL PANEL COLAPSABLE ---
-
 document.addEventListener("click", (event) => {
-
   // Si se hace clic en el botón de la barra superior
-
   if (event.target.closest("#toggleSidebarButton")) {
-
     const body = document.body;
-
     
-
     // Alternar la clase que oculta el panel
-
     body.classList.toggle("sidebar-collapsed");
-
     
-
     // Cambiar el icono del botón
-
     const btn = document.getElementById("toggleSidebarButton");
-
     if (btn) {
-
       if (body.classList.contains("sidebar-collapsed")) {
-
         btn.textContent = "▶"; // Flecha para indicar que se puede abrir
-
       } else {
-
         btn.textContent = "☰"; // Menú para indicar que se puede cerrar
-
       }
-
     }
-
   }
-
 });
-
