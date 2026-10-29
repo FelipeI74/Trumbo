@@ -4,12 +4,15 @@ import hashlib
 import json
 import re
 from typing import Any
+import logging
 
 from fastapi import HTTPException
 
 from app.database import connect, rows
 from app.domain import parse_character_cue, resolve_character_alias
 from .character_service import deserialize_semantic_lines, get_project_character_names, get_project_character_names as _get_project_character_names
+
+logger = logging.getLogger(__name__)
 
 
 # Matches INT./EXT./INT/EXT. etc.; period makes trailing space optional
@@ -322,63 +325,75 @@ schedule_input_fingerprint = _schedule_input_fingerprint
 
 def _validate_manual_schedule_days(
     manual_days: Any,
-    calculated_days: Any,
+    calculated_days: Any,  # No se usa, por compatibilidad
     scenes: list[dict],
 ) -> list[dict[str, Any]] | None:
-    if not isinstance(manual_days, list) or not isinstance(calculated_days, list):
-        return None
-    if len(manual_days) != len(calculated_days):
+    if not isinstance(manual_days, list):
         return None
 
-    validated_days: list[dict[str, Any]] = []
-    all_seen: set[int] = set()
-    for manual_day, calculated_day in zip(manual_days, calculated_days):
-        if not isinstance(manual_day, dict) or not isinstance(calculated_day, dict):
-            return None
-
-        day_number = manual_day.get("day")
-        scene_ids = manual_day.get("scene_ids")
-        calculated_ids = calculated_day.get("scene_ids")
-        if (
-            isinstance(day_number, bool)
-            or not isinstance(day_number, int)
-            or day_number != calculated_day.get("day")
-            or not isinstance(scene_ids, list)
-            or not isinstance(calculated_ids, list)
-            or any(isinstance(scene_id, bool) or not isinstance(scene_id, int) for scene_id in scene_ids)
-        ):
-            return None
-
-        if (
-            len(scene_ids) != len(set(scene_ids))
-            or set(scene_ids) != set(calculated_ids)
-            or any(scene_id in all_seen for scene_id in scene_ids)
-        ):
-            return None
-
-        all_seen.update(scene_ids)
-        validated_days.append(
-            {
-                "day": day_number,
-                "scene_ids": scene_ids,
-            }
-        )
-
+    scene_by_id = {
+        int(scene["scene_id"]): scene
+        for scene in scenes
+        if scene.get("scene_id") is not None
+    }
+    all_scene_ids = set(scene_by_id.keys())
     time_by_scene_id = {
         int(scene["scene_id"]): str(scene.get("time_of_day") or "")
         for scene in scenes
     }
-    for day in validated_days:
-        night_seen = False
-        for scene_id in day["scene_ids"]:
-            time_of_day = str(
-                time_by_scene_id.get(scene_id, "")
-            ).strip().casefold()
-            if time_of_day == "noche":
-                night_seen = True
-            elif time_of_day in {"dia", "día"} and night_seen:
-                return None
+
+    validated_days: list[dict[str, Any]] = []
+    all_seen: set[int] = set()
+    orphan_ids: set[int] = set()
+
+    for manual_day in manual_days:
+        if not isinstance(manual_day, dict):
+            return None
+
+        scene_ids = manual_day.get("scene_ids")
+        if not isinstance(scene_ids, list):
+            return None
+
+        if any(
+            isinstance(scene_id, bool) or not isinstance(scene_id, int)
+            for scene_id in scene_ids
+        ):
+            return None
+
+        clean_ids = []
+        for scene_id in scene_ids:
+            if scene_id in all_seen:
+                continue
+            if scene_id not in all_scene_ids:
+                orphan_ids.add(scene_id)
+                continue
+            all_seen.add(scene_id)
+            clean_ids.append(scene_id)
+
+        if not clean_ids:
+            continue
+
+        # Corregir el orden DÍA/NOCHE dentro de la jornada
+        day_of = [s for s in clean_ids if time_by_scene_id.get(s, "").strip().casefold() != "noche"]
+        night_of = [s for s in clean_ids if time_by_scene_id.get(s, "").strip().casefold() == "noche"]
+        ordered_ids = day_of + night_of
+
+        validated_days.append({
+            "day": len(validated_days) + 1,
+            "scene_ids": ordered_ids,
+        })
+
+    missing = all_scene_ids - all_seen
+    if missing:
+        validated_days.append({
+            "day": len(validated_days) + 1,
+            "scene_ids": sorted(missing),
+        })
+
+    if orphan_ids:
+        logger.warning(
+            "Manual schedule has orphan scene ids (ignored): %s",
+            sorted(orphan_ids),
+        )
 
     return validated_days
-
-validate_manual_schedule_days = _validate_manual_schedule_days

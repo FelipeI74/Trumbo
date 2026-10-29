@@ -809,11 +809,10 @@ function readManualScheduleDays() {
 
 async function saveScheduleManualOrder() {
   const projectId = state.scheduleProjectId;
-  if (!projectId || !state.scheduleOrderDirty || state.scheduleOrderBusy) {
+  if (!projectId || state.scheduleOrderBusy) {
     return;
   }
 
-  const requestToken = ++state.scheduleRequestToken;
   state.scheduleOrderBusy = true;
   updateScheduleOrderButtons();
 
@@ -829,33 +828,20 @@ async function saveScheduleManualOrder() {
       }
     );
 
-    if (
-      requestToken !== state.scheduleRequestToken ||
-      Number(state.project?.id) !== projectId
-    ) {
-      return;
-    }
-
     state.scheduleOrderDirty = false;
-    state.scheduleOrderBusy = false;
-    updateScheduleOrderButtons();
-    await loadSchedulePreview();
+    state.scheduleLoaded = false; // Forzar relectura del plan
   } catch (error) {
     console.error(error);
-    if (
-      requestToken !== state.scheduleRequestToken ||
-      Number(state.project?.id) !== projectId
-    ) {
-      return;
-    }
-
-    state.scheduleOrderBusy = false;
-    updateScheduleOrderButtons();
     $("#scheduleStatus").textContent =
       error.message || "No fue posible guardar el orden manual.";
+  } finally {
+    state.scheduleOrderBusy = false; // Siempre se libera, pase lo que pase
+    updateScheduleOrderButtons();
   }
-}
 
+  // Recargar el plan después de guardar (fuera del try/finally)
+  await loadSchedulePreview();
+}
 async function resetScheduleManualOrder() {
   const projectId = state.scheduleProjectId;
   if (!projectId || state.scheduleOrderBusy) {

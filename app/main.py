@@ -805,6 +805,65 @@ def get_project_scheduling_input(
     )
 
 
+def _reconcile_manual_days(
+    days: list[dict],
+    scenes: list[dict],
+) -> list[dict]:
+    """
+    Reconcilia un plan guardado con las escenas actuales.
+    - Quita escenas huérfanas.
+    - Añade escenas nuevas al final.
+    - Recalcula runtime_seconds.
+    - Renumera jornadas.
+    """
+    scene_by_id = {
+        int(scene["scene_id"]): scene
+        for scene in scenes
+        if scene.get("scene_id") is not None
+    }
+    all_scene_ids = set(scene_by_id.keys())
+
+    seen: set[int] = set()
+    reconciled: list[dict] = []
+
+    for day in days:
+        scene_ids = day.get("scene_ids", [])
+        clean_ids = []
+        for scene_id in scene_ids:
+            if scene_id in seen:
+                continue
+            if scene_id not in all_scene_ids:
+                continue
+            seen.add(scene_id)
+            clean_ids.append(scene_id)
+
+        if clean_ids:
+            runtime = sum(
+                int(scene_by_id[sid].get("runtime_seconds") or 0)
+                for sid in clean_ids
+            )
+            reconciled.append({
+                "day": len(reconciled) + 1,
+                "scene_ids": clean_ids,
+                "runtime_seconds": runtime,
+            })
+
+    missing = all_scene_ids - seen
+    if missing:
+        missing_ids = sorted(missing)
+        runtime = sum(
+            int(scene_by_id[sid].get("runtime_seconds") or 0)
+            for sid in missing_ids
+        )
+        reconciled.append({
+            "day": len(reconciled) + 1,
+            "scene_ids": missing_ids,
+            "runtime_seconds": runtime,
+        })
+
+    return reconciled
+
+
 @app.get("/api/projects/{project_id}/schedule-preview")
 def get_project_schedule_preview(
     project_id: int,
@@ -816,39 +875,53 @@ def get_project_schedule_preview(
             "shoot_rate_seconds debe estar entre 1 y 3600",
         )
 
-    # 1. PRIMERO: Miramos si hay un plan guardado.
-    # Si lo hay, lo devolvemos INMEDIATAMENTE sin ejecutar CP-SAT.
+    # 1. Miramos si hay un plan guardado
     with connect() as connection:
         stored = connection.execute(
             """
-            SELECT days_json
+            SELECT days_json, input_fingerprint
             FROM schedule_manual_orders
             WHERE project_id = ?
             """,
             (project_id,),
         ).fetchone()
 
+    scheduling_input = _build_project_scheduling_input(project_id)
+
     if stored is not None:
         try:
             manual_days = json.loads(stored["days_json"])
+        except (json.JSONDecodeError, TypeError):
+            manual_days = None
+
+        if manual_days is not None:
+            # 2. Reconciliar con las escenas actuales
+            reconciled = _reconcile_manual_days(
+                manual_days,
+                scheduling_input["scenes"],
+            )
+
+            # 3. Comprobar si el guion cambió (fingerprint)
+            current_fp = _schedule_input_fingerprint(
+                scheduling_input["scenes"],
+                shoot_rate_seconds,
+            )
+            stale = current_fp != stored["input_fingerprint"]
+
             return {
-                "best_schedule": {
-                    "days": manual_days,
-                },
+                "best_schedule": {"days": reconciled},
                 "engine": "manual",
+                "stale": stale,
                 "fallback_used": False,
             }
-        except (json.JSONDecodeError, TypeError):
-            # Si el JSON está corrupto, seguimos abajo y recalculamos
-            pass
 
-    # 2. Si no hay plan guardado, calculamos con CP-SAT.
-    scheduling_input = _build_project_scheduling_input(project_id)
+    # 4. Si no hay plan guardado, calcular con CP-SAT
     calculated = optimize_schedule(
         scheduling_input["scenes"],
         shoot_rate_seconds=shoot_rate_seconds,
     )
     return calculated
+
 
 @app.put("/api/projects/{project_id}/schedule-manual-order")
 def save_project_schedule_manual_order(
@@ -856,24 +929,27 @@ def save_project_schedule_manual_order(
     payload: ScheduleManualOrder,
 ) -> dict:
     scheduling_input = _build_project_scheduling_input(project_id)
-    calculated = optimize_schedule(
-        scheduling_input["scenes"],
-        shoot_rate_seconds=payload.shoot_rate_seconds,
-    )
+    scenes = scheduling_input["scenes"]
+
     manual_days = [day.model_dump() for day in payload.days]
+
+    # Validar contra las escenas actuales, NO contra CP-SAT
     validated_days = _validate_manual_schedule_days(
         manual_days,
-        calculated.get("best_schedule", {}).get("days"),
-        scheduling_input["scenes"],
+        None,  # calculated_days ya no se usa
+        scenes,
     )
     if validated_days is None:
         raise HTTPException(
             400,
-            "El orden manual debe conservar jornadas y escenas, sin duplicados y con DÍA antes de NOCHE",
+            "El orden manual debe incluir cada escena una vez, con DÍA antes de NOCHE",
         )
 
+    # Reconciliar (renumerar días, recalcular runtime_seconds)
+    validated_days = _reconcile_manual_days(validated_days, scenes)
+
     fingerprint = _schedule_input_fingerprint(
-        scheduling_input["scenes"],
+        scenes,
         payload.shoot_rate_seconds,
     )
     days_json = json.dumps(
@@ -901,7 +977,6 @@ def save_project_schedule_manual_order(
         )
 
     return {"status": "ok", "days": validated_days}
-
 
 @app.delete("/api/projects/{project_id}/schedule-manual-order")
 def delete_project_schedule_manual_order(
