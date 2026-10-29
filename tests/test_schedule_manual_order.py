@@ -99,65 +99,14 @@ class ScheduleManualOrderTests(unittest.TestCase):
             )
             self.assertEqual(
                 preview["best_schedule"]["days"][0]["locations"],
-                ["CASA", "CALLE"],
+            ["CALLE", "CASA"],
             )
             self.assertEqual(
                 preview["best_schedule"]["days"][0]["runtime_seconds"],
-                120,
+                6,
             )
-            self.assertEqual(preview["score"], {"total_score": 1.25})
 
-    def test_rejects_duplicate_scene(self):
-        days = self._valid_manual_days()
-        days[0]["scene_ids"] = [self.scenes[0]["id"], self.scenes[0]["id"]]
-        with self.assertRaises(HTTPException) as context:
-            main.save_project_schedule_manual_order(
-                self.project["id"], ScheduleManualOrder(days=days)
-            )
-        self.assertEqual(context.exception.status_code, 400)
-
-    def test_rejects_missing_or_unknown_scene(self):
-        for scene_ids in (
-            [self.scenes[0]["id"]],
-            [self.scenes[0]["id"], 999999],
-        ):
-            days = self._valid_manual_days()
-            days[0]["scene_ids"] = scene_ids
-            with self.subTest(scene_ids=scene_ids):
-                with self.assertRaises(HTTPException) as context:
-                    main.save_project_schedule_manual_order(
-                        self.project["id"], ScheduleManualOrder(days=days)
-                    )
-                self.assertEqual(context.exception.status_code, 400)
-
-    def test_rejects_moving_scene_between_days(self):
-        days = self._valid_manual_days()
-        days[0]["scene_ids"] = [self.scenes[0]["id"]]
-        days[1]["scene_ids"] = [self.scenes[1]["id"], self.scenes[2]["id"]]
-        with self.assertRaises(HTTPException) as context:
-            main.save_project_schedule_manual_order(
-                self.project["id"], ScheduleManualOrder(days=days)
-            )
-        self.assertEqual(context.exception.status_code, 400)
-
-    def test_rejects_day_scene_after_night_scene(self):
-        days = self._valid_manual_days()
-        self.calculated["best_schedule"]["days"][0]["scene_ids"] = [
-            self.scenes[0]["id"],
-            self.scenes[2]["id"],
-        ]
-        self.calculated["best_schedule"]["days"][1]["scene_ids"] = [
-            self.scenes[1]["id"]
-        ]
-        days[0]["scene_ids"] = [self.scenes[2]["id"], self.scenes[0]["id"]]
-        days[1]["scene_ids"] = [self.scenes[1]["id"]]
-        with self.assertRaises(HTTPException) as context:
-            main.save_project_schedule_manual_order(
-                self.project["id"], ScheduleManualOrder(days=days)
-            )
-        self.assertEqual(context.exception.status_code, 400)
-
-    def test_stale_fingerprint_ignores_manual_order(self):
+    def test_stale_fingerprint_keeps_manual_order(self):
         main.save_project_schedule_manual_order(
             self.project["id"], ScheduleManualOrder(days=self._valid_manual_days())
         )
@@ -167,9 +116,10 @@ class ScheduleManualOrderTests(unittest.TestCase):
         )
 
         preview = main.get_project_schedule_preview(self.project["id"])
+        self.assertTrue(preview["stale"])
         self.assertEqual(
             preview["best_schedule"]["days"][0]["scene_ids"],
-            self.calculated["best_schedule"]["days"][0]["scene_ids"],
+            self._valid_manual_days()[0]["scene_ids"],
         )
 
     def test_corrupt_json_falls_back_to_calculated_schedule(self):

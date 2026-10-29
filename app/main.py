@@ -842,10 +842,17 @@ def _reconcile_manual_days(
                 int(scene_by_id[sid].get("runtime_seconds") or 0)
                 for sid in clean_ids
             )
+            locations = []
+            for sid in clean_ids:
+                loc = scene_by_id[sid].get("location")
+                if loc and loc not in locations:
+                    locations.append(loc)
+            locations.sort()
             reconciled.append({
                 "day": len(reconciled) + 1,
                 "scene_ids": clean_ids,
                 "runtime_seconds": runtime,
+                "locations": locations,
             })
 
     missing = all_scene_ids - seen
@@ -855,10 +862,17 @@ def _reconcile_manual_days(
             int(scene_by_id[sid].get("runtime_seconds") or 0)
             for sid in missing_ids
         )
+        locations = []
+        for sid in missing_ids:
+            loc = scene_by_id[sid].get("location")
+            if loc and loc not in locations:
+                locations.append(loc)
+        locations.sort()
         reconciled.append({
             "day": len(reconciled) + 1,
             "scene_ids": missing_ids,
             "runtime_seconds": runtime,
+            "locations": locations,
         })
 
     return reconciled
