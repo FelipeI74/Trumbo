@@ -43,18 +43,20 @@ async function initProductionBoard() {
 
         const encodedProjectId = encodeURIComponent(projectId);
 
-        const [scheduleResponse, scenesResponse] = await Promise.all([
+                const [scheduleResponse, scenesResponse, storyboardResponse] = await Promise.all([
             fetch(`/api/projects/${encodedProjectId}/schedule-preview`),
-            fetch(`/api/projects/${encodedProjectId}/scheduling-input`)
+            fetch(`/api/projects/${encodedProjectId}/scheduling-input`),
+            fetch(`/api/projects/${encodedProjectId}/storyboard`)
         ]);
 
-        if (!scheduleResponse.ok || !scenesResponse.ok) {
+        if (!scheduleResponse.ok || !scenesResponse.ok || !storyboardResponse.ok) {
             throw new Error("No fue posible cargar el plan de rodaje.");
         }
 
-        const [scheduleData, scenesData] = await Promise.all([
+        const [scheduleData, scenesData, storyboardData] = await Promise.all([
             scheduleResponse.json(),
-            scenesResponse.json()
+            scenesResponse.json(),
+            storyboardResponse.json()
         ]);
 
         if (!Array.isArray(scenesData?.scenes)) {
@@ -68,14 +70,25 @@ async function initProductionBoard() {
         // Normalizamos los identificadores para admitir 3 y "3".
         // Se indexa también por production_number como alternativa,
         // porque el plan puede referirse a una escena por su número de producción.
-        const sceneById = new Map();
+                const sceneById = new Map();
         const sceneByProductionNumber = new Map();
+
+        // Crear un diccionario de planos por escena
+        const shotsBySceneId = new Map();
+        if (storyboardData && storyboardData.scenes) {
+            for (const sbScene of storyboardData.scenes) {
+                shotsBySceneId.set(sbScene.scene_id, sbScene.shots || []);
+            }
+        }
 
         for (const scene of scenesData.scenes) {
             // El backend devuelve 'scene_id', no 'id'. Normalizamos para no romper el resto.
             if (scene.scene_id !== undefined && scene.scene_id !== null) {
                 scene.id = scene.scene_id;
             }
+
+            // Asignar los planos a la escena
+            scene.shots = shotsBySceneId.get(scene.id) || [];
 
             if (scene.id === undefined || scene.id === null) {
                 continue;
@@ -242,7 +255,7 @@ function renderStripboard(scheduleData, sceneById, resolveScene) {
                     <span>Día ${dayNumber}</span>
                 </div>
                 <div class="strip-day-stats">
-                    ${dayScenes.length} escenas | ${runtimeFormatted}
+                    ${dayScenes.length} escenas | ${day.shots_count || 0} planos | ${runtimeFormatted}
                 </div>
                 <div class="strip-day-cards">
                     ${cardsHtml}
@@ -319,6 +332,18 @@ function renderSceneCard(scene) {
         .filter(Boolean)
         .join(" - ");
 
+    // Generar el resumen de planos (ej: "2 PG, 1 PD")
+    let shotsSummary = "";
+    if (scene.shots && scene.shots.length > 0) {
+        const typeCounts = {};
+        scene.shots.forEach(shot => {
+            const type = shot.shot_type || "PM";
+            typeCounts[type] = (typeCounts[type] || 0) + 1;
+        });
+        const parts = Object.entries(typeCounts).map(([type, count]) => `${count} ${type}`);
+        shotsSummary = `<div style="font-size: 0.85em; margin-top: 4px; opacity: 0.8; color: #d8a64f;">${parts.join(", ")}</div>`;
+    }
+
     return `
         <div
             class="strip-card ${colorClass}"
@@ -329,6 +354,7 @@ function renderSceneCard(scene) {
             </div>
             <div class="strip-card-body">
                 ${escapeHtml(description)}
+                ${shotsSummary}
             </div>
         </div>
     `;

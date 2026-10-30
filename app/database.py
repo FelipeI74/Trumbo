@@ -86,7 +86,12 @@ def migrate(connection: sqlite3.Connection) -> None:
 
     if not column_exists(connection, "projects", "day_type"):
         connection.execute("ALTER TABLE projects ADD COLUMN day_type TEXT DEFAULT 'estandar'")
-    # ------------------------------------------
+        
+    # --- NUEVA COLUMNA PARA EL ÁNGULO EN EL STORYBOARD ---
+    if not column_exists(connection, "shots", "camera_angle"):
+        connection.execute(
+            "ALTER TABLE shots ADD COLUMN camera_angle TEXT NOT NULL DEFAULT 'Normal'"
+        )
 
 
 def initialize() -> None:
@@ -195,6 +200,7 @@ def initialize() -> None:
         sort_order INTEGER NOT NULL,
         shot_type TEXT NOT NULL DEFAULT 'PM',
         camera_movement TEXT NOT NULL DEFAULT 'Fijo',
+        camera_angle TEXT NOT NULL DEFAULT 'Normal',
         description TEXT,
         notes TEXT,
         storage_key TEXT,

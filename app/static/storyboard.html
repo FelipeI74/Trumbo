@@ -314,24 +314,51 @@
 
 </section>
 
-        <aside class="storyboard-inspector">
+                <aside class="storyboard-inspector">
 
           <label>
             Tipo de plano
+            <select id="shotTypeInput">
+              <option value="GPG">GPG - Gran Plano General</option>
+              <option value="PG">PG - Plano General</option>
+              <option value="PE">PE - Plano Entero</option>
+              <option value="PA">PA - Plano Americano</option>
+              <option value="PM" selected>PM - Plano Medio</option>
+              <option value="PMC">PMC - Plano Medio Corto</option>
+              <option value="PP">PP - Primer Plano</option>
+              <option value="PPP">PPP - Primerísimo Primer Plano</option>
+              <option value="PD">PD - Plano Detalle</option>
+              <option value="PC">PC - Plano Conjunto</option>
+              <option value="PS">PS - Plano Secuencia</option>
+            </select>
+          </label>
 
-            <input
-              id="shotTypeInput"
-              type="text"
-            >
+          <label>
+            Ángulo
+            <select id="cameraAngleInput">
+              <option value="Normal" selected>Normal</option>
+              <option value="Picado">Picado</option>
+              <option value="Contrapicado">Contrapicado</option>
+              <option value="Cenital">Cenital</option>
+              <option value="Nadir">Nadir</option>
+              <option value="Holandés">Holandés</option>
+            </select>
           </label>
 
           <label>
             Movimiento
-
-            <input
-              id="shotMovementInput"
-              type="text"
-            >
+            <select id="shotMovementInput">
+              <option value="Fijo" selected>Fijo</option>
+              <option value="Paneo">Paneo</option>
+              <option value="Tilt">Tilt</option>
+              <option value="Travelling">Travelling</option>
+              <option value="Dolly">Dolly</option>
+              <option value="Grúa">Grúa</option>
+              <option value="Steadicam">Steadicam</option>
+              <option value="Cámara en Mano">Cámara en Mano</option>
+              <option value="Zoom">Zoom</option>
+              <option value="Rack Focus">Rack Focus</option>
+            </select>
           </label>
 
           <label>
@@ -358,7 +385,6 @@
           </button>
 
         </aside>
-
       </div>
 
     </div>
@@ -671,16 +697,9 @@ function renderStoryboardView() {
       selectedShotId = shot.id;
       imageFitFill = false; // volver a Ajustar al cambiar de plano
 
-      document.getElementById(
-        "shotTypeInput"
-      ).value =
-        shot.shot_type || "";
-
-      document.getElementById(
-        "shotMovementInput"
-      ).value =
-        shot.camera_movement || "";
-
+            document.getElementById("shotTypeInput").value = shot.shot_type || "PM";
+      document.getElementById("cameraAngleInput").value = shot.camera_angle || "Normal";
+      document.getElementById("shotMovementInput").value = shot.camera_movement || "Fijo";
       document.getElementById(
         "shotDescriptionInput"
       ).value =
@@ -757,15 +776,9 @@ function renderStoryboardView() {
           {
             method: "PATCH",
             body: JSON.stringify({
-              shot_type:
-                document.getElementById(
-                  "shotTypeInput"
-                ).value,
-
-              camera_movement:
-                document.getElementById(
-                  "shotMovementInput"
-                ).value,
+              shot_type: document.getElementById("shotTypeInput").value,
+              camera_angle: document.getElementById("cameraAngleInput").value,
+              camera_movement: document.getElementById("shotMovementInput").value,
 
               description:
                 document.getElementById(
@@ -817,13 +830,9 @@ function renderStoryboardView() {
 
         selectedShotId = null;
 
-        document.getElementById(
-          "shotTypeInput"
-        ).value = "";
-
-        document.getElementById(
-          "shotMovementInput"
-        ).value = "";
+        document.getElementById("shotTypeInput").value = "PM";
+        document.getElementById("cameraAngleInput").value = "Normal";
+        document.getElementById("shotMovementInput").value = "Fijo";
 
         document.getElementById(
           "shotDescriptionInput"
@@ -884,8 +893,9 @@ function renderStoryboardView() {
       );
 
 
-    [
+        [
       "shotTypeInput",
+      "cameraAngleInput",
       "shotMovementInput",
       "shotDescriptionInput",
       "shotNotesInput",

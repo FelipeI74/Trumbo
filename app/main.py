@@ -808,6 +808,7 @@ def get_project_scheduling_input(
 def _reconcile_manual_days(
     days: list[dict],
     scenes: list[dict],
+    shots_count_by_scene: dict[int, int] | None = None,
 ) -> list[dict]:
     """
     Reconcilia un plan guardado con las escenas actuales.
@@ -848,11 +849,18 @@ def _reconcile_manual_days(
                 if loc and loc not in locations:
                     locations.append(loc)
             locations.sort()
+            shots_count = 0
+            if shots_count_by_scene:
+                shots_count = sum(
+                    shots_count_by_scene.get(sid, 0)
+                    for sid in clean_ids
+                )
             reconciled.append({
                 "day": len(reconciled) + 1,
                 "scene_ids": clean_ids,
                 "runtime_seconds": runtime,
                 "locations": locations,
+                "shots_count": shots_count,
             })
 
     missing = all_scene_ids - seen
@@ -868,11 +876,18 @@ def _reconcile_manual_days(
             if loc and loc not in locations:
                 locations.append(loc)
         locations.sort()
+        shots_count = 0
+        if shots_count_by_scene:
+            shots_count = sum(
+                shots_count_by_scene.get(sid, 0)
+                for sid in missing_ids
+            )
         reconciled.append({
             "day": len(reconciled) + 1,
             "scene_ids": missing_ids,
             "runtime_seconds": runtime,
             "locations": locations,
+            "shots_count": shots_count,
         })
 
     return reconciled
@@ -901,6 +916,22 @@ def get_project_schedule_preview(
         ).fetchone()
 
     scheduling_input = _build_project_scheduling_input(project_id)
+    # Consultar el conteo de planos por escena
+    with connect() as connection:
+        shot_rows = connection.execute(
+            """
+            SELECT scene_id, COUNT(*) as count
+            FROM shots
+            WHERE project_id = ?
+              AND is_archived = 0
+            GROUP BY scene_id
+            """,
+            (project_id,),
+        ).fetchall()
+    shots_count_by_scene = {
+        row["scene_id"]: row["count"]
+        for row in shot_rows
+    }
 
     if stored is not None:
         try:
@@ -913,6 +944,7 @@ def get_project_schedule_preview(
             reconciled = _reconcile_manual_days(
                 manual_days,
                 scheduling_input["scenes"],
+                shots_count_by_scene,
             )
 
             # 3. Comprobar si el guion cambió (fingerprint)
@@ -2346,6 +2378,7 @@ def update_shot_metadata(
         for field in (
             "shot_type",
             "camera_movement",
+            "camera_angle",
             "description",
             "notes",
         ):

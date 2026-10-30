@@ -96,6 +96,7 @@ class BreakdownItemUpdate(BaseModel):
 class ShotBase(BaseModel):
     shot_type: str | None = "PM"
     camera_movement: str | None = "Fijo"
+    camera_angle: str | None = "Normal"
     description: str | None = ""
     notes: str | None = ""
 
@@ -107,6 +108,7 @@ class ShotCreate(ShotBase):
 class ShotUpdate(BaseModel):
     shot_type: str | None = None
     camera_movement: str | None = None
+    camera_angle: str | None = None
     description: str | None = None
     notes: str | None = None
 
