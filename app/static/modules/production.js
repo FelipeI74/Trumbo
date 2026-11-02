@@ -4,6 +4,7 @@
 // --- MÓDULO DE PRODUCCIÓN (STRIPBOARD) ---
 
 let productionSceneById = new Map();
+let productionResolveScene = null;
 let currentViewMode = "proyecto";
 let productionProjectId = null;
 
@@ -140,6 +141,7 @@ async function initProductionBoard() {
                 sceneByProductionNumber.get(key);
         };
 
+        productionResolveScene = resolveScene;
         renderStripboard(
             scheduleData,
             sceneById,
@@ -274,7 +276,7 @@ function renderStripboard(scheduleData, sceneById, resolveScene) {
             : `<div class="stripboard-empty">Sin escenas.</div>`;
 
         return `
-            <div class="strip-day" data-day="${dayNumber}">
+            <div class="strip-day ${currentViewMode === "diario" ? "daily-view-active" : ""}" data-day="${dayNumber}">
                 <div class="strip-day-header">
                     <span>Día ${dayNumber}</span>
                 </div>
@@ -421,7 +423,11 @@ function ensureSceneDragAndDrop(daysContainer) {
                 }
             );
             if (!response.ok) {
-                throw new Error(`Error HTTP ${response.status}`);
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(
+                    errorData.detail ||
+                    "Error al guardar el orden. Revisa las reglas de DÍA/NOCHE."
+                );
             }
 
             const savedSchedule = await response.json();
@@ -430,7 +436,10 @@ function ensureSceneDragAndDrop(daysContainer) {
             }
         } catch (error) {
             console.error("Error guardando el nuevo orden de escenas:", error);
-            window.alert("Error al guardar el nuevo orden");
+            window.alert(
+                error.message ||
+                "Error al guardar el orden. Revisa las reglas de DÍA/NOCHE."
+            );
             const root = document.getElementById("stripboard-root");
             if (root) root.dataset.loadedProjectId = "";
             await initProductionBoard();
@@ -474,7 +483,9 @@ function normalizeLabel(value) {
 
 function getSceneColorClass(scene) {
     const intExt = normalizeLabel(scene.int_ext);
-    const time = normalizeLabel(scene.time_of_day);
+    const time = normalizeLabel(
+        scene.shoot_time_override || scene.time_of_day
+    );
 
     const isExterior = /\bEXT\b/.test(intExt);
     const isInterior = /\bINT\b/.test(intExt);
@@ -492,6 +503,19 @@ function getSceneColorClass(scene) {
 }
 
 
+function isSceneScheduledAtNight(scene) {
+    const time = normalizeLabel(
+        scene.shoot_time_override || scene.time_of_day
+    );
+    return /\bNOCHE\b|\bNIGHT\b/.test(time);
+}
+
+
+function getShootTimeOverrideTarget(scene) {
+    return isSceneScheduledAtNight(scene) ? "DÍA" : "NOCHE";
+}
+
+
 function renderSceneCard(scene, dayNumber = "", runtimeFormatted = "") {
     const colorClass = getSceneColorClass(scene);
 
@@ -501,6 +525,19 @@ function renderSceneCard(scene, dayNumber = "", runtimeFormatted = "") {
     const location = String(scene.location ?? "").trim() || "Sin locación";
     const intExt = String(scene.int_ext ?? "").trim();
     const time = String(scene.time_of_day ?? "").trim();
+    const isOriginallyNight = /\bNOCHE\b|\bNIGHT\b/.test(normalizeLabel(time));
+    const overrideTarget = getShootTimeOverrideTarget(scene);
+    const shootTimeIndicator = isOriginallyNight
+        ? `<button
+                class="strip-card-shoot-time"
+                type="button"
+                draggable="false"
+                data-shoot-time-toggle
+                data-shoot-time-target="${overrideTarget}"
+                aria-label="Cambiar grabación a ${overrideTarget}"
+                title="Cambiar grabación a ${overrideTarget}"
+            >${scene.shoot_time_override === "DÍA" ? "☀️" : "🌙"}</button>`
+        : "";
 
     const heading = `ESC. ${productionNumber}`;
     const description = [location, intExt, time]
@@ -537,6 +574,7 @@ function renderSceneCard(scene, dayNumber = "", runtimeFormatted = "") {
             <div class="strip-card-body">
                 ${escapeHtml(description)}
                 ${shotsSummary}
+                ${shootTimeIndicator}
             </div>
         </div>
     `;
@@ -550,6 +588,24 @@ function ensureSceneModal(root) {
                 ? event.target.closest(".strip-card[data-scene-id]")
                 : null;
             if (!card || !root.contains(card)) return;
+
+            const timeToggle = event.target instanceof Element
+                ? event.target.closest("[data-shoot-time-toggle]")
+                : null;
+            if (timeToggle) {
+                event.preventDefault();
+                event.stopPropagation();
+                const scene = productionSceneById.get(
+                    normalizeId(card.dataset.sceneId)
+                );
+                if (scene) {
+                    updateSceneShootTime(
+                        scene,
+                        timeToggle.dataset.shootTimeTarget
+                    );
+                }
+                return;
+            }
 
             if (
                 window.sceneCardDragCompletedAt &&
@@ -573,9 +629,13 @@ function ensureSceneModal(root) {
             const card = event.target instanceof Element
                 ? event.target.closest(".strip-card[data-scene-id]")
                 : null;
+            const timeToggle = event.target instanceof Element
+                ? event.target.closest("[data-shoot-time-toggle]")
+                : null;
             if (
                 card &&
                 root.contains(card) &&
+                !timeToggle &&
                 (event.key === "Enter" || event.key === " ")
             ) {
                 event.preventDefault();
@@ -638,6 +698,69 @@ function closeSceneModal() {
 }
 
 
+async function updateSceneShootTime(scene, shootTimeOverride) {
+    try {
+        const response = await fetch(
+            `/api/scenes/${encodeURIComponent(scene.id)}`,
+            {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    shoot_time_override: shootTimeOverride
+                })
+            }
+        );
+        if (!response.ok) {
+            throw new Error(`Error HTTP ${response.status}`);
+        }
+
+        const updatedScene = await response.json();
+        scene.shoot_time_override = updatedScene.shoot_time_override;
+        if (window.lastScheduleData && productionResolveScene) {
+            renderStripboard(
+                window.lastScheduleData,
+                productionSceneById,
+                productionResolveScene
+            );
+        }
+
+        const modalContent = document.querySelector(
+            "#sceneModalOverlay .scene-modal-content"
+        );
+        const modalColors = {
+            "int-day": "#f4f0e8",
+            "ext-day": "#ffe599",
+            "int-night": "#6fa8dc",
+            "ext-night": "#93c47d",
+            "scene-unclassified": "#777"
+        };
+        const colorClass = getSceneColorClass(scene);
+        if (modalContent) {
+            modalContent.style.borderTop =
+                `4px solid ${modalColors[colorClass] || modalColors["scene-unclassified"]}`;
+        }
+
+        const modalStatus = document.getElementById("modalShootTimeStatus");
+        if (modalStatus) {
+            modalStatus.textContent = scene.shoot_time_override
+                ? ` · ${scene.shoot_time_override === "DÍA" ? "☀️" : "🌙"} Rodaje ${scene.shoot_time_override}`
+                : "";
+        }
+
+        const modalButton = document.getElementById("modalShootTimeToggle");
+        if (modalButton) {
+            const nextTarget = getShootTimeOverrideTarget(scene);
+            modalButton.dataset.shootTimeTarget = nextTarget;
+            modalButton.textContent =
+                `Grabar de ${nextTarget === "DÍA" ? "Día" : "Noche"}`;
+        }
+    } catch (error) {
+        console.error("Error actualizando el horario de rodaje de la escena:", error);
+        window.alert("No se pudo actualizar el horario de rodaje.");
+    }
+}
+
+
 window.openSceneModal = async function(
     sceneId,
     trigger = null,
@@ -690,7 +813,18 @@ window.openSceneModal = async function(
             String(scene.int_ext ?? "").trim(),
             String(scene.time_of_day ?? "").trim()
         ].filter(Boolean).join(" · ");
-        sceneDetails.append(sceneNumber, document.createTextNode(" | "), sceneDescription);
+        const shootTimeStatus = document.createElement("span");
+        shootTimeStatus.id = "modalShootTimeStatus";
+        shootTimeStatus.className = "shoot-time-status";
+        shootTimeStatus.textContent = scene.shoot_time_override
+            ? ` · ${scene.shoot_time_override === "DÍA" ? "☀️" : "🌙"} Rodaje ${scene.shoot_time_override}`
+            : "";
+        sceneDetails.append(
+            sceneNumber,
+            document.createTextNode(" | "),
+            sceneDescription,
+            shootTimeStatus
+        );
 
         const scheduleDetails = document.createElement("div");
         const scheduleDay = document.createElement("strong");
@@ -701,6 +835,28 @@ window.openSceneModal = async function(
         scheduleDetails.append(scheduleDay, scheduleSummary);
         slateLine.append(sceneDetails, scheduleDetails);
         leftColumn.append(slateLine);
+
+        const shootTimeButton = document.createElement("button");
+        shootTimeButton.id = "modalShootTimeToggle";
+        shootTimeButton.className = "shoot-time-toggle";
+        shootTimeButton.type = "button";
+        const updateShootTimeButton = () => {
+            const target = getShootTimeOverrideTarget(scene);
+            shootTimeButton.dataset.shootTimeTarget = target;
+            shootTimeButton.textContent =
+                `Grabar de ${target === "DÍA" ? "Día" : "Noche"}`;
+        };
+        updateShootTimeButton();
+        shootTimeButton.addEventListener("click", () => {
+            shootTimeButton.disabled = true;
+            updateSceneShootTime(
+                scene,
+                shootTimeButton.dataset.shootTimeTarget
+            ).finally(() => {
+                shootTimeButton.disabled = false;
+            });
+        });
+        leftColumn.append(shootTimeButton);
 
         const getCastItems = () => (Array.isArray(scene.breakdown_items)
             ? scene.breakdown_items

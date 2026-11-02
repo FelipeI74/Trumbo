@@ -122,6 +122,7 @@ def build_project_scheduling_input(
                 id,
                 scene_number,
                 production_number,
+                shoot_time_override,
                 heading,
                 body,
                 runtime_seconds,
@@ -292,6 +293,7 @@ def build_project_scheduling_input(
                 "location": heading_fields["location"],
                 "sublocation": heading_fields["sublocation"],
                 "time_of_day": heading_fields["time_of_day"],
+                "shoot_time_override": scene_row["shoot_time_override"],
                 "runtime_seconds": int(scene_row["runtime_seconds"] or 0),
                 "characters": characters,
                 "voice_over_characters": voice_over_characters,
@@ -337,11 +339,6 @@ def _validate_manual_schedule_days(
         if scene.get("scene_id") is not None
     }
     all_scene_ids = set(scene_by_id.keys())
-    time_by_scene_id = {
-        int(scene["scene_id"]): str(scene.get("time_of_day") or "")
-        for scene in scenes
-    }
-
     validated_days: list[dict[str, Any]] = []
     all_seen: set[int] = set()
     orphan_ids: set[int] = set()
@@ -373,14 +370,9 @@ def _validate_manual_schedule_days(
         if not clean_ids:
             continue
 
-        # Corregir el orden DÍA/NOCHE dentro de la jornada
-        day_of = [s for s in clean_ids if time_by_scene_id.get(s, "").strip().casefold() != "noche"]
-        night_of = [s for s in clean_ids if time_by_scene_id.get(s, "").strip().casefold() == "noche"]
-        ordered_ids = day_of + night_of
-
         validated_days.append({
             "day": len(validated_days) + 1,
-            "scene_ids": ordered_ids,
+            "scene_ids": clean_ids,
         })
 
     missing = all_scene_ids - all_seen
@@ -395,5 +387,29 @@ def _validate_manual_schedule_days(
             "Manual schedule has orphan scene ids (ignored): %s",
             sorted(orphan_ids),
         )
+
+    for day in validated_days:
+        seen_night = False
+        for scene_id in day.get("scene_ids", []):
+            scene = scene_by_id.get(scene_id)
+            if not scene:
+                continue
+
+            time_value = str(
+                scene.get("shoot_time_override")
+                or scene.get("time_of_day")
+                or ""
+            ).upper()
+            is_night = "NOCHE" in time_value or "NIGHT" in time_value
+            is_day = (
+                "DIA" in time_value
+                or "DÍA" in time_value
+                or "DAY" in time_value
+            )
+
+            if is_night:
+                seen_night = True
+            elif is_day and seen_night:
+                return None
 
     return validated_days

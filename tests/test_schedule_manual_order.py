@@ -150,6 +150,54 @@ class ScheduleManualOrderTests(unittest.TestCase):
             self.calculated["best_schedule"]["days"][0]["scene_ids"],
         )
 
+    def test_save_rejects_day_scene_after_night_scene_in_same_day(self):
+        manual_days = [
+            {
+                "day": 1,
+                "scene_ids": [
+                    self.scenes[2]["id"],
+                    self.scenes[0]["id"],
+                ],
+            },
+            {"day": 2, "scene_ids": [self.scenes[1]["id"]]},
+        ]
+
+        with self.assertRaises(HTTPException) as raised:
+            main.save_project_schedule_manual_order(
+                self.project["id"],
+                ScheduleManualOrder(days=manual_days),
+            )
+
+        self.assertEqual(raised.exception.status_code, 400)
+        self.assertIn("Día por Noche", raised.exception.detail)
+
+    def test_day_override_is_used_by_manual_schedule_validation(self):
+        main.update_scene(
+            self.scenes[2]["id"],
+            SceneUpdate(shoot_time_override="DÍA"),
+        )
+        manual_days = [
+            {
+                "day": 1,
+                "scene_ids": [
+                    self.scenes[2]["id"],
+                    self.scenes[0]["id"],
+                ],
+            },
+            {"day": 2, "scene_ids": [self.scenes[1]["id"]]},
+        ]
+
+        result = main.save_project_schedule_manual_order(
+            self.project["id"],
+            ScheduleManualOrder(days=manual_days),
+        )
+
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(
+            result["days"][0]["scene_ids"],
+            manual_days[0]["scene_ids"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

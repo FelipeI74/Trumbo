@@ -7,7 +7,14 @@ from unittest.mock import patch
 
 import app.database as database
 import app.main as main
-from app.schemas import BreakdownItemCreate, BreakdownItemUpdate, NoteCreate, ProjectCreate, SceneCreate
+from app.schemas import (
+    BreakdownItemCreate,
+    BreakdownItemUpdate,
+    NoteCreate,
+    ProjectCreate,
+    SceneCreate,
+    SceneUpdate,
+)
 
 
 class ProductivityFeaturesTests(unittest.TestCase):
@@ -24,6 +31,40 @@ class ProductivityFeaturesTests(unittest.TestCase):
             connection.execute("DELETE FROM breakdown_items")
             connection.execute("DELETE FROM scenes")
             connection.execute("DELETE FROM projects")
+
+    def test_scene_shoot_time_override_can_be_set_and_cleared(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+            project = main.create_project(
+                ProjectCreate(title="Día por noche", format="feature")
+            )
+            scene = main.create_scene(
+                project["id"],
+                SceneCreate(
+                    heading="EXT. PLAZA - NOCHE",
+                    body="La plaza está vacía.",
+                ),
+            )
+
+            updated = main.update_scene(
+                scene["id"],
+                SceneUpdate(shoot_time_override="DÍA"),
+            )
+            self.assertEqual(updated["shoot_time_override"], "DÍA")
+
+            scheduling_input = main.build_project_scheduling_input(
+                project["id"]
+            )
+            self.assertEqual(
+                scheduling_input["scenes"][0]["shoot_time_override"],
+                "DÍA",
+            )
+
+            cleared = main.update_scene(
+                scene["id"],
+                SceneUpdate(shoot_time_override=None),
+            )
+            self.assertIsNone(cleared["shoot_time_override"])
 
     def test_scene_spelling_review_returns_misspellings(self):
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -59,6 +59,7 @@ class SceneUpdate(BaseModel):
     semantic_lines: list[SemanticLine] | None = None
     synopsis: str | None = None
     production_number: str | None = None
+    shoot_time_override: str | None = None
     status: str | None = None
 
 

@@ -6078,6 +6078,19 @@ loadProjects()
       mainNavTabs.forEach(t => t.classList.remove("active"));
       tab.classList.add("active");
       setMainView(tab.dataset.view);
+
+      if (
+        tab.dataset.view === "plan-rodaje" ||
+        tab.dataset.view === "plan-de-rodaje"
+      ) {
+        state.scheduleLoaded = false;
+        loadSchedulePreview();
+      } else if (tab.dataset.view === "produccion") {
+        const productionRoot = document.getElementById("stripboard-root");
+        if (productionRoot) {
+          productionRoot.dataset.loadedProjectId = "";
+        }
+      }
     });
   });
 }

@@ -987,8 +987,11 @@ def save_project_schedule_manual_order(
     )
     if validated_days is None:
         raise HTTPException(
-            400,
-            "El orden manual debe incluir cada escena una vez, con DÍA antes de NOCHE",
+            status_code=400,
+            detail=(
+                "Regla de producción: Las escenas de NOCHE no pueden ir "
+                "antes que las de DÍA (usa Día por Noche si es necesario)."
+            ),
         )
 
     # Reconciliar (renumerar días, recalcular runtime_seconds)
@@ -1383,11 +1386,26 @@ def update_scene(
     if not sent:
         raise HTTPException(400, "No hay cambios")
 
-    # Construir data: permitir actualizar production_number a NULL,
-    # pero ignorar otros campos con valor None (no deben actualizarse)
-    data = {k: v for k, v in sent.items() if v is not None}
+    # Permitir limpiar production_number y shoot_time_override explícitamente;
+    # ignorar None en los demás campos para evitar borrados accidentales.
+    data = {
+        k: v
+        for k, v in sent.items()
+        if v is not None or k == "shoot_time_override"
+    }
     if "production_number" in sent:
         data["production_number"] = normalize_production_number(sent["production_number"])
+    if data.get("shoot_time_override") is not None:
+        normalized_override = data["shoot_time_override"].strip().upper()
+        if normalized_override in {"DIA", "DÍA"}:
+            data["shoot_time_override"] = "DÍA"
+        elif normalized_override == "NOCHE":
+            data["shoot_time_override"] = "NOCHE"
+        else:
+            raise HTTPException(
+                422,
+                "shoot_time_override debe ser DÍA, NOCHE o null",
+            )
 
     if not data:
         raise HTTPException(400, "No hay cambios")

@@ -77,6 +77,15 @@ def migrate(connection: sqlite3.Connection) -> None:
             "ALTER TABLE scenes ADD COLUMN production_number TEXT"
         )
 
+    if not column_exists(
+        connection,
+        "scenes",
+        "shoot_time_override",
+    ):
+        connection.execute(
+            "ALTER TABLE scenes ADD COLUMN shoot_time_override TEXT"
+        )
+
     # --- NUEVAS COLUMNAS PARA EL CALENDARIO ---
     if not column_exists(connection, "projects", "start_date"):
         connection.execute("ALTER TABLE projects ADD COLUMN start_date TEXT")
@@ -116,6 +125,7 @@ def initialize() -> None:
         body TEXT NOT NULL DEFAULT '',
         semantic_lines TEXT NOT NULL DEFAULT '[]',
         synopsis TEXT NOT NULL DEFAULT '',
+        shoot_time_override TEXT,
         runtime_seconds INTEGER NOT NULL DEFAULT 0,
         status TEXT NOT NULL DEFAULT 'draft',
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
