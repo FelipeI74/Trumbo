@@ -5,6 +5,7 @@
 
 let productionSceneById = new Map();
 let currentViewMode = "proyecto";
+let productionProjectId = null;
 
 async function initProductionBoard() {
     const root = document.getElementById("stripboard-root");
@@ -13,6 +14,7 @@ async function initProductionBoard() {
     const projectId = projectSelect?.value;
 
     if (!projectId) return;
+    productionProjectId = projectId;
 
     ensureSceneModal(root);
 
@@ -218,6 +220,7 @@ function renderStripboard(scheduleData, sceneById, resolveScene) {
     const daysContainer = document.getElementById("stripboard-days");
 
     if (!poolCards || !daysContainer) return;
+    ensureSceneDragAndDrop(daysContainer);
 
     const allDays = scheduleData?.best_schedule?.days || [];
     let days = allDays;
@@ -317,6 +320,127 @@ function bindViewModeButtons(sceneById, resolveScene) {
 }
 
 
+function ensureSceneDragAndDrop(daysContainer) {
+    const root = document.getElementById("stripboard-root");
+    if (!root) return;
+
+    if (!root.dataset.sceneDragEventsBound) {
+        root.addEventListener("dragstart", event => {
+            const card = event.target instanceof Element
+                ? event.target.closest(".strip-card[data-scene-id]")
+                : null;
+            if (!card || !root.contains(card)) return;
+
+            window.draggedSceneId = card.dataset.sceneId;
+            window.draggedSceneElement = card;
+            window.sceneCardDragCompletedAt = 0;
+            if (event.dataTransfer) {
+                event.dataTransfer.setData("text/plain", card.dataset.sceneId);
+                event.dataTransfer.effectAllowed = "move";
+            }
+        });
+
+        root.addEventListener("dragend", () => {
+            window.sceneCardDragCompletedAt = Date.now();
+            window.draggedSceneId = null;
+            window.draggedSceneElement = null;
+        });
+        root.dataset.sceneDragEventsBound = "true";
+    }
+
+    if (daysContainer.dataset.dragDropBound) return;
+
+    daysContainer.addEventListener("dragover", event => {
+        if (!window.draggedSceneId) return;
+        const day = event.target instanceof Element
+            ? event.target.closest(".strip-day")
+            : null;
+        if (!day || !daysContainer.contains(day)) return;
+
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+    });
+
+    daysContainer.addEventListener("drop", async event => {
+        const card = window.draggedSceneElement;
+        const sceneId = window.draggedSceneId;
+        const day = event.target instanceof Element
+            ? event.target.closest(".strip-day")
+            : null;
+        if (!sceneId || !card || !day || !daysContainer.contains(day)) return;
+
+        event.preventDefault();
+        const dayCards = day.querySelector(".strip-day-cards");
+        if (!dayCards) return;
+
+        const sourceDayCards = card.closest(".strip-day-cards");
+        dayCards.querySelectorAll(".stripboard-empty").forEach(empty =>
+            empty.remove()
+        );
+        dayCards.append(card);
+        card.dataset.day = day.dataset.day;
+        window.draggedSceneId = null;
+        window.draggedSceneElement = null;
+        window.sceneCardDragCompletedAt = Date.now();
+
+        const visibleDays = new Map(
+            [...daysContainer.querySelectorAll(".strip-day")].map(stripDay => [
+                String(stripDay.dataset.day),
+                {
+                    day: Number(stripDay.dataset.day),
+                    scene_ids: [...stripDay.querySelectorAll(
+                        ".strip-day-cards .strip-card[data-scene-id]"
+                    )].map(sceneCard => Number(sceneCard.dataset.sceneId))
+                }
+            ])
+        );
+        const existingDays = window.lastScheduleData?.best_schedule?.days || [];
+        const days = existingDays.map(existingDay =>
+            visibleDays.get(String(existingDay.day)) || {
+                day: existingDay.day,
+                scene_ids: existingDay.scene_ids
+            }
+        );
+        if (sourceDayCards && !sourceDayCards.querySelector(".strip-card")) {
+            const emptyMessage = document.createElement("div");
+            emptyMessage.className = "stripboard-empty";
+            emptyMessage.textContent = "Sin escenas.";
+            sourceDayCards.append(emptyMessage);
+        }
+
+        try {
+            const response = await fetch(
+                `/api/projects/${encodeURIComponent(productionProjectId)}/schedule-manual-order`,
+                {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        days,
+                        shoot_rate_seconds: 420
+                    })
+                }
+            );
+            if (!response.ok) {
+                throw new Error(`Error HTTP ${response.status}`);
+            }
+
+            const savedSchedule = await response.json();
+            if (Array.isArray(savedSchedule.days)) {
+                window.lastScheduleData.best_schedule.days = savedSchedule.days;
+            }
+        } catch (error) {
+            console.error("Error guardando el nuevo orden de escenas:", error);
+            window.alert("Error al guardar el nuevo orden");
+            const root = document.getElementById("stripboard-root");
+            if (root) root.dataset.loadedProjectId = "";
+            await initProductionBoard();
+        }
+    });
+
+    daysContainer.dataset.dragDropBound = "true";
+}
+
+
 // Validar la duración recibida del backend.
 function normalizeRuntime(value) {
     const seconds = Number(value);
@@ -402,6 +526,7 @@ function renderSceneCard(scene, dayNumber = "", runtimeFormatted = "") {
             data-color-class="${colorClass}"
             data-day="${escapeHtml(dayNumber)}"
             data-runtime="${escapeHtml(runtimeFormatted)}"
+            draggable="true"
             role="button"
             tabindex="0"
             aria-haspopup="dialog"
@@ -424,15 +549,24 @@ function ensureSceneModal(root) {
             const card = event.target instanceof Element
                 ? event.target.closest(".strip-card[data-scene-id]")
                 : null;
-            if (card && root.contains(card)) {
-                window.openSceneModal(
-                    card.dataset.sceneId,
-                    card,
-                    card.dataset.colorClass,
-                    card.dataset.day,
-                    card.dataset.runtime
-                );
+            if (!card || !root.contains(card)) return;
+
+            if (
+                window.sceneCardDragCompletedAt &&
+                Date.now() - window.sceneCardDragCompletedAt < 500
+            ) {
+                event.preventDefault();
+                event.stopPropagation();
+                window.sceneCardDragCompletedAt = 0;
+                return;
             }
+            window.openSceneModal(
+                card.dataset.sceneId,
+                card,
+                card.dataset.colorClass,
+                card.dataset.day,
+                card.dataset.runtime
+            );
         });
 
         root.addEventListener("keydown", event => {

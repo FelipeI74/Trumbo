@@ -6605,124 +6605,66 @@ document
       "width=1200,height=800,resizable=yes,scrollbars=yes"
     );
   });
-// --- Lógica para descargar el PDF del desglose ---
+async function previewReportPdf(button, endpoint, loadingText, errorMessage) {
+  const projectId = document.getElementById("projectSelect")?.value;
+  if (!projectId) return;
+
+  const previewWindow = window.open("about:blank", "_blank");
+  if (!previewWindow) {
+    alert("Permite las ventanas emergentes para previsualizar el PDF.");
+    return;
+  }
+
+  const originalText = button.textContent;
+  button.textContent = loadingText;
+  button.disabled = true;
+
+  try {
+    const response = await fetch(
+      `/api/projects/${encodeURIComponent(projectId)}${endpoint}`
+    );
+    if (!response.ok) {
+      throw new Error(`Error HTTP ${response.status}`);
+    }
+
+    const pdfBlob = await response.blob();
+    const previewUrl = window.URL.createObjectURL(pdfBlob);
+    previewWindow.location.href = previewUrl;
+    window.setTimeout(() => window.URL.revokeObjectURL(previewUrl), 60_000);
+  } catch (error) {
+    console.error(error);
+    previewWindow.close();
+    alert(errorMessage);
+  } finally {
+    button.textContent = originalText;
+    button.disabled = false;
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-  const downloadPdfBtn = document.getElementById("downloadBreakdownPdfButton");
-  
-  if (downloadPdfBtn) {
-    downloadPdfBtn.addEventListener("click", async () => {
-      const projectId = document.getElementById("projectSelect")?.value;
-      if (!projectId) return;
+  const breakdownButton = document.getElementById(
+    "downloadBreakdownPdfButton"
+  );
+  breakdownButton?.addEventListener("click", () => {
+    previewReportPdf(
+      breakdownButton,
+      "/export/breakdown-pdf",
+      "Generando PDF...",
+      "Hubo un error al generar el PDF del desglose."
+    );
+  });
 
-      const originalText = downloadPdfBtn.textContent;
-      downloadPdfBtn.textContent = 'Generando PDF...';
-      downloadPdfBtn.disabled = true;
-
-      try {
-        const response = await fetch(`/api/projects/${projectId}/export/breakdown-pdf`);
-        if (!response.ok) throw new Error('Error al generar el PDF');
-
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        
-        const projectTitle = document.getElementById('projectSelect')?.selectedOptions[0]?.text || 'Proyecto';
-        const safeName = projectTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        
-        a.download = `desglose_${safeName}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
-      } catch (error) {
-        console.error(error);
-        alert('Hubo un error al generar el PDF del desglose.');
-      } finally {
-        downloadPdfBtn.textContent = originalText;
-        downloadPdfBtn.disabled = false;
-      }
-    });
-  }
-});
-  // Botón para descargar el PDF del Plan de Rodaje
-  const downloadScheduleBtn = document.getElementById("downloadSchedulePdfButton");
-  if (downloadScheduleBtn) {
-    downloadScheduleBtn.addEventListener("click", async () => {
-      const projectId = document.getElementById("projectSelect")?.value;
-      if (!projectId) return;
-
-      const originalText = downloadScheduleBtn.textContent;
-      downloadScheduleBtn.textContent = 'Generando Plan...';
-      downloadScheduleBtn.disabled = true;
-
-      try {
-        const response = await fetch(`/api/projects/${projectId}/export/schedule-pdf`);
-        if (!response.ok) throw new Error('Error al generar el PDF');
-
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        
-        const projectTitle = document.getElementById('projectSelect')?.selectedOptions[0]?.text || 'Proyecto';
-        const safeName = projectTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        
-        a.download = `plan_rodaje_${safeName}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
-      } catch (error) {
-        console.error(error);
-        alert('Hubo un error al generar el PDF del Plan de Rodaje.');
-      } finally {
-        downloadScheduleBtn.textContent = originalText;
-        downloadScheduleBtn.disabled = false;
-      }
-    });
-  }
-  // --- CONEXIÓN DEL BOTÓN DEL PLAN DE RODAJE ---
-document.addEventListener("DOMContentLoaded", () => {
-  const btn = document.getElementById("downloadSchedulePdfButton");
-  
-  if (btn) {
-    btn.addEventListener("click", async () => {
-      const projectId = document.getElementById("projectSelect")?.value;
-      if (!projectId) return;
-
-      const originalText = btn.textContent;
-      btn.textContent = 'Generando...';
-      btn.disabled = true;
-
-      try {
-        const response = await fetch(`/api/projects/${projectId}/export/schedule-pdf`);
-        if (!response.ok) throw new Error('Error al generar el PDF');
-
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        
-        const projectTitle = document.getElementById('projectSelect')?.selectedOptions[0]?.text || 'Proyecto';
-        const safeName = projectTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        
-        a.download = `plan_rodaje_${safeName}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
-      } catch (error) {
-        console.error(error);
-        alert('Hubo un error al generar el PDF del Plan de Rodaje.');
-      } finally {
-        btn.textContent = originalText;
-        btn.disabled = false;
-      }
-    });
-  } else {
-    console.warn("No se encontró el botón downloadSchedulePdfButton");
-  }
+  const scheduleButton = document.getElementById(
+    "downloadSchedulePdfButton"
+  );
+  scheduleButton?.addEventListener("click", () => {
+    previewReportPdf(
+      scheduleButton,
+      "/export/schedule-pdf",
+      "Generando Plan...",
+      "Hubo un error al generar el PDF del Plan de Rodaje."
+    );
+  });
 });
 async function loadAliases() {
   if (!state.project) return;

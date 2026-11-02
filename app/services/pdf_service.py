@@ -705,11 +705,15 @@ def export_project_schedule_pdf(project_id: int):
             raise HTTPException(404, "Proyecto no encontrado")
 
         try:
+            from app.main import get_project_schedule_preview
+
             schedule_data = get_project_schedule_preview(project_id)
         except Exception as e:
             raise HTTPException(500, f"Error al generar el plan: {str(e)}")
 
-        scheduling_input = _build_project_scheduling_input(project_id)
+        from app.services.scheduling_service import build_project_scheduling_input
+
+        scheduling_input = build_project_scheduling_input(project_id)
         scene_lookup = {s["scene_id"]: s for s in scheduling_input.get("scenes", [])}
 
         # Obtenemos los bodies de las escenas para el filtro de elenco
