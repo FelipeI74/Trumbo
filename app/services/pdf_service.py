@@ -149,7 +149,6 @@ def export_project_pdf(
         )
 
     try:
-        from reportlab.lib.pagesizes import LETTER
         from reportlab.lib.utils import simpleSplit
         from reportlab.pdfgen import canvas
     except ImportError as error:
@@ -160,13 +159,12 @@ def export_project_pdf(
 
     buffer = BytesIO()
 
+    PAGE_WIDTH, PAGE_HEIGHT = 612, 792
     pdf = canvas.Canvas(
         buffer,
-        pagesize=LETTER,
+        pagesize=(PAGE_WIDTH, PAGE_HEIGHT),
         pageCompression=0,
     )
-
-    width, height = LETTER
 
     # ---------------------------------------------------------
     # Formato profesional de guion
@@ -175,26 +173,25 @@ def export_project_pdf(
 
     FONT_NAME = "Courier"
     FONT_SIZE = 12
-    LINE_HEIGHT = 12
-
-    LEFT_ACTION = 1.5 * 72
-    RIGHT_ACTION = 1.0 * 72
-
-    LEFT_CHARACTER = 3.7 * 72
-    RIGHT_CHARACTER = 1.0 * 72
-
-    LEFT_DIALOGUE = 2.5 * 72
-    RIGHT_DIALOGUE = 2.0 * 72
-
-    LEFT_PARENTHETICAL = 3.1 * 72
-    RIGHT_PARENTHETICAL = 2.4 * 72
-
     TOP_MARGIN = 1.0 * 72
     BOTTOM_MARGIN = 1.0 * 72
 
-    PAGE_NUMBER_Y = height - (0.5 * 72)
+    X_SCENE = 1.5 * 72
+    X_ACTION = 1.5 * 72
+    X_CHARACTER = 3.8 * 72
+    X_DIALOGUE = 2.5 * 72
+    X_PARENTHETICAL = 3.0 * 72
+    X_TRANSITION = 7.5 * 72
 
-    y = height - TOP_MARGIN
+    ACTION_WIDTH = 6.0 * 72
+    DIALOGUE_WIDTH = 3.5 * 72
+    PARENTHETICAL_WIDTH = 2.5 * 72
+    CHARACTER_WIDTH = X_TRANSITION - X_CHARACTER
+
+    LINE_HEIGHT = 12
+    PAGE_NUMBER_Y = PAGE_HEIGHT - 0.5 * 72
+
+    y = PAGE_HEIGHT - TOP_MARGIN
     page_number = 1
 
     def draw_page_number() -> None:
@@ -205,7 +202,7 @@ def export_project_pdf(
         pdf.setFont(FONT_NAME, FONT_SIZE)
 
         pdf.drawRightString(
-            width - RIGHT_ACTION,
+            PAGE_WIDTH - 1.0 * 72,
             PAGE_NUMBER_Y,
             f"{page_number}.",
         )
@@ -221,7 +218,7 @@ def export_project_pdf(
         nonlocal y
 
         finish_page()
-        y = height - TOP_MARGIN
+        y = PAGE_HEIGHT - TOP_MARGIN
 
     def ensure_space(points_needed: float) -> None:
         if y - points_needed < BOTTOM_MARGIN:
@@ -229,81 +226,78 @@ def export_project_pdf(
 
     def wrap_text(
         text: str,
-        left: float,
-        right: float,
+        max_width: float,
     ) -> list[str]:
-        available_width = width - left - right
-
         return simpleSplit(
             text,
             FONT_NAME,
             FONT_SIZE,
-            available_width,
+            max_width,
         ) or [""]
 
     def draw_wrapped(
-        text: str,
-        left: float,
-        right: float,
+        wrapped: list[str],
+        x: float,
     ) -> None:
         nonlocal y
-
-        wrapped = wrap_text(
-            text,
-            left,
-            right,
-        )
-
-        ensure_space(len(wrapped) * LINE_HEIGHT)
 
         pdf.setFont(FONT_NAME, FONT_SIZE)
         pdf.setFillColorRGB(0, 0, 0)
 
         for chunk in wrapped:
-            pdf.drawString(
-                left,
-                y,
-                chunk,
-            )
+            pdf.drawString(x, y, chunk)
             y -= LINE_HEIGHT
 
-    def draw_transition(text: str) -> None:
-        nonlocal y
+    author_name = (
+        project["author"]
+        if project and project["author"]
+        else "[Nombre del Autor]"
+    )
+    project_type = (
+        project["project_type"]
+        if project and project["project_type"]
+        else ""
+    )
+    season = project["season"] if project and project["season"] else None
+    episode = project["episode"] if project and project["episode"] else None
 
-        rendered = text.upper()
+    series_tag = ""
+    if project_type in {"Serie", "Miniserie", "Sitcom"} and season and episode:
+        series_tag = f" | T{season:02d}:E{episode:02d}"
 
-        ensure_space(LINE_HEIGHT)
+    title_text = (
+        project["title"]
+        if project and project["title"]
+        else "PROYECTO"
+    )
 
-        pdf.setFont(FONT_NAME, FONT_SIZE)
-        pdf.setFillColorRGB(0, 0, 0)
-
-        pdf.drawRightString(
-            width - RIGHT_ACTION,
-            y,
-            rendered,
-        )
-
-        y -= LINE_HEIGHT
-
-        # --- PORTADA ---
+    # --- PORTADA ---
     pdf.setFont("Courier-Bold", 24)
-    pdf.drawCentredString(width / 2, height - 4 * 72, str(project["title"]).upper())
+    pdf.drawCentredString(
+        PAGE_WIDTH / 2,
+        PAGE_HEIGHT - 4 * 72,
+        f"{title_text}{series_tag}".upper(),
+    )
     
     pdf.setFont("Courier", 14)
-    pdf.drawCentredString(width / 2, height - 5 * 72, "Escrito por")
-    pdf.drawCentredString(width / 2, height - 5.4 * 72, "[Nombre del Autor]")
+    pdf.drawCentredString(PAGE_WIDTH / 2, PAGE_HEIGHT - 5 * 72, "Escrito por")
+    pdf.drawCentredString(PAGE_WIDTH / 2, PAGE_HEIGHT - 5.4 * 72, author_name)
     
     pdf.setFont("Courier", 12)
-    pdf.drawCentredString(width / 2, height - 7 * 72, "Versión de Producción")
-    pdf.drawCentredString(width / 2, height - 7.4 * 72, datetime.now().strftime("%d de %B de %Y"))
+    pdf.drawCentredString(PAGE_WIDTH / 2, PAGE_HEIGHT - 7 * 72, "Versión de Producción")
+    pdf.drawCentredString(PAGE_WIDTH / 2, PAGE_HEIGHT - 7.4 * 72, datetime.now().strftime("%d de %B de %Y"))
     
     pdf.setFont("Courier", 9)
-    pdf.drawCentredString(width / 2, 1.5 * 72, "© 2026 [Nombre del Autor]. Documento de producción interno.")
+    pdf.drawCentredString(
+        PAGE_WIDTH / 2,
+        1.5 * 72,
+        f"© 2026 {author_name}. Documento de producción interno.",
+    )
 
     # --- CUERPO DEL GUION ---
     pdf.showPage()
     page_number += 1
-    y = height - TOP_MARGIN
+    y = PAGE_HEIGHT - TOP_MARGIN
 
     for scene in scenes:
         lines = scene_lines_for_export(scene)
@@ -311,7 +305,10 @@ def export_project_pdf(
         # Buscamos la posición del encabezado para alinear el número
         heading_index = -1
         for idx, line in enumerate(lines):
-            if str(line.get("type") or "").strip().lower() == "heading":
+            if str(line.get("type") or "").strip().lower() in {
+                "heading",
+                "scene_heading",
+            }:
                 heading_index = idx
                 break
 
@@ -325,94 +322,140 @@ def export_project_pdf(
             )
 
             if not text.strip():
-                y -= LINE_HEIGHT
                 ensure_space(LINE_HEIGHT)
+                y -= LINE_HEIGHT
                 continue
 
-            if line_type == "heading":
-                ensure_space(LINE_HEIGHT * 3)
+            blank_lines_before = {
+                "heading": 2,
+                "scene_heading": 2,
+                "action": 1,
+                "character": 1,
+                "dialogue": 0,
+                "parenthetical": 0,
+                "transition": 1,
+            }.get(line_type, 1)
 
-                # Si es el primer heading de la escena, dibujamos el número a la derecha
-                if include_scene_numbers and line_index == heading_index:
-                    pdf.setFont(FONT_NAME, FONT_SIZE)
-                    pdf.drawRightString(
-                        width - RIGHT_ACTION,
-                        y,
-                        str(scene.get("production_number") or scene.get("scene_number"))
-                    )
-
-                draw_wrapped(
-                    text.upper(),
-                    LEFT_ACTION,
-                    RIGHT_ACTION,
-                )
-
-                y -= LINE_HEIGHT
-
+            if line_type in {"heading", "scene_heading"}:
+                rendered_text = text.upper()
+                x_position = X_SCENE
+                max_width = ACTION_WIDTH
             elif line_type == "character":
-                following_types = [
-                    str(next_line.get("type") or "").lower()
-                    for next_line in lines[
-                        line_index + 1 : line_index + 3
-                    ]
-                ]
-
-                required_lines = 2
-
-                if "parenthetical" in following_types:
-                    required_lines += 1
-
-                if "dialogue" in following_types:
-                    required_lines += 1
-
-                ensure_space(
-                    required_lines * LINE_HEIGHT
-                )
-
-                draw_wrapped(
-                    text.upper(),
-                    LEFT_CHARACTER,
-                    RIGHT_CHARACTER,
-                )
-
+                rendered_text = text.upper()
+                x_position = X_CHARACTER
+                max_width = CHARACTER_WIDTH
             elif line_type == "dialogue":
-                draw_wrapped(
-                    text,
-                    LEFT_DIALOGUE,
-                    RIGHT_DIALOGUE,
-                )
-
-                next_type = ""
-
-                if line_index + 1 < len(lines):
-                    next_type = str(
-                        lines[line_index + 1].get("type") or ""
-                    ).strip().lower()
-
-                if next_type in {"action", "heading"}:
-                    y -= LINE_HEIGHT
-
+                rendered_text = text
+                x_position = X_DIALOGUE
+                max_width = DIALOGUE_WIDTH
             elif line_type == "parenthetical":
-                draw_wrapped(
-                    text,
-                    LEFT_PARENTHETICAL,
-                    RIGHT_PARENTHETICAL,
-                )
-
+                rendered_text = text
+                x_position = X_PARENTHETICAL
+                max_width = PARENTHETICAL_WIDTH
             elif line_type == "transition":
-                draw_transition(text)
-                y -= LINE_HEIGHT
-
+                rendered_text = text.upper()
+                x_position = X_TRANSITION
+                max_width = None
             else:
-                draw_wrapped(
-                    text,
-                    LEFT_ACTION,
-                    RIGHT_ACTION,
-                )
-                y -= LINE_HEIGHT
+                rendered_text = text
+                x_position = X_ACTION
+                max_width = ACTION_WIDTH
 
-        if lines:
-            y -= LINE_HEIGHT
+            wrapped = (
+                [rendered_text]
+                if max_width is None
+                else wrap_text(rendered_text, max_width)
+            )
+            if line_type == "character":
+                block_height = (
+                    blank_lines_before + len(wrapped)
+                ) * LINE_HEIGHT
+                minimum_block_height = block_height
+                dialogue_lines_in_minimum = 0
+
+                for next_line in lines[line_index + 1 :]:
+                    next_type = str(
+                        next_line.get("type") or "action"
+                    ).strip().lower()
+                    if next_type not in {"parenthetical", "dialogue"}:
+                        break
+
+                    next_text = str(next_line.get("text") or "")
+                    if not next_text.strip():
+                        continue
+
+                    next_width = (
+                        PARENTHETICAL_WIDTH
+                        if next_type == "parenthetical"
+                        else DIALOGUE_WIDTH
+                    )
+                    next_wrapped = wrap_text(next_text, next_width)
+                    next_height = len(next_wrapped) * LINE_HEIGHT
+                    block_height += next_height
+
+                    if dialogue_lines_in_minimum < 2:
+                        minimum_dialogue_lines = min(
+                            len(next_wrapped),
+                            2 - dialogue_lines_in_minimum,
+                        )
+                        minimum_block_height += next_height
+                        if next_type == "dialogue":
+                            minimum_block_height -= (
+                                len(next_wrapped) - minimum_dialogue_lines
+                            ) * LINE_HEIGHT
+                            dialogue_lines_in_minimum += minimum_dialogue_lines
+
+                available_page_height = (
+                    PAGE_HEIGHT - TOP_MARGIN - BOTTOM_MARGIN
+                )
+                if (
+                    y - block_height < BOTTOM_MARGIN
+                    and block_height <= available_page_height
+                ) or y - minimum_block_height < BOTTOM_MARGIN:
+                    new_page()
+            elif line_type == "action":
+                available_action_lines = max(
+                    0,
+                    int(
+                        (
+                            y
+                            - BOTTOM_MARGIN
+                            - blank_lines_before * LINE_HEIGHT
+                        )
+                        // LINE_HEIGHT
+                    ),
+                )
+                if (
+                    len(wrapped) > available_action_lines
+                    and available_action_lines < 3
+                ):
+                    new_page()
+
+            required_space = (
+                blank_lines_before + len(wrapped)
+            ) * LINE_HEIGHT
+            ensure_space(required_space)
+            y -= blank_lines_before * LINE_HEIGHT
+
+            if (
+                line_type in {"heading", "scene_heading"}
+                and include_scene_numbers
+                and line_index == heading_index
+            ):
+                pdf.setFont(FONT_NAME, FONT_SIZE)
+                pdf.drawRightString(
+                    X_TRANSITION,
+                    y,
+                    str(scene.get("production_number") or scene.get("scene_number")),
+                )
+
+            pdf.setFont(FONT_NAME, FONT_SIZE)
+            pdf.setFillColorRGB(0, 0, 0)
+            if line_type == "transition":
+                pdf.drawRightString(X_TRANSITION, y, rendered_text)
+                y -= LINE_HEIGHT
+            else:
+                draw_wrapped(wrapped, x_position)
 
     # Guardar la última página sin crear una página vacía adicional.
     draw_page_number()

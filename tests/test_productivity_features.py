@@ -310,6 +310,155 @@ class ProductivityFeaturesTests(unittest.TestCase):
             self.assertIn(b"CORTE A:", pdf_bytes)
             self.assertIn(b"Accion esperada", pdf_bytes)
 
+    def test_project_pdf_uses_screenplay_positions_and_vertical_spacing(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+            project = main.create_project(
+                ProjectCreate(title="Estándar de guion", format="feature")
+            )
+            main.create_scene(
+                project["id"],
+                SceneCreate(
+                    heading="INT. ROOM - DAY",
+                    semantic_lines=[
+                        {"type": "heading", "text": "INT. ROOM - DAY"},
+                        {"type": "action", "text": "Action."},
+                        {"type": "character", "text": "MARTA"},
+                        {"type": "dialogue", "text": "Hello."},
+                        {"type": "parenthetical", "text": "(quietly)"},
+                        {"type": "transition", "text": "CUT TO:"},
+                    ],
+                ),
+            )
+
+            response = main.export_project_pdf(
+                project["id"],
+                include_scene_numbers=False,
+            )
+
+            async def read_stream():
+                return b"".join([chunk async for chunk in response.body_iterator])
+
+            pdf_bytes = asyncio.run(read_stream())
+            expected_text_positions = [
+                b"108 696 Tm (INT. ROOM - DAY)",
+                b"108 672 Tm (Action.)",
+                b"273.6 648 Tm (MARTA)",
+                b"180 636 Tm (Hello.)",
+                b"216 624 Tm (\\(quietly\\))",
+                b"489.6 600 Tm (CUT TO:)",
+                b"525.6 756 Tm (2.)",
+            ]
+            for position in expected_text_positions:
+                with self.subTest(position=position):
+                    self.assertIn(position, pdf_bytes)
+
+    def test_project_pdf_keeps_character_and_dialogue_together(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+            project = main.create_project(
+                ProjectCreate(title="Control de viudas", format="feature")
+            )
+            semantic_lines = [
+                {"type": "heading", "text": "INT. ROOM - DAY"},
+                *[
+                    {"type": "action", "text": f"Action line {index}."}
+                    for index in range(25)
+                ],
+                {"type": "action", "text": "ACTION MOVED TO NEXT PAGE."},
+                {"type": "character", "text": "MARTA"},
+                {"type": "dialogue", "text": "First dialogue line."},
+                {"type": "dialogue", "text": "Second dialogue line."},
+            ]
+            main.create_scene(
+                project["id"],
+                SceneCreate(
+                    heading="INT. ROOM - DAY",
+                    semantic_lines=semantic_lines,
+                ),
+            )
+
+            response = main.export_project_pdf(
+                project["id"],
+                include_scene_numbers=False,
+            )
+
+            async def read_stream():
+                return b"".join([chunk async for chunk in response.body_iterator])
+
+            pdf_bytes = asyncio.run(read_stream())
+            page_streams = [
+                section.split(b"endstream", 1)[0]
+                for section in pdf_bytes.split(b"stream\n")[1:]
+            ]
+            page_with_last_previous_action = next(
+                stream
+                for stream in page_streams
+                if b"Action line 24." in stream
+            )
+            page_with_new_action = next(
+                stream
+                for stream in page_streams
+                if b"ACTION MOVED TO NEXT PAGE." in stream
+            )
+            self.assertNotIn(
+                b"ACTION MOVED TO NEXT PAGE.",
+                page_with_last_previous_action,
+            )
+            self.assertIn(b"MARTA", page_with_new_action)
+            self.assertIn(b"First dialogue line.", page_with_new_action)
+            self.assertIn(b"Second dialogue line.", page_with_new_action)
+
+    def test_project_pdf_moves_full_dialogue_block_when_it_fits_next_page(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+            project = main.create_project(
+                ProjectCreate(title="Bloque de diálogo", format="feature")
+            )
+            semantic_lines = [
+                {"type": "heading", "text": "INT. ROOM - DAY"},
+                *[
+                    {"type": "action", "text": f"Action line {index}."}
+                    for index in range(22)
+                ],
+                {"type": "character", "text": "MARTA"},
+                *[
+                    {"type": "dialogue", "text": f"Dialogue line {index}."}
+                    for index in range(10)
+                ],
+            ]
+            main.create_scene(
+                project["id"],
+                SceneCreate(
+                    heading="INT. ROOM - DAY",
+                    semantic_lines=semantic_lines,
+                ),
+            )
+
+            response = main.export_project_pdf(
+                project["id"],
+                include_scene_numbers=False,
+            )
+
+            async def read_stream():
+                return b"".join([chunk async for chunk in response.body_iterator])
+
+            pdf_bytes = asyncio.run(read_stream())
+            screenplay_pages = [
+                section.split(b"endstream", 1)[0]
+                for section in pdf_bytes.split(b"stream\n")[1:]
+            ][1:]
+            page_with_character = next(
+                page for page in screenplay_pages if b"MARTA" in page
+            )
+            self.assertTrue(
+                all(
+                    f"Dialogue line {index}.".encode() in page_with_character
+                    for index in range(10)
+                )
+            )
+            self.assertNotIn(b"Dialogue line 0.", screenplay_pages[0])
+
     def test_breakdown_item_can_change_state(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             self._prepare_empty_database(tmpdir)

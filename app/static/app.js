@@ -30,6 +30,7 @@ const state = {
   lineTypeSelectorPointerDown: false,
   activeMainView: "guion",
 };
+let userProfileAvatar = null;
 
 const LINE_TYPES = [
   "heading",
@@ -480,6 +481,49 @@ function getCaretOffsetWithin(line) {
   probe.setEnd(range.startContainer, range.startOffset);
 
   return probe.toString().length;
+}
+
+function setLineTextPreservingCaret(line, text) {
+  const selection = window.getSelection();
+  const hasCaretInLine =
+    selection?.rangeCount &&
+    line.contains(selection.getRangeAt(0).startContainer);
+  const caretOffset =
+    hasCaretInLine
+      ? getCaretOffsetWithin(line)
+      : null;
+
+  if (
+    line.childNodes.length === 1 &&
+    line.firstChild.nodeType === Node.TEXT_NODE
+  ) {
+    line.firstChild.data = text;
+  } else {
+    line.textContent = text;
+  }
+
+  if (caretOffset === null || !selection) {
+    return;
+  }
+
+  const textNode =
+    line.firstChild?.nodeType === Node.TEXT_NODE
+      ? line.firstChild
+      : null;
+  const range = document.createRange();
+
+  if (textNode) {
+    range.setStart(
+      textNode,
+      Math.min(caretOffset, textNode.data.length)
+    );
+  } else {
+    range.setStart(line, 0);
+  }
+
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
 }
 
 function applyLineSuggestion() {
@@ -1787,19 +1831,6 @@ function setLineType(
     skipSceneSplit = false,
   } = options;
 
-  const selection =
-    preserveCaret
-      ? window.getSelection()
-      : null;
-
-  const offset =
-    preserveCaret &&
-    selection?.rangeCount
-      ? selection
-          .getRangeAt(0)
-          .startOffset
-      : null;
-
   LINE_TYPES.forEach(item => {
     line.classList.remove(item);
   });
@@ -1825,33 +1856,10 @@ function setLineType(
     if (
       line.textContent !== uppercaseText
     ) {
-      line.textContent = uppercaseText;
-
-      if (
-        preserveCaret &&
-        offset !== null &&
-        line.firstChild
-      ) {
-        const range =
-          document.createRange();
-
-        const safeOffset =
-          Math.min(
-            offset,
-            line.firstChild
-              .textContent.length
-          );
-
-        range.setStart(
-          line.firstChild,
-          safeOffset
-        );
-
-        range.collapse(true);
-
-        selection.removeAllRanges();
-        selection.addRange(range);
+      if (preserveCaret) {
+        setLineTextPreservingCaret(line, uppercaseText);
       } else {
+        line.textContent = uppercaseText;
         placeCaretAtEnd(line);
       }
     }
@@ -2355,42 +2363,7 @@ function autocapitalizeLineStart(line) {
     return;
   }
 
-  const selection =
-    window.getSelection();
-
-  const offset =
-    selection?.rangeCount
-      ? selection
-          .getRangeAt(0)
-          .startOffset
-      : null;
-
-  line.textContent = updated;
-
-  if (
-    offset !== null &&
-    line.firstChild
-  ) {
-    const range =
-      document.createRange();
-
-    const safeOffset =
-      Math.min(
-        offset,
-        line.firstChild
-          .textContent.length
-      );
-
-    range.setStart(
-      line.firstChild,
-      safeOffset
-    );
-
-    range.collapse(true);
-
-    selection.removeAllRanges();
-    selection.addRange(range);
-  }
+  setLineTextPreservingCaret(line, updated);
 }
 
 function handleLineFocus(event) {
@@ -3358,16 +3331,6 @@ function handleLineInput(event) {
     type === "heading" ||
     type === "transition"
   ) {
-    const selection =
-      window.getSelection();
-
-    const offset =
-      selection?.rangeCount
-        ? selection
-            .getRangeAt(0)
-            .startOffset
-        : null;
-
     const uppercaseText =
       (line.textContent || "")
         .toUpperCase();
@@ -3376,33 +3339,7 @@ function handleLineInput(event) {
       line.textContent !==
       uppercaseText
     ) {
-      line.textContent =
-        uppercaseText;
-
-      if (
-        offset !== null &&
-        line.firstChild
-      ) {
-        const range =
-          document.createRange();
-
-        const safeOffset =
-          Math.min(
-            offset,
-            line.firstChild
-              .textContent.length
-          );
-
-        range.setStart(
-          line.firstChild,
-          safeOffset
-        );
-
-        range.collapse(true);
-
-        selection.removeAllRanges();
-        selection.addRange(range);
-      }
+      setLineTextPreservingCaret(line, uppercaseText);
     }
   }
 
@@ -5338,6 +5275,7 @@ async function loadProjects(
   }
 
   state.project = null;
+  syncProjectInfoHeader();
   state.scenes = [];
   state.activeSceneId = null;
   breakdownAnalysisLoading.clear();
@@ -5447,6 +5385,7 @@ async function loadProject(
     state.documentLines = [];
   }
 
+  syncProjectInfoHeader();
   state.activeSceneId =
     state.scenes[0]?.id ??
     null;
@@ -5521,6 +5460,287 @@ function setSaveState(
 
   indicator.dataset.state =
     stateName;
+}
+
+function syncProjectInfoHeader() {
+  const avatarCircle =
+    document.getElementById("userAvatarCircle");
+  if (!avatarCircle) {
+    return;
+  }
+
+  const avatar = userProfileAvatar;
+  avatarCircle.style.backgroundImage =
+    avatar
+      ? `url("${avatar}")`
+      : "";
+
+  const placeholder =
+    avatarCircle.querySelector("span");
+  if (placeholder) {
+    placeholder.hidden = Boolean(avatar);
+  }
+
+}
+
+function setupProjectInfo() {
+  const modal =
+    document.getElementById("projectInfoModal");
+  const openButton =
+    document.getElementById("openProjectInfoBtn");
+  const closeButton =
+    document.getElementById("closeProjectInfoBtn");
+  const cancelButton =
+    document.getElementById("cancelProjectInfoBtn");
+  const saveButton =
+    document.getElementById("saveProjectInfoBtn");
+  const avatarCircle =
+    document.getElementById("userAvatarCircle");
+  const fileInput =
+    document.getElementById("avatarUploadInput");
+  const projectTypeInput =
+    document.getElementById("infoProjectType");
+  const seriesFields =
+    document.getElementById("seriesFields");
+
+  if (
+    !modal ||
+    !openButton ||
+    !closeButton ||
+    !cancelButton ||
+    !saveButton ||
+    !avatarCircle ||
+    !fileInput ||
+    !projectTypeInput ||
+    !seriesFields
+  ) {
+    return;
+  }
+
+  const updateSeriesFieldsVisibility = () => {
+    seriesFields.hidden =
+      !["Serie", "Miniserie", "Sitcom"].includes(
+        projectTypeInput.value
+      );
+  };
+
+  const closeModal = () => {
+    modal.hidden = true;
+  };
+
+  openButton.addEventListener("click", () => {
+    if (!state.project) {
+      return;
+    }
+
+    document.getElementById("infoProjectTitle").value =
+      state.project.title || "";
+    document.getElementById("infoProjectAuthor").value =
+      state.project.author || "";
+    projectTypeInput.value =
+      state.project.project_type || "Largometraje";
+    document.getElementById("infoProjectSeason").value =
+      state.project.season || "";
+    document.getElementById("infoProjectEpisode").value =
+      state.project.episode || "";
+    document.getElementById("infoProjectDuration").value =
+      String(
+        Math.floor(
+          Number(state.project.manual_duration_seconds || 0) / 60
+        )
+      );
+    updateSeriesFieldsVisibility();
+    modal.hidden = false;
+  });
+
+  projectTypeInput.addEventListener(
+    "change",
+    updateSeriesFieldsVisibility
+  );
+  closeButton.addEventListener("click", closeModal);
+  cancelButton.addEventListener("click", closeModal);
+  modal.addEventListener("click", event => {
+    if (event.target === modal) {
+      closeModal();
+    }
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !modal.hidden) {
+      closeModal();
+    }
+  });
+
+  saveButton.addEventListener("click", async () => {
+    if (!state.project) {
+      return;
+    }
+
+    const durationMinutes =
+      Number(document.getElementById("infoProjectDuration").value);
+    const isSeries =
+      ["Serie", "Miniserie", "Sitcom"].includes(
+        projectTypeInput.value
+      );
+    const seasonValue =
+      document.getElementById("infoProjectSeason").value;
+    const episodeValue =
+      document.getElementById("infoProjectEpisode").value;
+    const season =
+      seasonValue ? Number(seasonValue) : null;
+    const episode =
+      episodeValue ? Number(episodeValue) : null;
+    const title =
+      document.getElementById("infoProjectTitle").value.trim();
+    if (
+      !title ||
+      !Number.isInteger(durationMinutes) ||
+      durationMinutes < 0
+    ) {
+      alert("Completa un título y una duración válida en minutos.");
+      return;
+    }
+    if (
+      isSeries &&
+      (
+        !Number.isInteger(season) ||
+        season < 1 ||
+        !Number.isInteger(episode) ||
+        episode < 1
+      )
+    ) {
+      alert("Indica una temporada y un episodio válidos para la serie.");
+      return;
+    }
+
+    saveButton.disabled = true;
+    try {
+      const response = await fetch(
+        `/api/projects/${state.project.id}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            title,
+            author: document.getElementById("infoProjectAuthor").value,
+            project_type: projectTypeInput.value,
+            manual_duration_seconds: durationMinutes * 60,
+            season: isSeries ? season : null,
+            episode: isSeries ? episode : null,
+          }),
+        }
+      );
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.detail || "No fue posible guardar la ficha del proyecto."
+        );
+      }
+
+      state.project = await response.json();
+      document.querySelector(
+        `#projectSelect option[value="${state.project.id}"]`
+      )?.replaceChildren(
+        document.createTextNode(state.project.title)
+      );
+      document.getElementById("projectTitle").value =
+        state.project.title || "";
+      syncProjectInfoHeader();
+      closeModal();
+    } catch (error) {
+      console.error("Error guardando ficha de proyecto", error);
+      alert(error.message || "No fue posible guardar la ficha del proyecto.");
+    } finally {
+      saveButton.disabled = false;
+    }
+  });
+
+  avatarCircle.addEventListener("click", () => {
+    fileInput.click();
+  });
+
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files?.[0];
+    if (!file) {
+      return;
+    }
+    if (
+      !["image/png", "image/jpeg", "image/webp"].includes(file.type) ||
+      file.size > 4 * 1024 * 1024
+    ) {
+      alert("Elige una imagen PNG, JPEG o WebP de hasta 4 MB.");
+      fileInput.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.addEventListener("load", async () => {
+      if (
+        typeof reader.result !== "string"
+      ) {
+        alert("No fue posible leer la imagen seleccionada.");
+        fileInput.value = "";
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          "/api/user-profile",
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              avatar_base64: reader.result,
+            }),
+          }
+        );
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            errorData.detail || "No fue posible guardar el avatar."
+          );
+        }
+
+        userProfileAvatar = reader.result;
+        syncProjectInfoHeader();
+      } catch (error) {
+        console.error("Error subiendo avatar", error);
+        alert(error.message || "No fue posible guardar el avatar.");
+      } finally {
+        fileInput.value = "";
+      }
+    });
+    reader.addEventListener("error", () => {
+      alert("No fue posible leer la imagen seleccionada.");
+      fileInput.value = "";
+    });
+    reader.readAsDataURL(file);
+  });
+
+  fetch("/api/user-profile")
+    .then(async response => {
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.detail || "No fue posible cargar el perfil de usuario."
+        );
+      }
+      return response.json();
+    })
+    .then(profile => {
+      userProfileAvatar = profile.avatar_base64 || null;
+      syncProjectInfoHeader();
+    })
+    .catch(error => {
+      console.error("Error cargando perfil de usuario", error);
+      alert(error.message || "No fue posible cargar el perfil de usuario.");
+    });
+
+  updateSeriesFieldsVisibility();
+  syncProjectInfoHeader();
 }
 
 function setupTabs() {
@@ -6060,6 +6280,7 @@ function setupEvents() {
 setupTabs();
 setupLineTypeSelector();
 setupEvents();
+setupProjectInfo();
 
 loadProjects()
   .catch(error => {

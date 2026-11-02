@@ -1,5 +1,7 @@
 ﻿from __future__ import annotations
 
+import base64
+import binascii
 from collections import Counter
 import csv
 from datetime import datetime, timezone
@@ -67,6 +69,7 @@ from .schemas import (
     ShotOut,
     ShotReorderRequest,
     ShotUpdate,
+    UserProfileUpdate,
 )
 
 
@@ -271,7 +274,20 @@ def list_projects() -> list[dict]:
         return rows(
             connection,
             """
-            SELECT *
+            SELECT
+                id,
+                title,
+                format,
+                author,
+                project_type,
+                manual_duration_seconds,
+                season,
+                episode,
+                start_date,
+                work_days,
+                day_type,
+                created_at,
+                updated_at
             FROM projects
             ORDER BY updated_at DESC, id DESC
             """,
@@ -319,6 +335,9 @@ def update_project(
     data = payload.model_dump(
         exclude_none=True
     )
+    for nullable_field in ("season", "episode"):
+        if nullable_field in payload.model_fields_set:
+            data[nullable_field] = getattr(payload, nullable_field)
 
     if not data:
         raise HTTPException(
@@ -368,6 +387,76 @@ def update_project(
         ).fetchone()
 
         return dict(project)
+
+
+def _validate_profile_avatar(avatar_data: str | None) -> None:
+    if avatar_data is None:
+        return
+
+    match = re.fullmatch(
+        r"data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})",
+        avatar_data,
+    )
+    if not match:
+        raise HTTPException(
+            400,
+            "El avatar debe ser una imagen PNG, JPEG o WebP válida.",
+        )
+    try:
+        decoded_avatar = base64.b64decode(
+            match.group(2),
+            validate=True,
+        )
+    except binascii.Error as error:
+        raise HTTPException(
+            400,
+            "El avatar no contiene datos Base64 válidos.",
+        ) from error
+    if len(decoded_avatar) > 4 * 1024 * 1024:
+        raise HTTPException(
+            400,
+            "El avatar no puede superar los 4 MB.",
+        )
+
+    mime_type = match.group(1)
+    signatures = {
+        "png": decoded_avatar.startswith(b"\x89PNG\r\n\x1a\n"),
+        "jpeg": decoded_avatar.startswith(b"\xff\xd8\xff"),
+        "webp": (
+            len(decoded_avatar) >= 12
+            and decoded_avatar.startswith(b"RIFF")
+            and decoded_avatar[8:12] == b"WEBP"
+        ),
+    }
+    if not signatures[mime_type]:
+        raise HTTPException(
+            400,
+            "El contenido del avatar no coincide con su formato.",
+        )
+
+
+@app.get("/api/user-profile")
+def get_user_profile() -> dict:
+    with connect() as connection:
+        row = connection.execute(
+            "SELECT avatar_base64 FROM user_profile WHERE id = 1"
+        ).fetchone()
+        return dict(row) if row else {"avatar_base64": None}
+
+
+@app.patch("/api/user-profile")
+def update_user_profile(payload: UserProfileUpdate) -> dict:
+    _validate_profile_avatar(payload.avatar_base64)
+    with connect() as connection:
+        connection.execute(
+            """
+            UPDATE user_profile
+            SET avatar_base64 = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = 1
+            """,
+            (payload.avatar_base64,),
+        )
+        return {"status": "ok"}
 
 
 @app.get("/api/projects/{project_id}")

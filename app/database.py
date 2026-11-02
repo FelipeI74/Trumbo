@@ -95,7 +95,43 @@ def migrate(connection: sqlite3.Connection) -> None:
 
     if not column_exists(connection, "projects", "day_type"):
         connection.execute("ALTER TABLE projects ADD COLUMN day_type TEXT DEFAULT 'estandar'")
-        
+
+    project_info_columns = (
+        ("author", "TEXT"),
+        ("project_type", "TEXT NOT NULL DEFAULT 'Largometraje'"),
+        ("manual_duration_seconds", "INTEGER NOT NULL DEFAULT 0"),
+        ("season", "INTEGER"),
+        ("episode", "INTEGER"),
+    )
+    for column_name, column_definition in project_info_columns:
+        if not column_exists(connection, "projects", column_name):
+            connection.execute(
+                f"ALTER TABLE projects ADD COLUMN {column_name} {column_definition}"
+            )
+
+    if column_exists(connection, "projects", "user_avatar_base64"):
+        profile = connection.execute(
+            "SELECT avatar_base64 FROM user_profile WHERE id = 1"
+        ).fetchone()
+        if profile is not None and profile["avatar_base64"] is None:
+            legacy_avatar = connection.execute(
+                """
+                SELECT user_avatar_base64
+                FROM projects
+                WHERE user_avatar_base64 IS NOT NULL
+                  AND user_avatar_base64 != ''
+                ORDER BY updated_at DESC, id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+            if legacy_avatar is not None:
+                connection.execute(
+                    "UPDATE user_profile SET avatar_base64 = ? WHERE id = 1",
+                    (legacy_avatar["user_avatar_base64"],),
+                )
+        connection.execute(
+            "UPDATE projects SET user_avatar_base64 = NULL WHERE user_avatar_base64 IS NOT NULL"
+        )
     # --- NUEVA COLUMNA PARA EL ÁNGULO EN EL STORYBOARD ---
     if not column_exists(connection, "shots", "camera_angle"):
         connection.execute(
@@ -109,12 +145,24 @@ def initialize() -> None:
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
         format TEXT NOT NULL DEFAULT 'feature',
+        author TEXT,
+        project_type TEXT NOT NULL DEFAULT 'Largometraje',
+        manual_duration_seconds INTEGER NOT NULL DEFAULT 0,
+        season INTEGER,
+        episode INTEGER,
         start_date TEXT,
         work_days TEXT DEFAULT '1,2,3,4,5',
         day_type TEXT DEFAULT 'estandar',
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS user_profile (
+        id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+        avatar_base64 TEXT,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    INSERT OR IGNORE INTO user_profile (id) VALUES (1);
 
     CREATE TABLE IF NOT EXISTS scenes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

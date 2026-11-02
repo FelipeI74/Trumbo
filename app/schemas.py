@@ -41,6 +41,33 @@ class ProjectUpdate(BaseModel):
         default=None,
         max_length=50,
     )
+    author: str | None = Field(
+        default=None,
+        max_length=200,
+    )
+    project_type: str | None = Field(
+        default=None,
+        max_length=50,
+    )
+    manual_duration_seconds: int | None = Field(
+        default=None,
+        ge=0,
+    )
+    season: int | None = Field(
+        default=None,
+        ge=1,
+    )
+    episode: int | None = Field(
+        default=None,
+        ge=1,
+    )
+
+
+class UserProfileUpdate(BaseModel):
+    avatar_base64: str | None = Field(
+        default=None,
+        max_length=5_600_000,
+    )
 
 
 class SceneCreate(BaseModel):
