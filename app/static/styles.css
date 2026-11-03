@@ -1557,3 +1557,42 @@ body:has(#reportsView:not([hidden])) .editor-toolbar,
 body:has(#characterDetailView:not([hidden])) .editor-toolbar {
     display: none !important;
 }
+
+.custom-context-menu {
+  position: fixed;
+  z-index: 99999;
+  display: none;
+  min-width: 190px;
+  padding: 5px 0;
+  background: #1e1e1e;
+  border: 1px solid #444;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.custom-context-menu.active {
+  display: block;
+}
+
+.custom-context-menu .ctx-item {
+  padding: 8px 15px;
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.custom-context-menu .ctx-item:hover,
+.custom-context-menu .ctx-item:focus {
+  background: #333;
+  outline: none;
+}
+
+.custom-context-menu .ctx-typing-action {
+  color: #d8a64f;
+}
+
+.custom-context-menu .ctx-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: #444;
+}

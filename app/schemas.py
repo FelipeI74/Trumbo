@@ -155,6 +155,15 @@ class ScheduleManualOrder(BaseModel):
     shoot_rate_seconds: int = Field(default=420, gt=0)
 
 
+class CallSheetDailyUpdate(BaseModel):
+    weather: str = Field(default="", max_length=500)
+    start_time: str = Field(default="", max_length=20)
+    end_time: str = Field(default="", max_length=20)
+    catering_notes: str = Field(default="", max_length=5000)
+    tech_notes: str = Field(default="", max_length=5000)
+    general_notes: str = Field(default="", max_length=10000)
+
+
 class ShotOut(ShotBase):
     id: str
     project_id: int

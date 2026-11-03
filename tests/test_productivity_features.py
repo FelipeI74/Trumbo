@@ -66,6 +66,41 @@ class ProductivityFeaturesTests(unittest.TestCase):
             )
             self.assertIsNone(cleared["shoot_time_override"])
 
+    def test_scheduling_input_includes_scene_synopsis_and_project_start_date(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+            project = main.create_project(
+                ProjectCreate(title="Hoja de llamado", format="feature")
+            )
+            scene = main.create_scene(
+                project["id"],
+                SceneCreate(
+                    heading="INT. CASA - DÍA",
+                    body="MARTA entra.",
+                    synopsis="Marta llega a casa.",
+                ),
+            )
+            with database.connect() as connection:
+                connection.execute(
+                    "UPDATE projects SET start_date = ? WHERE id = ?",
+                    ("2026-09-04", project["id"]),
+                )
+
+            scheduling_input = main.build_project_scheduling_input(project["id"])
+
+            self.assertEqual(
+                scheduling_input["project_start_date"],
+                "2026-09-04",
+            )
+            self.assertEqual(
+                scheduling_input["scenes"][0]["synopsis"],
+                "Marta llega a casa.",
+            )
+            self.assertEqual(
+                scheduling_input["scenes"][0]["scene_id"],
+                scene["id"],
+            )
+
     def test_scene_spelling_review_returns_misspellings(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             self._prepare_empty_database(tmpdir)

@@ -23,6 +23,20 @@
     .production-breakdown-group-title { margin-bottom: 4px; color: #8f969d; font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
     .production-breakdown-group-items { color: #e2e4e6; font-size: 13px; line-height: 1.45; }
     .production-breakdown-empty { color: #70767d; font-size: 13px; }
+    .production-breakdown-scene-header-row { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .btn-ai-suggest { flex: 0 0 auto; padding: 4px 8px; border: 0; border-radius: 4px; background: #d8a64f; color: #111315; cursor: pointer; }
+    .btn-ai-suggest:disabled { opacity: .65; cursor: wait; }
+    .ai-suggestions-panel { display: grid; gap: 8px; margin-top: 16px; padding: 12px; border: 1px solid #454a50; border-radius: 6px; background: #15181a; }
+    .ai-suggestions-title { margin: 0; color: #d8a64f; font-size: 12px; }
+    .ai-suggestion { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px; border-radius: 4px; background: #202428; }
+    .ai-suggestion-details { min-width: 0; }
+    .ai-suggestion-category { display: block; color: #9da3a9; font-size: 10px; text-transform: uppercase; }
+    .ai-suggestion-name { color: #f4f0e8; font-size: 13px; overflow-wrap: anywhere; }
+    .ai-suggestion-actions { display: flex; flex: 0 0 auto; gap: 6px; }
+    .ai-suggestion-actions button { padding: 5px 8px; border: 1px solid #555; border-radius: 4px; background: transparent; color: white; cursor: pointer; }
+    .ai-suggestion-actions button:first-child { border-color: #d8a64f; color: #d8a64f; }
+    .ai-suggestion-added { color: #8ed49b; font-size: 12px; }
+    #aiPrivacyModal[hidden] { display: none !important; }
 
     .reports-view { height: 100%; overflow: auto; padding: 32px 40px 60px; background: #111315; color: #f4f0e8; }
     .reports-header { margin-bottom: 30px; border-bottom: 1px solid #34383d; padding-bottom: 20px; }
@@ -87,6 +101,18 @@
     </div>
     <button class="topbar-ai" disabled title="Próximamente">Asistente IA</button>
     <button id="exportPdfButton" title="Exportar proyecto a PDF">Exportar</button>
+    <div class="topbar-user-section">
+      <button id="openProjectInfoBtn" class="project-info-button" type="button">ⓘ Ficha Proyecto</button>
+      <div class="project-team" aria-label="Equipo del proyecto">
+        <div class="team-circle" aria-label="Equipo 1">T1</div>
+        <div class="team-circle" aria-label="Equipo 2">T2</div>
+        <div class="team-circle" aria-label="Equipo 3">T3</div>
+      </div>
+      <button id="userAvatarCircle" class="user-avatar-circle" type="button" aria-label="Subir avatar de usuario">
+        <span>USER</span>
+      </button>
+      <input type="file" id="avatarUploadInput" accept="image/png,image/jpeg,image/webp" hidden>
+    </div>
   </header>
 
   <nav class="main-nav">
@@ -254,7 +280,7 @@
           <div class="report-card">
             <h3>Hoja de Llamada</h3>
             <p>Informe diario con escenas a rodar, elenco requerido y horarios de llamado.</p>
-            <button disabled>Próximamente</button>
+            <button id="btnEditCallSheet" style="background:#d8a64f; color:black; border:none; padding:10px 20px; border-radius:4px; cursor:pointer; font-weight:bold; width:100%;">✏️ Editar Datos del Día</button>
           </div>
         </div>
       </section>
@@ -286,8 +312,6 @@
         <input id="sceneProductionNumber" type="text" placeholder="Ej. 12A" autocomplete="off">
         <label for="sceneSynopsis">Sinopsis de la escena activa</label>
         <textarea id="sceneSynopsis" placeholder="Resumen narrativo o de producción"></textarea>
-        <button id="suggestSynopsisButton" class="secondary">Proponer sinopsis</button>
-        <p class="hint">La propuesta no modifica el guion.</p>
       </section>
 
       <section id="panel-notes" class="panel">
@@ -323,6 +347,22 @@
         </div>
         <div class="analysis-title">Elementos de producción confirmados</div>
         <div id="breakdownList"></div>
+      </section>
+
+      <section id="panel-ia" class="panel">
+        <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+          <h3 style="color: #d8a64f; margin-top: 0;">Asistente de Escena</h3>
+          <button id="btnAiAnalyzeScene" class="primary" type="button" style="background: #d8a64f; color: black; padding: 8px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
+            ✨ Analizar Desglose con IA
+          </button>
+          <button id="btnAiSuggestSynopsis" class="secondary" type="button" style="background: #333; color: white; padding: 8px; border: 1px solid #555; border-radius: 4px; cursor: pointer;">
+            ✍️ Proponer Sinopsis
+          </button>
+          <div id="aiInspectorResults" style="margin-top: 16px; display: none;">
+            <h4 style="border-bottom: 1px solid #333; padding-bottom: 5px;">Sugerencias de la IA</h4>
+            <div id="aiInspectorSuggestionsList" style="display: flex; flex-direction: column; gap: 8px;"></div>
+          </div>
+        </div>
       </section>
     </aside>
   </main>
@@ -380,6 +420,112 @@
   </div>
 
   <div id="autocompleteMenu" class="autocomplete-menu" hidden></div>
+
+  <div id="aiPrivacyModal" class="modal-overlay hidden" hidden style="position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 9999;">
+    <section role="dialog" aria-modal="true" aria-labelledby="aiPrivacyTitle" style="width: 90%; max-width: 450px; background: #1a1d20; color: white; padding: 24px; border-radius: 8px; border: 1px solid #d8a64f; text-align: center;">
+      <h3 id="aiPrivacyTitle" style="color: #d8a64f; margin-top:0;">Aviso de Privacidad de IA</h3>
+      <p style="font-size: 14px; margin-bottom: 20px;">El texto de esta escena se enviará al proveedor de IA configurado para su análisis. ADÜMN sigue siendo local-first.</p>
+      <div style="display:flex; justify-content:center; gap: 10px;">
+        <button id="cancelAiBtn" type="button" style="background:transparent; color:white; border:1px solid #555; padding:8px 16px; border-radius: 4px; cursor:pointer;">Cancelar</button>
+        <button id="acceptAiBtn" type="button" style="background:#d8a64f; color:black; border:none; padding:8px 16px; border-radius: 4px; cursor:pointer; font-weight: bold;">Aceptar y continuar</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="projectInfoModal" class="modal-overlay project-info-modal" hidden>
+    <section class="modal-content project-info-content" role="dialog" aria-modal="true" aria-labelledby="projectInfoTitle">
+      <header class="modal-header">
+        <h2 id="projectInfoTitle">Ficha de Proyecto</h2>
+        <button id="closeProjectInfoBtn" class="modal-close" type="button" aria-label="Cerrar">×</button>
+      </header>
+      <div class="project-info-fields">
+        <label for="infoProjectTitle">Título
+          <input type="text" id="infoProjectTitle" maxlength="200">
+        </label>
+        <label for="infoProjectAuthor">Autor / Guionista
+          <input type="text" id="infoProjectAuthor" maxlength="200">
+        </label>
+        <label for="infoProjectType">Tipo de Proyecto
+          <select id="infoProjectType">
+            <option value="Largometraje">Largometraje</option>
+            <option value="Cortometraje">Cortometraje</option>
+            <option value="Videoclip">Videoclip</option>
+            <option value="Documental">Documental</option>
+            <option value="Serie">Serie</option>
+            <option value="Miniserie">Miniserie</option>
+            <option value="Sitcom">Sitcom</option>
+          </select>
+        </label>
+        <div id="seriesFields" class="project-series-fields" hidden>
+          <label for="infoProjectSeason">Temporada
+            <input type="number" id="infoProjectSeason" min="1" step="1">
+          </label>
+          <label for="infoProjectEpisode">Episodio
+            <input type="number" id="infoProjectEpisode" min="1" step="1">
+          </label>
+        </div>
+        <label for="infoProjectDuration">Duración manual (minutos)
+          <span class="project-info-hint">(0 para usar la del guion)</span>
+          <input type="number" id="infoProjectDuration" min="0" step="1">
+        </label>
+      </div>
+      <div class="project-info-actions">
+        <button id="cancelProjectInfoBtn" type="button">Cancelar</button>
+        <button id="saveProjectInfoBtn" type="button">Guardar</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="adCallSheetModal" class="modal-overlay hidden" hidden style="position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 9999;">
+    <section role="dialog" aria-modal="true" aria-labelledby="adCallSheetTitle" style="width: 90%; max-width: 600px; background: #1a1d20; color: white; padding: 24px; border-radius: 8px; border: 1px solid #d8a64f; max-height: 90vh; overflow-y: auto;">
+      <h2 id="adCallSheetTitle" style="color: #d8a64f; margin-top:0;">Logística de la Jornada</h2>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+        <label for="csDayNumber">Día a configurar
+          <select id="csDayNumber" style="width:100%; padding:8px; margin-top:4px; background:#111; border:1px solid #444; color:white;"></select>
+        </label>
+        <label for="csWeather">Clima
+          <input type="text" id="csWeather" placeholder="Ej. Nublado, 15°C" style="width:100%; padding:8px; margin-top:4px; background:#111; border:1px solid #444; color:white;">
+        </label>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+        <label for="csStartTime">Hora de Inicio
+          <input type="time" id="csStartTime" style="width:100%; padding:8px; margin-top:4px; background:#111; border:1px solid #444; color:white;">
+        </label>
+        <label for="csEndTime">Hora de Término
+          <input type="time" id="csEndTime" style="width:100%; padding:8px; margin-top:4px; background:#111; border:1px solid #444; color:white;">
+        </label>
+      </div>
+
+      <label for="csCatering" style="display:block; margin-bottom: 15px;">Notas de Catering
+        <textarea id="csCatering" rows="2" placeholder="Ej. Desayuno 08:00 / Almuerzo 13:30" style="width:100%; padding:8px; margin-top:4px; background:#111; border:1px solid #444; color:white;"></textarea>
+      </label>
+
+      <label for="csTechNotes" style="display:block; margin-bottom: 15px;">Requerimientos Técnicos
+        <textarea id="csTechNotes" rows="2" style="width:100%; padding:8px; margin-top:4px; background:#111; border:1px solid #444; color:white;"></textarea>
+      </label>
+
+      <label for="csGeneralNotes" style="display:block; margin-bottom: 20px;">Notas Generales / Producción
+        <textarea id="csGeneralNotes" rows="3" style="width:100%; padding:8px; margin-top:4px; background:#111; border:1px solid #444; color:white;"></textarea>
+      </label>
+
+      <div style="display:flex; justify-content:flex-end; gap: 10px;">
+        <button id="btnCloseAdCallSheet" type="button" style="background:transparent; color:white; border:1px solid #555; padding:8px 16px; border-radius:4px; cursor:pointer;">Cancelar</button>
+        <button id="btnSaveAdCallSheet" type="button" style="background:#d8a64f; color:black; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-weight:bold;">Guardar Datos</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="customContextMenu" class="custom-context-menu" role="menu" hidden>
+    <div class="ctx-item" data-action="cut" role="menuitem" tabindex="-1">Cortar</div>
+    <div class="ctx-item" data-action="copy" role="menuitem" tabindex="-1">Copiar</div>
+    <div class="ctx-item" data-action="paste" role="menuitem" tabindex="-1">Pegar</div>
+    <div class="ctx-divider" role="separator"></div>
+    <div class="ctx-item ctx-typing-action" data-action="character" role="menuitem" tabindex="-1">Convertir a Personaje</div>
+    <div class="ctx-item ctx-typing-action" data-action="action" role="menuitem" tabindex="-1">Convertir a Acción</div>
+    <div class="ctx-item ctx-typing-action" data-action="dialogue" role="menuitem" tabindex="-1">Convertir a Diálogo</div>
+  </div>
 
   <!-- SCRIPTS: El orden importa. Primero los módulos, luego app.js -->
   <script src="/static/modules/production.js"></script>

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import csv
 import hashlib
@@ -786,10 +786,53 @@ def export_project_schedule_pdf(project_id: int):
 
     days = schedule_data.get("best_schedule", {}).get("days", [])
 
+    COL_ESC = 0.5 * inch
+    COL_LOC = 1.0 * inch
+    COL_SUB = 3.0 * inch
+    COL_SINOPSIS = 4.5 * inch
+    COL_INT = 6.8 * inch
+    COL_LUZ = 7.4 * inch
+    COL_DUR = 8.0 * inch
+    COL_CAST = 8.8 * inch
+
+    def draw_table_header(header_y):
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.drawString(COL_ESC, header_y, "ESC.")
+        pdf.drawString(COL_LOC, header_y, "LOCACIÓN")
+        pdf.drawString(COL_SUB, header_y, "SUBLOCACIÓN")
+        pdf.drawString(COL_SINOPSIS, header_y, "SINOPSIS / ACCIÓN")
+        pdf.drawString(COL_INT, header_y, "INT/EXT")
+        pdf.drawString(COL_LUZ, header_y, "LUZ")
+        pdf.drawString(COL_DUR, header_y, "DURACIÓN")
+        pdf.drawString(COL_CAST, header_y, "ELENCO")
+        header_y -= 12
+        pdf.setStrokeColor(HexColor("#CCCCCC"))
+        pdf.line(0.5 * inch, header_y, width - 0.5 * inch, header_y)
+        pdf.setFont("Helvetica", 9)
+        return header_y - 15
+
     # --- Jornadas ---
+    table_header_drawn_on_page = False
     for day in days:
+        day_num = day.get("day", "—")
+        start_date = project["start_date"]
+        fecha_str = "Por definir"
+        if start_date:
+            try:
+                start = datetime.strptime(str(start_date), "%Y-%m-%d")
+                fecha_str = (
+                    start + timedelta(days=int(day_num) - 1)
+                ).strftime("%d/%m/%Y")
+            except (TypeError, ValueError):
+                fecha_str = "Por definir"
+
+        if y < 100:
+            pdf.showPage()
+            y = height - 50
+            table_header_drawn_on_page = False
+
         pdf.setFont("Helvetica-Bold", 14)
-        pdf.drawString(0.5 * inch, y, f"JORNADA {day['day']}")
+        pdf.drawString(0.5 * inch, y, f"JORNADA {day_num}")
         
         dur_sec = day.get("runtime_seconds", 0)
         dur_min = dur_sec // 60
@@ -798,35 +841,13 @@ def export_project_schedule_pdf(project_id: int):
         pdf.drawRightString(width - 0.5 * inch, y, f"Duración: {dur_min:02d}:{dur_s:02d}")
         
         pdf.setFont("Helvetica", 10)
-        pdf.drawString(3.5 * inch, y, "Fecha: ___________")
+        pdf.drawString(3.5 * inch, y, f"Fecha: {fecha_str}")
         
         y -= 20
         
-        # --- Definición de Columnas (Ajustadas para recuperar SUBLOCACIÓN) ---
-        COL_ESC = 0.5 * inch
-        COL_LOC = 1.0 * inch
-        COL_SUB = 3.0 * inch       # SUBLOCACIÓN RECUPERADA
-        COL_SINOPSIS = 4.5 * inch  # SINOPSIS UN POCO MÁS A LA DERECHA
-        COL_INT = 6.8 * inch
-        COL_LUZ = 7.4 * inch
-        COL_DUR = 8.0 * inch
-        COL_CAST = 8.8 * inch
-
-        # Cabecera de la tabla
-        pdf.setFont("Helvetica-Bold", 9)
-        pdf.drawString(COL_ESC, y, "ESC.")
-        pdf.drawString(COL_LOC, y, "LOCACIÓN")
-        pdf.drawString(COL_SUB, y, "SUBLOCACIÓN")
-        pdf.drawString(COL_SINOPSIS, y, "SINOPSIS / ACCIÓN")
-        pdf.drawString(COL_INT, y, "INT/EXT")
-        pdf.drawString(COL_LUZ, y, "LUZ")
-        pdf.drawString(COL_DUR, y, "DURACIÓN")
-        pdf.drawString(COL_CAST, y, "ELENCO")
-        
-        y -= 12
-        pdf.setStrokeColor(HexColor("#CCCCCC"))
-        pdf.line(0.5 * inch, y, width - 0.5 * inch, y)
-        y -= 15
+        if not table_header_drawn_on_page:
+            y = draw_table_header(y)
+            table_header_drawn_on_page = True
 
         pdf.setFont("Helvetica", 9)
         
@@ -838,21 +859,16 @@ def export_project_schedule_pdf(project_id: int):
             # Chequeo de salto de página
             if y < 1 * inch + 20:
                 pdf.showPage()
-                y = height - 1 * inch
-                # Re-dibujamos la cabecera en la nueva página
-                pdf.setFont("Helvetica-Bold", 9)
-                pdf.drawString(COL_ESC, y, "ESC.")
-                pdf.drawString(COL_LOC, y, "LOCACIÓN")
-                pdf.drawString(COL_SUB, y, "SUBLOCACIÓN")
-                pdf.drawString(COL_SINOPSIS, y, "SINOPSIS / ACCIÓN")
-                pdf.drawString(COL_INT, y, "INT/EXT")
-                pdf.drawString(COL_LUZ, y, "LUZ")
-                pdf.drawString(COL_DUR, y, "DURACIÓN")
-                pdf.drawString(COL_CAST, y, "ELENCO")
-                y -= 12
-                pdf.line(0.5 * inch, y, width - 0.5 * inch, y)
-                y -= 15
-                pdf.setFont("Helvetica", 9)
+                y = height - 50
+                pdf.setFont("Helvetica-Bold", 11)
+                pdf.drawString(
+                    0.5 * inch,
+                    y,
+                    f"JORNADA {day_num} (continuación) — Fecha: {fecha_str}",
+                )
+                y -= 20
+                y = draw_table_header(y)
+                table_header_drawn_on_page = True
 
             # Datos
             num = str(scene.get("production_number") or scene.get("scene_number") or scene_id)
@@ -860,10 +876,16 @@ def export_project_schedule_pdf(project_id: int):
             sublocacion = str(scene.get("sublocation") or "—")
             
             # Sinopsis
-            sinopsis = str(scene.get("synopsis") or "—").strip()
-            if sinopsis == "—":
+            sinopsis = str(scene.get("synopsis") or "").strip()
+            if not sinopsis:
                 body = str(scene.get("body") or "")
-                sinopsis = body[:80].replace("\n", " ") + "..." if len(body) > 80 else body.replace("\n", " ")
+                sinopsis = (
+                    body[:80].replace("\n", " ") + "..."
+                    if len(body) > 80
+                    else body.replace("\n", " ").strip()
+                )
+            if not sinopsis:
+                sinopsis = "Sin sinopsis"
 
             int_ext = str(scene.get("int_ext") or "—")
             time_of_day = str(scene.get("time_of_day") or "—")
@@ -892,8 +914,12 @@ def export_project_schedule_pdf(project_id: int):
             # Truncar textos
             if len(locacion) > 20: locacion = locacion[:17] + "..."
             if len(sublocacion) > 15: sublocacion = sublocacion[:12] + "..."
-            if len(sinopsis) > 50: sinopsis = sinopsis[:47] + "..."
-            if len(cast_str) > 25: cast_str = cast_str[:22] + "..."
+            sinopsis = sinopsis.strip()
+            cast_str = cast_str.strip()
+            if len(sinopsis) > 30:
+                sinopsis = sinopsis[:30] + "..."
+            if len(cast_str) > 30:
+                cast_str = cast_str[:30] + "..."
 
             pdf.drawString(COL_ESC, y, num)
             pdf.drawString(COL_LOC, y, locacion)

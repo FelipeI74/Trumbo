@@ -20,6 +20,13 @@ class FrontendLoadProjectSwitchTests(unittest.TestCase):
             / "modules"
             / "production.css"
         ).read_text(encoding="utf-8")
+        cls.production_js = (
+            Path(__file__).resolve().parents[1]
+            / "app"
+            / "static"
+            / "modules"
+            / "production.js"
+        ).read_text(encoding="utf-8")
 
     def _load_project_body(self) -> str:
         marker = "async function loadProject("
@@ -135,6 +142,40 @@ class FrontendLoadProjectSwitchTests(unittest.TestCase):
         self.assertIn("scene.sublocation", self.source)
         self.assertIn("Duración guion", self.source)
 
+    def test_desglose_incluye_aviso_privacidad_y_flujo_de_sugerencias_ia(self):
+        self.assertIn('id="aiPrivacyModal"', self.index_html)
+        self.assertIn('id="cancelAiBtn"', self.index_html)
+        self.assertIn('id="acceptAiBtn"', self.index_html)
+
+        self.assertIn('id="btnAiAnalyzeScene"', self.index_html)
+        self.assertIn('id="btnAiSuggestSynopsis"', self.index_html)
+        self.assertIn('id="aiInspectorSuggestionsList"', self.index_html)
+        self.assertIn("function renderInspectorAiSuggestions(suggestions)", self.source)
+        self.assertIn("requestAiConsent(\"analysis\", event.currentTarget)", self.source)
+        self.assertIn("/api/scenes/${normalizedSceneId}/gemini-analysis", self.source)
+        self.assertIn("/api/scenes/${scene.id}/synopsis-suggestion", self.source)
+        self.assertIn("/api/scenes/${sceneId}/breakdown", self.source)
+        self.assertIn('data-ai-inspector-action="add"', self.source)
+        self.assertIn('data-ai-inspector-action="dismiss"', self.source)
+        self.assertIn('alert("La IA no está disponible.")', self.source)
+        self.assertIn("renderProductionBreakdown();\n    renderBreakdown(activeScene());", self.source)
+
+    def test_informes_configuran_datos_diarios_de_hoja_de_llamado(self):
+        self.assertIn('id="btnEditCallSheet"', self.index_html)
+        self.assertIn('id="adCallSheetModal"', self.index_html)
+        self.assertIn('id="csDayNumber"', self.index_html)
+        self.assertIn('id="csWeather"', self.index_html)
+        self.assertIn('id="csStartTime"', self.index_html)
+        self.assertIn('id="csEndTime"', self.index_html)
+        self.assertIn('id="csCatering"', self.index_html)
+        self.assertIn('id="csTechNotes"', self.index_html)
+        self.assertIn('id="csGeneralNotes"', self.index_html)
+        self.assertIn("async function openAdCallSheetEditor()", self.source)
+        self.assertIn("async function loadAdCallSheetDay()", self.source)
+        self.assertIn("async function saveAdCallSheetDay()", self.source)
+        self.assertIn("/api/projects/${projectId}/call-sheets/${dayNumber}", self.source)
+        self.assertIn('alert("Datos guardados")', self.source)
+
     def test_plan_de_rodaje_permite_mover_escenas_entre_jornadas(self):
         start = self.source.find("function renderSchedule(schedule, schedulingInput) {")
         self.assertNotEqual(start, -1, "No se encontró renderSchedule en app.js")
@@ -154,6 +195,32 @@ class FrontendLoadProjectSwitchTests(unittest.TestCase):
         self.assertIn("#stripboard-root .stripboard-container {", self.production_css)
         self.assertIn("overflow-y: hidden;", self.production_css)
         self.assertIn(".strip-day-cards {\n    min-height: 150px;", self.production_css)
+
+    def test_stripboard_generates_printable_call_sheet_for_each_day(self):
+        self.assertIn('class="btn-call-sheet"', self.production_js)
+        self.assertIn("window.openCallSheet(${callSheetDayNumber})", self.production_js)
+        self.assertIn("window.openCallSheet = async function(dayNumber)", self.production_js)
+        self.assertIn("window.lastScheduleData", self.production_js)
+        self.assertIn("/call-sheets/${encodeURIComponent(dayNumber)}", self.production_js)
+        self.assertIn("csData = await response.json()", self.production_js)
+        self.assertIn("${escapeHtml(csData.weather || \"Por definir\")}", self.production_js)
+        self.assertIn("csData.catering_notes", self.production_js)
+        self.assertIn("csData.tech_notes", self.production_js)
+        self.assertIn("csData.general_notes", self.production_js)
+        self.assertIn("scene.scene_cast", self.production_js)
+        self.assertIn("const scenesTableRows = scenes.map(scene =>", self.production_js)
+        self.assertIn("<th>Resumen</th>", self.production_js)
+        self.assertIn("<th>Pág</th>", self.production_js)
+        self.assertIn('scene.synopsis || "Sin sinopsis"', self.production_js)
+        self.assertIn("${escapeHtml(callSheetDate)}", self.production_js)
+        self.assertIn('style="border-bottom: 1px solid #ccc;"', self.production_js)
+        self.assertIn("window.lastSchedulingInput = scenesData", self.production_js)
+        self.assertIn("window.lastSchedulingInput?.project_start_date", self.production_js)
+        self.assertIn('weekday: "long"', self.production_js)
+        self.assertIn("call-sheet-modal", self.production_js)
+        self.assertIn("window.print()", self.production_js)
+        self.assertIn("@media print", self.production_css)
+        self.assertIn(".no-print {\n        display: none !important;", self.production_css)
 
     def test_plan_de_rodaje_oculta_inspector_y_lo_restaura_en_guion(self):
         start = self.source.find("function setMainView(view) {")

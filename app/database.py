@@ -229,6 +229,20 @@ def initialize() -> None:
         FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS call_sheet_daily_data (
+        project_id INTEGER NOT NULL,
+        day_number INTEGER NOT NULL CHECK (day_number >= 1),
+        weather TEXT NOT NULL DEFAULT '',
+        start_time TEXT NOT NULL DEFAULT '',
+        end_time TEXT NOT NULL DEFAULT '',
+        catering_notes TEXT NOT NULL DEFAULT '',
+        tech_notes TEXT NOT NULL DEFAULT '',
+        general_notes TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (project_id, day_number),
+        FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS document_lines (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         uuid TEXT NOT NULL UNIQUE,

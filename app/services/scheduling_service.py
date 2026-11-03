@@ -101,16 +101,16 @@ def build_project_scheduling_input(
     project_id: int,
 ) -> dict:
     with connect() as connection:
-        project_exists = connection.execute(
+        project = connection.execute(
             """
-            SELECT 1
+            SELECT start_date
             FROM projects
             WHERE id = ?
             """,
             (project_id,),
         ).fetchone()
 
-        if project_exists is None:
+        if project is None:
             raise HTTPException(
                 404,
                 "Proyecto no encontrado",
@@ -125,6 +125,7 @@ def build_project_scheduling_input(
                 shoot_time_override,
                 heading,
                 body,
+                synopsis,
                 runtime_seconds,
                 semantic_lines
             FROM scenes
@@ -294,6 +295,7 @@ def build_project_scheduling_input(
                 "sublocation": heading_fields["sublocation"],
                 "time_of_day": heading_fields["time_of_day"],
                 "shoot_time_override": scene_row["shoot_time_override"],
+                "synopsis": scene_row["synopsis"],
                 "runtime_seconds": int(scene_row["runtime_seconds"] or 0),
                 "characters": characters,
                 "voice_over_characters": voice_over_characters,
@@ -302,7 +304,10 @@ def build_project_scheduling_input(
             }
         )
 
-    return {"scenes": scenes}
+    return {
+        "scenes": scenes,
+        "project_start_date": project["start_date"],
+    }
 
 _build_project_scheduling_input = build_project_scheduling_input
 

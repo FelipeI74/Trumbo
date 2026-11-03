@@ -13,7 +13,8 @@ class GeminiServiceError(Exception):
     pass
 
 
-DEFAULT_MODEL = "gemini-3.8-flash"
+DEFAULT_MODEL = "gemini-1.5-flash-latest"
+AI_PROVIDER = os.environ.get("AI_PROVIDER", "gemini")
 API_TIMEOUT_SECONDS = 30
 MAX_SUGGESTIONS = 30
 
@@ -45,7 +46,34 @@ def _clean_json_markdown(text: str) -> str:
     return stripped.strip()
 
 
-def analyze_scene_with_gemini(heading: str, body: str) -> list[dict[str, str]]:
+def build_system_prompt(known_elements: list[str] | None = None) -> str:
+    known_str = ", ".join(known_elements) if known_elements else "ninguno"
+    return (
+        "Eres un experto 1er Asistente de Dirección de cine en Latinoamérica.\n"
+        "Analiza el texto de la escena y extrae el desglose de producción.\n\n"
+        "REGLAS ESTRICTAS:\n"
+        "1. IDIOMA: Responde SIEMPRE en ESPAÑOL (ej. \"HOMBRE\", \"CONDUCTOR\", \"Mochila\").\n"
+        "2. STUNTS: Si hay caídas, golpes, vehículos a alta velocidad o riesgo físico (ej. \"frenazo brusco\", \"mejilla aplastada\"), "
+        "DEBES agregar la categoría \"Stunt\" (ej. \"Doble de acción para HOMBRE\").\n"
+        "3. CONTEXTO: Si están dentro de un AUTO, el \"Cinturón\" es del auto, no vestuario. "
+        "El \"Frente\" es una dirección, no un animal.\n"
+        f"4. NO REPETIR: El motor local ya ha detectado [{known_str}]. "
+        "Tu tarea es SOLO sugerir elementos nuevos (como Stunts, VFX o errores corregidos) que el motor local no vio.\n\n"
+        "Devuelve estrictamente un JSON con esta estructura:\n"
+        "[\n"
+        "  {\"category\": \"Stunt\", \"name\": \"Doble de acción para HOMBRE\"}\n"
+        "]"
+    )
+
+
+SYSTEM_PROMPT = build_system_prompt()
+
+
+def analyze_scene_with_gemini(
+    heading: str,
+    body: str,
+    known_elements: list[str] | None = None,
+) -> list[dict[str, str]]:
     """
     Analiza una escena audiovisual usando la API de Gemini para sugerir
     elementos de desglose de producción en formato estructurado.
@@ -78,11 +106,7 @@ def analyze_scene_with_gemini(heading: str, body: str) -> list[dict[str, str]]:
         f"CUERPO:\n{body.strip()}"
     )
 
-    system_instruction = (
-        "Eres un asistente experto en desglose de producción cinematográfica y televisiva. "
-        "Devuelve únicamente una lista JSON de objetos con las propiedades 'category' y 'name' en español. "
-        "No agregues explicaciones, introducciones ni texto fuera del JSON."
-    )
+    system_instruction = build_system_prompt(known_elements)
 
     sorted_categories = sorted(VALID_CATEGORIES)
 
@@ -134,16 +158,14 @@ def analyze_scene_with_gemini(heading: str, body: str) -> list[dict[str, str]]:
     except urllib.error.HTTPError as err:
         status = err.code
         # Mensajes estrictamente controlados por código de estado, sin reflejar payloads externos
-        if status in (401, 403):
+        if status in (404, 503):
+            detail = "El proveedor de IA principal falló. Por favor, configura un proveedor alternativo."
+        elif status in (401, 403):
             detail = "Credenciales de Gemini inválidas o no autorizadas."
-        elif status == 404:
-            detail = "El modelo de Gemini especificado no existe o no se encuentra disponible."
         elif status == 429:
             detail = "Cuota de Gemini excedida o límite de solicitudes alcanzado."
         elif status == 400:
             detail = "Solicitud rechazada por la API de Gemini (parámetros o formato inválidos)."
-        elif status == 503:
-            detail = "Gemini está experimentando una demanda elevada. Inténtalo nuevamente más tarde."
         elif status >= 500:
             detail = "El servicio de Gemini no se encuentra disponible temporalmente."
         else:

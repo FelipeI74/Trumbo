@@ -31,6 +31,12 @@ const state = {
   activeMainView: "guion",
 };
 let userProfileAvatar = null;
+let pendingAiSceneId = null;
+let pendingAiAnalyzeButton = null;
+let pendingAiAction = null;
+let callSheetLoadToken = 0;
+const aiAnalysisLoading = new Set();
+const aiInspectorSuggestionsByScene = new Map();
 
 const LINE_TYPES = [
   "heading",
@@ -910,6 +916,130 @@ async function resetScheduleManualOrder() {
   }
 }
 
+function setAdCallSheetForm(data = {}) {
+  $("#csWeather").value = data.weather || "";
+  $("#csStartTime").value = data.start_time || "";
+  $("#csEndTime").value = data.end_time || "";
+  $("#csCatering").value = data.catering_notes || "";
+  $("#csTechNotes").value = data.tech_notes || "";
+  $("#csGeneralNotes").value = data.general_notes || "";
+}
+
+async function loadAdCallSheetDay() {
+  const projectId = Number(state.project?.id);
+  const dayNumber = Number($("#csDayNumber").value);
+  const requestToken = ++callSheetLoadToken;
+  setAdCallSheetForm();
+  if (!projectId || !dayNumber) {
+    return;
+  }
+
+  try {
+    const data = await request(
+      `/api/projects/${projectId}/call-sheets/${dayNumber}`
+    );
+    if (
+      requestToken !== callSheetLoadToken ||
+      Number(state.project?.id) !== projectId ||
+      Number($("#csDayNumber").value) !== dayNumber
+    ) {
+      return;
+    }
+    setAdCallSheetForm(data);
+  } catch (error) {
+    if (requestToken !== callSheetLoadToken) {
+      return;
+    }
+    console.error(error);
+    alert(error.message || "No fue posible cargar los datos de la jornada.");
+  }
+}
+
+async function openAdCallSheetEditor() {
+  const projectId = Number(state.project?.id);
+  if (!projectId) {
+    alert("Selecciona un proyecto antes de editar la Hoja de Llamado.");
+    return;
+  }
+
+  const modal = $("#adCallSheetModal");
+  const daySelect = $("#csDayNumber");
+  const openButton = $("#btnEditCallSheet");
+  setAdCallSheetForm();
+  openButton.disabled = true;
+  modal.hidden = false;
+
+  try {
+    const schedule = await request(
+      `/api/projects/${projectId}/schedule-preview`
+    );
+    const days = schedule?.best_schedule?.days;
+    if (!Array.isArray(days)) {
+      throw new Error("El plan no contiene jornadas válidas.");
+    }
+    if (Number(state.project?.id) !== projectId) {
+      return;
+    }
+
+    const dayCount = days.length;
+    daySelect.innerHTML = Array.from(
+      { length: dayCount },
+      (_, index) => `<option value="${index + 1}">Día ${index + 1}</option>`
+    ).join("");
+    daySelect.disabled = dayCount === 0;
+    $("#btnSaveAdCallSheet").disabled = dayCount === 0;
+
+    if (dayCount === 0) {
+      setAdCallSheetForm();
+      alert("El proyecto todavía no tiene jornadas en su plan de rodaje.");
+      return;
+    }
+
+    await loadAdCallSheetDay();
+    $("#csDayNumber").focus();
+  } catch (error) {
+    console.error(error);
+    modal.hidden = true;
+    alert(error.message || "No fue posible cargar las jornadas del proyecto.");
+  } finally {
+    openButton.disabled = false;
+  }
+}
+
+async function saveAdCallSheetDay() {
+  const projectId = Number(state.project?.id);
+  const dayNumber = Number($("#csDayNumber").value);
+  if (!projectId || !dayNumber) {
+    return;
+  }
+
+  const saveButton = $("#btnSaveAdCallSheet");
+  saveButton.disabled = true;
+  try {
+    await request(
+      `/api/projects/${projectId}/call-sheets/${dayNumber}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          weather: $("#csWeather").value,
+          start_time: $("#csStartTime").value,
+          end_time: $("#csEndTime").value,
+          catering_notes: $("#csCatering").value,
+          tech_notes: $("#csTechNotes").value,
+          general_notes: $("#csGeneralNotes").value,
+        }),
+      }
+    );
+    $("#adCallSheetModal").hidden = true;
+    alert("Datos guardados");
+  } catch (error) {
+    console.error(error);
+    alert(error.message || "No fue posible guardar los datos de la jornada.");
+  } finally {
+    saveButton.disabled = false;
+  }
+}
+
 function setMainView(view) {
   state.activeMainView = view;
 
@@ -1689,6 +1819,9 @@ function setActiveScene(
 
   renderNotes(scene);
   renderBreakdown(scene);
+  renderInspectorAiSuggestions(
+    aiInspectorSuggestionsByScene.get(scene.id) || null
+  );
   scheduleSceneAnalysis(0);
 
   const node = sceneElement(scene.id);
@@ -2698,6 +2831,7 @@ function renderNoActiveScene() {
 
   renderNotes(null);
   renderBreakdown(null);
+  renderInspectorAiSuggestions(null);
 
   $("#scriptAnalysis")
     .innerHTML = `
@@ -4836,6 +4970,205 @@ function renderProductionBreakdown() {
     .join("");
 }
 
+function closeAiPrivacyModal() {
+  const modal = $("#aiPrivacyModal");
+  if (modal) {
+    modal.hidden = true;
+  }
+  pendingAiSceneId = null;
+  pendingAiAnalyzeButton = null;
+  pendingAiAction = null;
+}
+
+function requestAiConsent(action, button) {
+  const scene = activeScene();
+  if (!scene) {
+    alert("Selecciona una escena antes de usar el asistente de IA.");
+    return;
+  }
+  pendingAiSceneId = scene.id;
+  pendingAiAnalyzeButton = button;
+  pendingAiAction = action;
+  $("#aiPrivacyModal").hidden = false;
+}
+
+function renderInspectorAiSuggestions(suggestions) {
+  const scene = activeScene();
+  const results = $("#aiInspectorResults");
+  const list = $("#aiInspectorSuggestionsList");
+  if (!scene || !Array.isArray(suggestions)) {
+    results.style.display = "none";
+    list.replaceChildren();
+    return;
+  }
+
+  results.style.display = "block";
+  list.innerHTML = suggestions.length
+    ? suggestions.map((suggestion, index) => `
+        <div class="ai-suggestion" data-ai-suggestion-index="${index}">
+          <div class="ai-suggestion-details">
+            <span class="ai-suggestion-category">
+              ${escapeHtml(BREAKDOWN_CATEGORY_LABELS[suggestion.category] || suggestion.category)}
+            </span>
+            <span class="ai-suggestion-name">${escapeHtml(suggestion.name)}</span>
+          </div>
+          ${
+            suggestion.status === "added"
+              ? '<span class="ai-suggestion-added">Añadido</span>'
+              : suggestion.status === "adding"
+                ? '<span class="ai-suggestion-added">Añadiendo…</span>'
+                : suggestion.status === "dismissed"
+                  ? '<span class="ai-suggestion-added">Descartado</span>'
+                  : `
+                    <div class="ai-suggestion-actions">
+                      <button type="button" data-ai-inspector-action="add">Añadir</button>
+                      <button type="button" data-ai-inspector-action="dismiss">Descartar</button>
+                    </div>
+                  `
+          }
+        </div>
+      `).join("")
+    : '<div class="empty">La IA no encontró sugerencias para esta escena.</div>';
+}
+
+async function analyzeSceneWithAi(sceneId, btn) {
+  const normalizedSceneId = Number(sceneId);
+  if (!normalizedSceneId || aiAnalysisLoading.has(normalizedSceneId)) {
+    return;
+  }
+
+  aiAnalysisLoading.add(normalizedSceneId);
+  btn.textContent = "Analizando...";
+  btn.disabled = true;
+  let unavailable = false;
+
+  try {
+    await saveSceneNode(sceneElement(normalizedSceneId));
+    const response = await request(
+      `/api/scenes/${normalizedSceneId}/gemini-analysis`,
+      { method: "POST" }
+    );
+    if (!Array.isArray(response.suggestions)) {
+      throw new Error("Respuesta de análisis inválida.");
+    }
+
+    aiInspectorSuggestionsByScene.set(
+      normalizedSceneId,
+      response.suggestions
+        .filter(
+          suggestion =>
+            typeof suggestion?.category === "string" &&
+            typeof suggestion?.name === "string" &&
+            suggestion.category.trim() &&
+            suggestion.name.trim()
+        )
+        .map(suggestion => ({
+          category: suggestion.category.trim(),
+          name: suggestion.name.trim(),
+          status: "pending",
+        }))
+    );
+    if (normalizedSceneId === state.activeSceneId) {
+      renderInspectorAiSuggestions(
+        aiInspectorSuggestionsByScene.get(normalizedSceneId)
+      );
+    }
+  } catch (error) {
+    console.error(error);
+    unavailable = true;
+  } finally {
+    aiAnalysisLoading.delete(normalizedSceneId);
+    btn.textContent = "✨ Analizar Desglose con IA";
+    btn.disabled = false;
+  }
+
+  if (unavailable) {
+    alert("La IA no está disponible.");
+  }
+}
+
+async function addAiSuggestion(sceneId, suggestionIndex) {
+  const suggestions = aiInspectorSuggestionsByScene.get(sceneId);
+  const suggestion = suggestions?.[suggestionIndex];
+  if (!suggestion || suggestion.status !== "pending") {
+    return;
+  }
+
+  suggestion.status = "adding";
+  if (sceneId === state.activeSceneId) {
+    renderInspectorAiSuggestions(suggestions);
+  }
+
+  try {
+    const item = await request(
+      `/api/scenes/${sceneId}/breakdown`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          category: suggestion.category,
+          name: suggestion.name,
+          source: "ai",
+          state: "detected",
+        }),
+      }
+    );
+    const scene = state.scenes.find(
+      currentScene => Number(currentScene.id) === sceneId
+    );
+    if (scene) {
+      scene.breakdown_items = scene.breakdown_items || [];
+      if (!scene.breakdown_items.some(existing => existing.id === item.id)) {
+        scene.breakdown_items.push(item);
+      }
+    }
+    suggestion.status = "added";
+    renderProductionBreakdown();
+    renderBreakdown(activeScene());
+    if (sceneId === state.activeSceneId) {
+      renderInspectorAiSuggestions(suggestions);
+    }
+  } catch (error) {
+    console.error(error);
+    suggestion.status = "pending";
+    if (sceneId === state.activeSceneId) {
+      renderInspectorAiSuggestions(suggestions);
+    }
+    alert("No fue posible agregar la sugerencia.");
+  }
+}
+
+async function suggestActiveSceneSynopsis(btn, sceneId) {
+  const scene = state.scenes.find(
+    currentScene => Number(currentScene.id) === Number(sceneId)
+  );
+  if (!scene) {
+    alert("No se encontró la escena para proponer una sinopsis.");
+    return;
+  }
+
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.textContent = "Generando sinopsis...";
+  try {
+    await saveSceneNode(sceneElement(scene.id));
+    const response = await request(
+      `/api/scenes/${scene.id}/synopsis-suggestion`,
+      { method: "POST" }
+    );
+    if (scene.id !== state.activeSceneId) {
+      return;
+    }
+    $("#sceneSynopsis").value = response.synopsis;
+    scheduleSynopsisSave();
+  } catch (error) {
+    console.error(error);
+    alert(error.message || "No fue posible proponer una sinopsis.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
 function renderBreakdown(scene) {
   const container =
     $("#breakdownList");
@@ -4982,62 +5315,6 @@ async function updateBreakdownItemState(
       "No fue posible actualizar el estado del elemento."
     );
   }
-}
-
-function proposeSynopsis() {
-  const scene =
-    activeScene();
-
-  if (!scene) {
-    return;
-  }
-
-  const node =
-    sceneElement(
-      scene.id
-    );
-
-  if (!node) {
-    return;
-  }
-
-  const {
-    body,
-  } = serializeSceneNode(
-    node
-  );
-
-  const normalized =
-    body
-      .replace(
-        /\n+/g,
-        " "
-      )
-      .replace(
-        /\s+/g,
-        " "
-      )
-      .trim();
-
-  if (!normalized) {
-    return;
-  }
-
-  const firstSentence =
-    normalized
-      .match(
-        /^(.{1,220}?[.!?])(?:\s|$)/
-      )?.[1] ||
-    normalized.slice(
-      0,
-      180
-    );
-
-  $("#sceneSynopsis")
-    .value =
-      firstSentence;
-
-  scheduleSynopsisSave();
 }
 
 async function addNote() {
@@ -5843,7 +6120,216 @@ function toggleInspector() {
   );
 }
 
+function setupScreenplayContextMenu() {
+  const editor = $("#screenplayEditor");
+  const contextMenu = $("#customContextMenu");
+
+  if (!editor || !contextMenu) {
+    return;
+  }
+
+  let contextLine = null;
+  let contextRange = null;
+
+  const hideContextMenu = () => {
+    contextMenu.classList.remove("active");
+    contextMenu.hidden = true;
+    contextLine = null;
+    contextRange = null;
+  };
+
+  const restoreEditorSelection = (line, range) => {
+    if (!line || !editor.contains(line)) {
+      return false;
+    }
+
+    line.focus({ preventScroll: true });
+
+    const selection = window.getSelection();
+    if (selection) {
+      selection.removeAllRanges();
+      if (range && editor.contains(range.commonAncestorContainer)) {
+        selection.addRange(range);
+      } else {
+        placeCaretAtEnd(line);
+      }
+    }
+    return true;
+  };
+
+  editor.addEventListener("contextmenu", event => {
+    const line = event.target instanceof Element
+      ? event.target.closest(".script-line")
+      : null;
+    if (!line || !editor.contains(line)) {
+      return;
+    }
+
+    event.preventDefault();
+    contextLine = line;
+
+    const selection = window.getSelection();
+    contextRange =
+      selection?.rangeCount &&
+      editor.contains(selection.getRangeAt(0).commonAncestorContainer)
+        ? selection.getRangeAt(0).cloneRange()
+        : null;
+
+    contextMenu.hidden = false;
+    contextMenu.classList.add("active");
+    const bounds = contextMenu.getBoundingClientRect();
+    contextMenu.style.left = `${
+      Math.max(0, Math.min(event.clientX, window.innerWidth - bounds.width))
+    }px`;
+    contextMenu.style.top = `${
+      Math.max(0, Math.min(event.clientY, window.innerHeight - bounds.height))
+    }px`;
+  });
+
+  contextMenu.addEventListener("mousedown", event => {
+    event.preventDefault();
+  });
+
+  contextMenu.addEventListener("click", async event => {
+    const item = event.target instanceof Element
+      ? event.target.closest(".ctx-item")
+      : null;
+    if (!item) {
+      return;
+    }
+
+    const action = item.dataset.action;
+    const line = contextLine;
+    const range = contextRange;
+    hideContextMenu();
+
+    if (!restoreEditorSelection(line, range)) {
+      return;
+    }
+
+    if (action === "cut" || action === "copy") {
+      if (!document.execCommand(action)) {
+        alert(`No fue posible ${action === "cut" ? "cortar" : "copiar"} el texto.`);
+      }
+      return;
+    }
+
+    if (action === "paste") {
+      if (!navigator.clipboard?.readText) {
+        alert("El navegador no permite leer el portapapeles. Usa Ctrl+V.");
+        return;
+      }
+      try {
+        const text = await navigator.clipboard.readText();
+        if (restoreEditorSelection(line, range)) {
+          document.execCommand("insertText", false, text);
+        }
+      } catch (error) {
+        console.warn("No fue posible leer el portapapeles.", error);
+        alert("No se pudo acceder al portapapeles. Usa Ctrl+V.");
+      }
+      return;
+    }
+
+    if (["character", "action", "dialogue"].includes(action)) {
+      setLineType(line, action, { preserveCaret: true });
+    }
+  });
+
+  document.addEventListener("click", event => {
+    if (!contextMenu.contains(event.target)) {
+      hideContextMenu();
+    }
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !contextMenu.hidden) {
+      hideContextMenu();
+    }
+  });
+  window.addEventListener("resize", hideContextMenu);
+  document.addEventListener("scroll", hideContextMenu, true);
+}
+
 function setupEvents() {
+  setupScreenplayContextMenu();
+
+  $("#btnEditCallSheet").addEventListener(
+    "click",
+    openAdCallSheetEditor
+  );
+  $("#btnCloseAdCallSheet").addEventListener(
+    "click",
+    () => {
+      callSheetLoadToken += 1;
+      $("#adCallSheetModal").hidden = true;
+    }
+  );
+  $("#csDayNumber").addEventListener(
+    "change",
+    loadAdCallSheetDay
+  );
+  $("#btnSaveAdCallSheet").addEventListener(
+    "click",
+    saveAdCallSheetDay
+  );
+
+  $("#btnAiAnalyzeScene").addEventListener(
+    "click",
+    event => requestAiConsent("analysis", event.currentTarget)
+  );
+
+  $("#btnAiSuggestSynopsis").addEventListener(
+    "click",
+    event => requestAiConsent("synopsis", event.currentTarget)
+  );
+
+  $("#aiInspectorSuggestionsList").addEventListener(
+    "click",
+    async event => {
+      const target = event.target instanceof Element
+        ? event.target.closest("[data-ai-inspector-action]")
+        : null;
+      const suggestionRow = target?.closest("[data-ai-suggestion-index]");
+      const scene = activeScene();
+      const suggestionIndex = Number(suggestionRow?.dataset.aiSuggestionIndex);
+      if (!target || !scene || !Number.isInteger(suggestionIndex)) {
+        return;
+      }
+
+      const suggestions = aiInspectorSuggestionsByScene.get(scene.id);
+      if (!suggestions?.[suggestionIndex]) {
+        return;
+      }
+
+      if (target.dataset.aiInspectorAction === "add") {
+        await addAiSuggestion(scene.id, suggestionIndex);
+      } else if (target.dataset.aiInspectorAction === "dismiss") {
+        suggestions[suggestionIndex].status = "dismissed";
+        renderInspectorAiSuggestions(suggestions);
+      }
+    }
+  );
+
+  $("#cancelAiBtn").addEventListener(
+    "click",
+    closeAiPrivacyModal
+  );
+
+  $("#acceptAiBtn").addEventListener(
+    "click",
+    () => {
+      const sceneId = pendingAiSceneId;
+      const btn = pendingAiAnalyzeButton;
+      const action = pendingAiAction;
+      closeAiPrivacyModal();
+      if (sceneId && btn && action === "analysis") {
+        analyzeSceneWithAi(sceneId, btn);
+      } else if (sceneId && btn && action === "synopsis") {
+        suggestActiveSceneSynopsis(btn, sceneId);
+      }
+    }
+  );
+
   $("#elementList")
     .addEventListener(
       "click",
@@ -6105,12 +6591,6 @@ function setupEvents() {
     .addEventListener(
       "input",
       scheduleSynopsisSave
-    );
-
-  $("#suggestSynopsisButton")
-    .addEventListener(
-      "click",
-      proposeSynopsis
     );
 
   $("#addNoteButton")

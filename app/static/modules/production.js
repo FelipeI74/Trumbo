@@ -82,6 +82,8 @@ async function initProductionBoard() {
             throw new Error("La respuesta del plan no contiene jornadas válidas.");
         }
 
+        window.lastSchedulingInput = scenesData;
+
         // Normalizamos los identificadores para admitir 3 y "3".
         // Se indexa también por production_number como alternativa,
         // porque el plan puede referirse a una escena por su número de producción.
@@ -269,6 +271,10 @@ function renderStripboard(scheduleData, sceneById, resolveScene) {
         const runtimeSeconds = normalizeRuntime(day.runtime_seconds);
         const runtimeFormatted = formatRuntime(runtimeSeconds);
         const dayNumber = escapeHtml(day.day ?? "");
+        const numericDayNumber = Number(day.day);
+        const callSheetDayNumber = Number.isSafeInteger(numericDayNumber)
+            ? numericDayNumber
+            : "null";
         const cardsHtml = dayScenes.length
             ? dayScenes.map(scene =>
                 renderSceneCard(scene, day.day ?? "", runtimeFormatted)
@@ -277,8 +283,9 @@ function renderStripboard(scheduleData, sceneById, resolveScene) {
 
         return `
             <div class="strip-day ${currentViewMode === "diario" ? "daily-view-active" : ""}" data-day="${dayNumber}">
-                <div class="strip-day-header">
+                <div class="strip-day-header" style="display: flex; justify-content: space-between; align-items: center;">
                     <span>Día ${dayNumber}</span>
+                    <button class="btn-call-sheet" type="button" onclick="window.openCallSheet(${callSheetDayNumber})" style="background: #333; color: #d8a64f; border: 1px solid #d8a64f; padding: 2px 8px; border-radius: 4px; font-size: 12px; cursor: pointer;">📄 Call Sheet</button>
                 </div>
                 <div class="strip-day-stats">
                     ${dayScenes.length} escenas | ${day.shots_count || 0} planos | ${runtimeFormatted}
@@ -1088,4 +1095,254 @@ window.openVirtualSlate = function(escena, plano, tamano, angulo, movimiento) {
     overlay.append(board);
     document.body.append(overlay);
     overlay.focus();
+};
+
+window.openCallSheet = async function(dayNumber) {
+    const scheduleData = window.lastScheduleData;
+    const days = scheduleData?.best_schedule?.days;
+    if (!Array.isArray(days)) return;
+
+    const dayData = days.find(day => Number(day.day) === Number(dayNumber));
+    if (!dayData) return;
+
+    const projectId = productionProjectId ||
+        document.getElementById("projectSelect")?.value;
+    let csData = {};
+    if (projectId) {
+        try {
+            const response = await fetch(
+                `/api/projects/${encodeURIComponent(projectId)}/call-sheets/${encodeURIComponent(dayNumber)}`
+            );
+            if (response.ok) {
+                csData = await response.json();
+            } else {
+                console.warn(
+                    "No se pudieron cargar los datos del Call Sheet",
+                    response.status
+                );
+            }
+        } catch (error) {
+            console.warn("No se pudieron cargar los datos del Call Sheet", error);
+        }
+    } else {
+        console.warn("No se pudieron cargar los datos del Call Sheet: proyecto no seleccionado.");
+    }
+
+    const sceneIds = Array.isArray(dayData.scene_ids)
+        ? dayData.scene_ids
+        : [];
+    const locations = new Map();
+    const cast = new Map();
+    const addUnique = (collection, value) => {
+        const name = String(value ?? "").trim();
+        if (name && !collection.has(name.toLocaleLowerCase())) {
+            collection.set(name.toLocaleLowerCase(), name);
+        }
+    };
+
+    const scenes = sceneIds
+        .map(id => productionResolveScene?.(id) || productionSceneById.get(normalizeId(id)))
+        .filter(Boolean);
+
+    scenes.forEach(scene => {
+        addUnique(locations, scene.location || scene.general_location);
+
+        [
+            scene.scene_cast,
+            scene.cast,
+            scene.characters,
+        ].forEach(sceneCast => {
+            if (Array.isArray(sceneCast)) {
+                sceneCast.forEach(name => addUnique(cast, name));
+            }
+        });
+
+        const resources = [
+            ...(Array.isArray(scene.resources) ? scene.resources : []),
+            ...(Array.isArray(scene.breakdown_items) ? scene.breakdown_items : []),
+        ];
+        resources.forEach(item => {
+            if (["cast", "scene_cast", "character"].includes(
+                String(item.category ?? "").trim().toLowerCase()
+            )) {
+                addUnique(cast, item.name);
+            }
+        });
+    });
+
+    const runtimeSeconds = normalizeRuntime(dayData.runtime_seconds);
+    const durationMins = Math.floor(runtimeSeconds / 60);
+    const durationSecs = runtimeSeconds % 60;
+    const timeStr = `${durationMins}m ${durationSecs}s`;
+    const projectStartDate = window.lastSchedulingInput?.project_start_date;
+    let callSheetDate = "Por definir";
+    const dayOffset = Number(dayNumber) - 1;
+    const dateParts = typeof projectStartDate === "string"
+        ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(projectStartDate.trim())
+        : null;
+    if (dateParts && Number.isInteger(dayOffset) && dayOffset >= 0) {
+        const [, year, month, day] = dateParts;
+        const date = new Date(Number(year), Number(month) - 1, Number(day));
+        if (
+            date.getFullYear() === Number(year) &&
+            date.getMonth() === Number(month) - 1 &&
+            date.getDate() === Number(day)
+        ) {
+            date.setDate(date.getDate() + dayOffset);
+            const formattedDate = new Intl.DateTimeFormat("es", {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+            }).format(date);
+            callSheetDate = formattedDate.charAt(0).toLocaleUpperCase() +
+                formattedDate.slice(1);
+        }
+    }
+    const existingModal = document.getElementById("callSheetModal");
+    if (existingModal) existingModal.remove();
+
+    const modal = document.createElement("div");
+    modal.id = "callSheetModal";
+    modal.className = "call-sheet-modal";
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.setAttribute("aria-label", `Hoja de llamado del día ${dayNumber}`);
+
+    const scenesTableRows = scenes.map(scene => {
+        const number = scene.production_number || scene.scene_number || scene.id;
+        const intExt = scene.int_ext || "";
+        const timeOfDay = scene.time_of_day || "";
+        const pages = (normalizeRuntime(scene.runtime_seconds) / 60).toFixed(1);
+        const sceneCast = new Map();
+        const addCastMember = value => {
+            const name = String(value ?? "").trim();
+            if (name && !sceneCast.has(name.toLocaleLowerCase())) {
+                sceneCast.set(name.toLocaleLowerCase(), name);
+            }
+        };
+        [
+            scene.scene_cast,
+            scene.cast,
+            scene.characters,
+        ].forEach(names => {
+            if (Array.isArray(names)) {
+                names.forEach(addCastMember);
+            }
+        });
+        [
+            ...(Array.isArray(scene.resources) ? scene.resources : []),
+            ...(Array.isArray(scene.breakdown_items) ? scene.breakdown_items : []),
+        ].forEach(item => {
+            if (["cast", "scene_cast", "character"].includes(
+                String(item.category ?? "").trim().toLowerCase()
+            )) {
+                addCastMember(item.name);
+            }
+        });
+        const castText = [...sceneCast.values()].join(", ") || "-";
+        const summary = scene.synopsis || "Sin sinopsis";
+        const location = scene.location || "-";
+
+        return `
+            <tr style="border-bottom: 1px solid #ccc;">
+                <td><strong>${escapeHtml(number)}</strong></td>
+                <td>${escapeHtml(summary)}</td>
+                <td>${escapeHtml(intExt)}</td>
+                <td>${escapeHtml(timeOfDay)}</td>
+                <td>${escapeHtml(pages)}</td>
+                <td>${escapeHtml(castText)}</td>
+                <td>${escapeHtml(location)}</td>
+            </tr>
+        `;
+    }).join("");
+
+    const tableHTML = `
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; margin-top: 15px;">
+            <thead>
+                <tr style="border-bottom: 2px solid #000;">
+                    <th>Escena</th>
+                    <th>Resumen</th>
+                    <th>I/E</th>
+                    <th>D/N</th>
+                    <th>Pág</th>
+                    <th>Elenco</th>
+                    <th>Locación</th>
+                </tr>
+            </thead>
+            <tbody>${scenesTableRows}</tbody>
+        </table>
+    `;
+
+    const callSheetNotes = [
+        ["Catering", csData.catering_notes],
+        ["Notas técnicas", csData.tech_notes],
+        ["Notas generales", csData.general_notes],
+    ].filter(([, value]) => String(value ?? "").trim());
+
+    const notesHTML = callSheetNotes.length
+        ? `
+            <section class="cs-logistics-notes">
+                <h2>Notas de producción</h2>
+                ${callSheetNotes.map(([label, value]) => `
+                    <p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>
+                `).join("")}
+            </section>
+        `
+        : "";
+
+    modal.innerHTML = `
+        <div class="call-sheet-content">
+            <h1>HOJA DE LLAMADO - DÍA ${escapeHtml(dayNumber)}</h1>
+            <hr>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px;">
+                <thead>
+                    <tr style="background: #f0f0f0; text-align: center; font-weight: bold;">
+                        <th style="border: 1px solid #ccc; padding: 5px;">Inicio / Término</th>
+                        <th style="border: 1px solid #ccc; padding: 5px;">Listos en Set</th>
+                        <th style="border: 1px solid #ccc; padding: 5px;">Clima</th>
+                        <th style="border: 1px solid #ccc; padding: 5px;">Locación</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="text-align: center;">
+                        <td style="border: 1px solid #ccc; padding: 5px;">
+                            ${escapeHtml(csData.start_time || "08:00")} / ${escapeHtml(csData.end_time || "19:00")}
+                        </td>
+                        <td style="border: 1px solid #ccc; padding: 5px;">09:30</td>
+                        <td style="border: 1px solid #ccc; padding: 5px;">${escapeHtml(csData.weather || "Por definir")}</td>
+                        <td style="border: 1px solid #ccc; padding: 5px;">${escapeHtml([...locations.values()].join(", ") || "Por definir")}</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="cs-header-info">
+                <p><strong>Fecha:</strong> ${escapeHtml(callSheetDate)}</p>
+                <p><strong>Duración estimada:</strong> ${escapeHtml(timeStr)}</p>
+                <p><strong>CAST:</strong> ${escapeHtml([...cast.values()].join(", ") || "Sin asignar")}</p>
+            </div>
+            ${notesHTML}
+            <hr>
+            <h2>Escenas a rodar (${scenes.length}):</h2>
+            ${tableHTML}
+            <div class="cs-actions no-print">
+                <button type="button" data-call-sheet-action="print">🖨️ Imprimir</button>
+                <button type="button" data-call-sheet-action="close">Cerrar</button>
+            </div>
+        </div>
+    `;
+
+    modal.addEventListener("click", event => {
+        const action = event.target instanceof Element
+            ? event.target.closest("[data-call-sheet-action]")?.dataset.callSheetAction
+            : null;
+        if (action === "print") {
+            window.print();
+        } else if (action === "close") {
+            modal.remove();
+        }
+    });
+    modal.addEventListener("keydown", event => {
+        if (event.key === "Escape") modal.remove();
+    });
+    document.body.append(modal);
+    modal.querySelector('[data-call-sheet-action="close"]')?.focus();
 };

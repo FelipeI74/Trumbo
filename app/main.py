@@ -8,7 +8,14 @@ from datetime import datetime, timezone
 import hashlib
 from io import BytesIO, StringIO
 import json
+import os
 from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 import re
 from typing import Any, List
 import uuid
@@ -54,10 +61,23 @@ from .services.gemini_service import (
     GeminiServiceError,
     analyze_scene_with_gemini,
 )
+from .services.deepseek_service import (
+    DeepSeekServiceError,
+    analyze_scene_with_deepseek,
+)
+from .services.openrouter_service import (
+    OpenRouterServiceError,
+    analyze_scene_with_openrouter,
+)
+from .services.synopsis_service import (
+    SynopsisServiceError,
+    suggest_scene_synopsis,
+)
 from .storage import SecurityError, StoryboardStorage
 from .schemas import (
     BreakdownItemCreate,
     BreakdownItemUpdate,
+    CallSheetDailyUpdate,
     CharacterAliasList,
     NoteCreate,
     ProjectCreate,
@@ -1116,6 +1136,123 @@ def save_project_schedule_manual_order(
 
     return {"status": "ok", "days": validated_days}
 
+
+@app.get("/api/projects/{project_id}/call-sheets/{day_number}")
+def get_project_call_sheet_daily_data(
+    project_id: int,
+    day_number: int,
+) -> dict:
+    if day_number < 1:
+        raise HTTPException(422, "La jornada debe ser mayor que cero")
+
+    with connect() as connection:
+        project = connection.execute(
+            "SELECT 1 FROM projects WHERE id = ?",
+            (project_id,),
+        ).fetchone()
+        if project is None:
+            raise HTTPException(404, "Proyecto no encontrado")
+
+        row = connection.execute(
+            """
+            SELECT
+                day_number,
+                weather,
+                start_time,
+                end_time,
+                catering_notes,
+                tech_notes,
+                general_notes
+            FROM call_sheet_daily_data
+            WHERE project_id = ? AND day_number = ?
+            """,
+            (project_id, day_number),
+        ).fetchone()
+
+    if row is not None:
+        return dict(row)
+
+    return {
+        "day_number": day_number,
+        "weather": "",
+        "start_time": "",
+        "end_time": "",
+        "catering_notes": "",
+        "tech_notes": "",
+        "general_notes": "",
+    }
+
+
+@app.put("/api/projects/{project_id}/call-sheets/{day_number}")
+def update_project_call_sheet_daily_data(
+    project_id: int,
+    day_number: int,
+    payload: CallSheetDailyUpdate,
+) -> dict:
+    if day_number < 1:
+        raise HTTPException(422, "La jornada debe ser mayor que cero")
+
+    with connect() as connection:
+        project = connection.execute(
+            "SELECT 1 FROM projects WHERE id = ?",
+            (project_id,),
+        ).fetchone()
+        if project is None:
+            raise HTTPException(404, "Proyecto no encontrado")
+
+        connection.execute(
+            """
+            INSERT INTO call_sheet_daily_data(
+                project_id,
+                day_number,
+                weather,
+                start_time,
+                end_time,
+                catering_notes,
+                tech_notes,
+                general_notes,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(project_id, day_number) DO UPDATE SET
+                weather = excluded.weather,
+                start_time = excluded.start_time,
+                end_time = excluded.end_time,
+                catering_notes = excluded.catering_notes,
+                tech_notes = excluded.tech_notes,
+                general_notes = excluded.general_notes,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (
+                project_id,
+                day_number,
+                payload.weather.strip(),
+                payload.start_time.strip(),
+                payload.end_time.strip(),
+                payload.catering_notes.strip(),
+                payload.tech_notes.strip(),
+                payload.general_notes.strip(),
+            ),
+        )
+        row = connection.execute(
+            """
+            SELECT
+                day_number,
+                weather,
+                start_time,
+                end_time,
+                catering_notes,
+                tech_notes,
+                general_notes
+            FROM call_sheet_daily_data
+            WHERE project_id = ? AND day_number = ?
+            """,
+            (project_id, day_number),
+        ).fetchone()
+
+    return dict(row)
+
+
 @app.delete("/api/projects/{project_id}/schedule-manual-order")
 def delete_project_schedule_manual_order(
     project_id: int,
@@ -1814,12 +1951,44 @@ def analyze_scene_gemini(
         heading = scene["heading"] or ""
         body = scene["body"] or ""
 
+        existing_items = connection.execute(
+            """
+            SELECT category, name
+            FROM breakdown_items
+            WHERE scene_id = ?
+              AND state != 'rejected'
+            ORDER BY id
+            """,
+            (scene_id,),
+        ).fetchall()
+
+        known_elements: list[str] = [
+            f"{item['category']}: {item['name']}"
+            for item in existing_items
+            if item["name"]
+        ]
+
     try:
-        suggestions = analyze_scene_with_gemini(
-            heading=heading,
-            body=body,
-        )
-    except GeminiServiceError as err:
+        ai_provider = os.environ.get("AI_PROVIDER", "gemini").strip().lower()
+        if ai_provider == "openrouter":
+            suggestions = analyze_scene_with_openrouter(
+                heading=heading,
+                body=body,
+                known_elements=known_elements,
+            )
+        elif ai_provider == "deepseek":
+            suggestions = analyze_scene_with_deepseek(
+                heading=heading,
+                body=body,
+                known_elements=known_elements,
+            )
+        else:
+            suggestions = analyze_scene_with_gemini(
+                heading=heading,
+                body=body,
+                known_elements=known_elements,
+            )
+    except (GeminiServiceError, DeepSeekServiceError, OpenRouterServiceError) as err:
         raise HTTPException(
             status_code=502,
             detail=str(err),
@@ -1829,6 +1998,28 @@ def analyze_scene_gemini(
         "scene_id": scene_id,
         "suggestions": suggestions,
     }
+
+
+@app.post("/api/scenes/{scene_id}/synopsis-suggestion")
+def suggest_scene_synopsis_endpoint(scene_id: int) -> dict:
+    with connect() as connection:
+        scene = connection.execute(
+            "SELECT heading, body FROM scenes WHERE id = ?",
+            (scene_id,),
+        ).fetchone()
+
+    if scene is None:
+        raise HTTPException(404, "Escena no encontrada")
+
+    try:
+        synopsis = suggest_scene_synopsis(
+            heading=scene["heading"] or "",
+            body=scene["body"] or "",
+        )
+    except SynopsisServiceError as error:
+        raise HTTPException(502, str(error)) from error
+
+    return {"scene_id": scene_id, "synopsis": synopsis}
 
 
 @app.post("/api/scenes/{scene_id}/notes")

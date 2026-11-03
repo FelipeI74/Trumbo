@@ -14,6 +14,10 @@ from app.schemas import (
     SceneUpdate,
 )
 from app.services.gemini_service import GeminiServiceError
+from app.services.synopsis_service import (
+    SynopsisServiceError,
+    suggest_scene_synopsis,
+)
 
 
 class GeminiAnalysisEndpointTests(unittest.TestCase):
@@ -23,6 +27,10 @@ class GeminiAnalysisEndpointTests(unittest.TestCase):
         patcher = patch.object(database, "DB_PATH", db_path)
         patcher.start()
         self.addCleanup(patcher.stop)
+
+        env_patcher = patch.dict("os.environ", {"AI_PROVIDER": "gemini"})
+        env_patcher.start()
+        self.addCleanup(env_patcher.stop)
 
         database.initialize()
 
@@ -98,6 +106,7 @@ class GeminiAnalysisEndpointTests(unittest.TestCase):
             mock_gemini.assert_called_once_with(
                 heading="INT. OFICINA - DIA",
                 body="CLARA revisa un expediente sobre el escritorio.",
+                known_elements=[],
             )
 
     @patch("app.main.analyze_scene_with_gemini")
@@ -233,6 +242,85 @@ class GeminiAnalysisEndpointTests(unittest.TestCase):
             # Verify no calls to Gemini wrapper or external network
             mock_gemini.assert_not_called()
             mock_urlopen.assert_not_called()
+
+    @patch("app.main.suggest_scene_synopsis")
+    def test_synopsis_suggestion_returns_generated_synopsis(self, mock_suggest):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+            _, scene = self._create_project_and_scene(
+                heading="INT. OFICINA - DIA",
+                body="CLARA revisa un expediente.",
+            )
+            mock_suggest.return_value = "CLARA descubre un expediente."
+
+            response = TestClient(main.app).post(
+                f"/api/scenes/{scene['id']}/synopsis-suggestion"
+            )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(
+                response.json(),
+                {
+                    "scene_id": scene["id"],
+                    "synopsis": "CLARA descubre un expediente.",
+                },
+            )
+            mock_suggest.assert_called_once_with(
+                heading="INT. OFICINA - DIA",
+                body="CLARA revisa un expediente.",
+            )
+
+    @patch("app.main.suggest_scene_synopsis")
+    def test_synopsis_suggestion_returns_404_for_missing_scene(self, mock_suggest):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+
+            response = TestClient(main.app).post(
+                "/api/scenes/99999/synopsis-suggestion"
+            )
+
+            self.assertEqual(response.status_code, 404)
+            self.assertEqual(response.json()["detail"], "Escena no encontrada")
+            mock_suggest.assert_not_called()
+
+    @patch("app.main.suggest_scene_synopsis")
+    def test_synopsis_service_error_returns_502(self, mock_suggest):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._prepare_empty_database(tmpdir)
+            _, scene = self._create_project_and_scene()
+            mock_suggest.side_effect = SynopsisServiceError(
+                "El proveedor de IA devolvió una respuesta inválida."
+            )
+
+            response = TestClient(main.app).post(
+                f"/api/scenes/{scene['id']}/synopsis-suggestion"
+            )
+
+            self.assertEqual(response.status_code, 502)
+            self.assertEqual(
+                response.json()["detail"],
+                "El proveedor de IA devolvió una respuesta inválida.",
+            )
+
+    @patch.dict(
+        "os.environ",
+        {"AI_PROVIDER": "gemini", "GEMINI_API_KEY": "test-key"},
+    )
+    @patch("app.services.synopsis_service.urllib.request.urlopen")
+    def test_synopsis_service_extracts_gemini_text(self, mock_urlopen):
+        response = mock_urlopen.return_value.__enter__.return_value
+        response.read.return_value = (
+            b'{"candidates":[{"content":{"parts":[{"text":"Sinopsis breve."}]}}]}'
+        )
+
+        synopsis = suggest_scene_synopsis(
+            heading="INT. CASA - DIA",
+            body="ANA entra en la habitación.",
+        )
+
+        self.assertEqual(synopsis, "Sinopsis breve.")
+        request = mock_urlopen.call_args.args[0]
+        self.assertIn("generateContent", request.full_url)
 
 
 if __name__ == "__main__":
