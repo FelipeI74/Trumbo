@@ -13,6 +13,13 @@ class FrontendLoadProjectSwitchTests(unittest.TestCase):
         cls.index_html = (
             Path(__file__).resolve().parents[1] / "app" / "static" / "index.html"
         ).read_text(encoding="utf-8")
+        cls.production_css = (
+            Path(__file__).resolve().parents[1]
+            / "app"
+            / "static"
+            / "modules"
+            / "production.css"
+        ).read_text(encoding="utf-8")
 
     def _load_project_body(self) -> str:
         marker = "async function loadProject("
@@ -127,6 +134,26 @@ class FrontendLoadProjectSwitchTests(unittest.TestCase):
         self.assertIn("schedule-scene-sublocation", self.source)
         self.assertIn("scene.sublocation", self.source)
         self.assertIn("Duración guion", self.source)
+
+    def test_plan_de_rodaje_permite_mover_escenas_entre_jornadas(self):
+        start = self.source.find("function renderSchedule(schedule, schedulingInput) {")
+        self.assertNotEqual(start, -1, "No se encontró renderSchedule en app.js")
+        end = self.source.find("\nasync function loadSchedulePreview()", start)
+        self.assertNotEqual(end, -1, "No se pudo delimitar renderSchedule")
+        body = self.source[start:end]
+
+        self.assertIn('closest(".schedule-day")', body)
+        self.assertIn('targetCards.insertBefore(', body)
+        self.assertIn("targetCards.append(draggedScene)", body)
+        self.assertIn("await saveScheduleManualOrder({ alertOnError: true })", body)
+        self.assertIn("readManualScheduleDays()", self.source)
+        self.assertIn("`/api/projects/${projectId}/schedule-manual-order`", self.source)
+
+    def test_stripboard_ocupa_alto_disponible_con_scroll_por_columna(self):
+        self.assertIn("#stripboard-root {", self.production_css)
+        self.assertIn("#stripboard-root .stripboard-container {", self.production_css)
+        self.assertIn("overflow-y: hidden;", self.production_css)
+        self.assertIn(".strip-day-cards {\n    min-height: 150px;", self.production_css)
 
     def test_plan_de_rodaje_oculta_inspector_y_lo_restaura_en_guion(self):
         start = self.source.find("function setMainView(view) {")

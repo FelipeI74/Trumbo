@@ -530,16 +530,37 @@
 
 /* Scroll para el tablero */
 #stripboard-days {
-    height: calc(100vh - 220px);
+    height: auto;
     gap: 16px;
     padding-bottom: 20px;
     overflow-x: auto;
-    overflow-y: auto;
+    overflow-y: hidden;
+}
+
+#stripboard-root {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+#stripboard-root .stripboard-wrapper {
+    height: auto;
+    min-height: 0;
+}
+
+#stripboard-root .stripboard-container {
+    height: auto;
+    min-height: 0;
 }
 
 .strip-day {
+    height: 100%;
     min-width: 320px;
     flex-shrink: 0;
+}
+
+.strip-day-cards {
+    min-height: 150px;
 }
 
 /* Claqueta virtual */

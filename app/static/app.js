@@ -691,90 +691,65 @@ function renderSchedule(schedule, schedulingInput) {
   };
 
   scheduleDays.ondragover = event => {
-    const targetScene = event.target.closest(".schedule-scene");
-    if (
-      !draggedScene ||
-      !targetScene ||
-      draggedScene.parentElement !== targetScene.parentElement
-    ) {
-      return;
-    }
+    const targetDay = event.target.closest(".schedule-day");
+    if (!draggedScene || !targetDay) return;
+
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
+    targetDay.classList.add("schedule-day-drop-target");
   };
 
-  scheduleDays.ondrop = event => {
+  scheduleDays.ondragleave = event => {
+    const targetDay = event.target.closest(".schedule-day");
+    const relatedDay = event.relatedTarget instanceof Element
+      ? event.relatedTarget.closest(".schedule-day")
+      : null;
+    if (targetDay && targetDay !== relatedDay) {
+      targetDay.classList.remove("schedule-day-drop-target");
+    }
+  };
+
+  scheduleDays.ondrop = async event => {
+    const targetDay = event.target.closest(".schedule-day");
     const targetScene = event.target.closest(".schedule-scene");
-    if (
-      !draggedScene ||
-      !targetScene ||
-      draggedScene === targetScene ||
-      draggedScene.parentElement !== targetScene.parentElement
-    ) {
-      return;
-    }
+    if (!draggedScene || !targetDay) return;
+
     event.preventDefault();
-    const insertAfter =
+    targetDay.classList.remove("schedule-day-drop-target");
+    const targetCards = targetDay.querySelector(".schedule-scenes");
+    if (!targetCards) return;
+
+    const originalDays = JSON.stringify(readManualScheduleDays());
+    const insertAfter = targetScene &&
       event.clientY >
-      targetScene.getBoundingClientRect().top +
-        targetScene.offsetHeight / 2;
-    const scenes = [
-      ...draggedScene.parentElement.children,
-    ];
-    const originalOrder = scenes.map(
-      scene => Number(scene.dataset.sceneId)
-    );
-    const draggedIndex = scenes.indexOf(draggedScene);
-    const targetIndex = scenes.indexOf(targetScene);
-    scenes.splice(draggedIndex, 1);
-    const insertIndex =
-      targetIndex + (insertAfter ? 1 : 0) -
-      (draggedIndex < targetIndex ? 1 : 0);
-    scenes.splice(insertIndex, 0, draggedScene);
+        targetScene.getBoundingClientRect().top +
+          targetScene.offsetHeight / 2;
 
-    let nightSeen = false;
-    const hasDayAfterNight = scenes.some(card => {
-      const timeOfDay = String(
-        sceneById.get(Number(card.dataset.sceneId))?.time_of_day || ""
-      )
-        .trim()
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "");
-
-      if (timeOfDay === "noche") {
-        nightSeen = true;
-      }
-
-      return timeOfDay === "dia" && nightSeen;
-    });
-
-    if (hasDayAfterNight) {
-      $("#scheduleStatus").textContent =
-        "Las escenas de noche deben quedar al final de la jornada";
-      return;
+    if (targetScene && targetScene !== draggedScene) {
+      targetCards.insertBefore(
+        draggedScene,
+        insertAfter ? targetScene.nextSibling : targetScene
+      );
+    } else if (!targetScene) {
+      targetCards.append(draggedScene);
     }
 
-    if (
-      scenes.every(
-        (scene, index) =>
-          Number(scene.dataset.sceneId) === originalOrder[index]
-      )
-    ) {
-      return;
-    }
+    draggedScene = null;
+    const updatedDays = JSON.stringify(readManualScheduleDays());
+    if (updatedDays === originalDays) return;
 
-    targetScene.parentElement.insertBefore(
-      draggedScene,
-      insertAfter ? targetScene.nextSibling : targetScene
-    );
     $("#scheduleStatus").textContent =
-      "Orden modificado, aún no guardado";
+      "Guardando nuevo orden…";
     state.scheduleOrderDirty = true;
     updateScheduleOrderButtons();
+
+    await saveScheduleManualOrder({ alertOnError: true });
   };
 
   scheduleDays.ondragend = () => {
+    scheduleDays
+      .querySelectorAll(".schedule-day-drop-target")
+      .forEach(day => day.classList.remove("schedule-day-drop-target"));
     draggedScene = null;
   };
 }
@@ -851,7 +826,7 @@ function readManualScheduleDays() {
   }));
 }
 
-async function saveScheduleManualOrder() {
+async function saveScheduleManualOrder({ alertOnError = false } = {}) {
   const projectId = state.scheduleProjectId;
   if (!projectId || state.scheduleOrderBusy) {
     return;
@@ -878,6 +853,12 @@ async function saveScheduleManualOrder() {
     console.error(error);
     $("#scheduleStatus").textContent =
       error.message || "No fue posible guardar el orden manual.";
+    if (alertOnError) {
+      alert(
+        error.message ||
+        "No se pudo guardar el nuevo orden. Verifica las reglas DÍA/NOCHE."
+      );
+    }
   } finally {
     state.scheduleOrderBusy = false; // Siempre se libera, pase lo que pase
     updateScheduleOrderButtons();
@@ -2621,6 +2602,41 @@ function allDocumentLines(editor) {
   ];
 }
 
+function captureScrollPositions(element) {
+  const positions = [];
+  let current = element;
+
+  while (current) {
+    positions.push({
+      element: current,
+      left: current.scrollLeft,
+      top: current.scrollTop,
+    });
+    current = current.parentElement;
+  }
+
+  const scrollingElement = document.scrollingElement;
+  if (
+    scrollingElement &&
+    !positions.some(position => position.element === scrollingElement)
+  ) {
+    positions.push({
+      element: scrollingElement,
+      left: scrollingElement.scrollLeft,
+      top: scrollingElement.scrollTop,
+    });
+  }
+
+  return positions;
+}
+
+function restoreScrollPositions(positions) {
+  positions.forEach(({ element, left, top }) => {
+    element.scrollLeft = left;
+    element.scrollTop = top;
+  });
+}
+
 function deriveSceneChunksFromDocument(lines) {
   const chunks = [];
   const prefaceLines = [];
@@ -2776,6 +2792,8 @@ async function reconcileScenesFromDocument() {
 
     renumberScenesLocally();
 
+    const scrollPositions =
+      captureScrollPositions(editor);
     const sceneNodes = [];
 
     chunks.forEach(
@@ -2869,6 +2887,7 @@ async function reconcileScenesFromDocument() {
     sceneNodes.forEach(node => {
       editor.appendChild(node);
     });
+    restoreScrollPositions(scrollPositions);
 
     if (state.scenes.length) {
       const stillActive =
@@ -2929,6 +2948,15 @@ async function reconcileScenesFromDocument() {
   }
 }
 
+function editorHasFocusedLine(editor) {
+  const activeElement = document.activeElement;
+  return Boolean(
+    activeElement &&
+    editor.contains(activeElement) &&
+    activeElement.classList.contains("script-line")
+  );
+}
+
 function scheduleDocumentSceneReconciliation(
   delay = 180
 ) {
@@ -2941,6 +2969,12 @@ function scheduleDocumentSceneReconciliation(
   state.reconcileTimer =
     setTimeout(() => {
       state.reconcileTimer = null;
+      const editor = $("#screenplayEditor");
+      if (editor && editorHasFocusedLine(editor)) {
+        scheduleDocumentSceneReconciliation(250);
+        return;
+      }
+
       reconcileScenesFromDocument();
     }, delay);
 }
@@ -3229,23 +3263,20 @@ function handleLineKeydown(event) {
 
   if (
     event.key === "Backspace" &&
-    caretIsAtStart(line) &&
-    !(
-      line.closest(
-        ".script-scene"
-      )?.firstElementChild === line
-    )
+    caretIsAtStart(line)
   ) {
-    event.preventDefault();
-
     const sceneNode =
       line.closest(
         ".script-scene"
       );
 
+    const previousLine =
+      line.previousElementSibling;
     if (
+      previousLine?.classList.contains("script-line") &&
       mergeWithPreviousLine(line)
     ) {
+      event.preventDefault();
       updateSceneHeadingFromDom(
         sceneNode
       );
@@ -3253,9 +3284,8 @@ function handleLineKeydown(event) {
       scheduleSceneSave(
         sceneNode
       );
+      return;
     }
-
-    return;
   }
 
   if (
