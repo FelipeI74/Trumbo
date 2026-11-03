@@ -72,6 +72,21 @@ def analyze_scene_with_engine(
         blocks,
         known_characters=known_characters or [],
     )
+    scenery_words = {
+        "piso",
+        "techo",
+        "pared",
+        "suelo",
+        "puerta",
+        "ventana",
+        "vidrio",
+        "asiento",
+    }
+    production_elements = [
+        element
+        for element in production_elements
+        if element.name.strip().casefold() not in scenery_words
+    ]
 
     counts = {
         "heading": 0,
@@ -85,6 +100,26 @@ def analyze_scene_with_engine(
     characters: list[str] = []
     character_keys: set[str] = set()
     elements: list[dict] = []
+    uppercase_pattern = re.compile(r"\b[A-ZÁÉÍÓÚÑ]{3,20}\b")
+    format_keywords = {
+        "INT",
+        "EXT",
+        "DÍA",
+        "DIA",
+        "NOCHE",
+        "TARDE",
+        "AMANECER",
+        "ATARDECER",
+        "CONTINUO",
+        "CONTINUA",
+        "V.O.",
+        "VO",
+        "OS",
+        "O.S.",
+        "CONT'D",
+        "FADE",
+        "CUT",
+    }
 
     for block in blocks:
         block_type = block.block_type
@@ -107,6 +142,15 @@ def analyze_scene_with_engine(
             if key not in character_keys:
                 characters.append(name)
                 character_keys.add(key)
+        elif block_type == BlockType.ACTION:
+            action_text = re.sub(r"\bCONT['’]D\b", "", block.content)
+            for match in uppercase_pattern.findall(action_text):
+                if (
+                    match not in format_keywords
+                    and match.casefold() not in character_keys
+                ):
+                    characters.append(match)
+                    character_keys.add(match.casefold())
 
         elements.append(
             {

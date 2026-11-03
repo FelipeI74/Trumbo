@@ -1,3 +1,6 @@
+from engine.core.production_element import ProductionElement
+from engine.core.types.production_element_type import ProductionElementType
+
 from app.services.engine_analysis_adapter import analyze_scene_with_engine
 
 
@@ -176,3 +179,50 @@ def test_adapter_combines_character_blocks_and_action_proper_names_once() -> Non
     assert normalized_characters.count("guillermo ravest") == 1
     assert "la" not in normalized_characters
     assert "caja" not in normalized_characters
+
+
+def test_adapter_adds_uppercase_action_words_as_characters_and_skips_format_keywords() -> None:
+    result = analyze_scene_with_engine(
+        scene_id=41,
+        heading="INT. SALA - DÍA",
+        body="",
+        semantic_lines=[
+            {"type": "heading", "text": "INT. SALA - DÍA"},
+            {
+                "type": "action",
+                "text": (
+                    "MARTA encuentra a ÁNGELA y CONTINUO marca la salida. "
+                    "El personaje dice CONT'D."
+                ),
+            },
+        ],
+    )
+
+    normalized_characters = [name.casefold() for name in result["characters"]]
+    assert "marta" in normalized_characters
+    assert "ángela" in normalized_characters
+    assert "continuo" not in normalized_characters
+    assert "cont" not in normalized_characters
+    assert normalized_characters.count("marta") == 1
+
+
+def test_adapter_filters_scenery_words_from_production_elements(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.engine_analysis_adapter.ProductionElementAnalyzer.extract",
+        lambda self, blocks, known_characters: [
+            ProductionElement("1", " Piso ", ProductionElementType.PROP),
+            ProductionElement("2", "Ventana", ProductionElementType.SET_DRESSING),
+            ProductionElement("3", "Teléfono", ProductionElementType.PROP),
+        ],
+    )
+
+    result = analyze_scene_with_engine(
+        scene_id=42,
+        heading="INT. SALA - DÍA",
+        body="",
+        semantic_lines=[
+            {"type": "heading", "text": "INT. SALA - DÍA"},
+        ],
+    )
+
+    assert [item["name"] for item in result["production_elements"]] == ["Teléfono"]
