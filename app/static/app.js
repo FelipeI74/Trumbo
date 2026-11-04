@@ -36,6 +36,8 @@ let pendingAiSceneId = null;
 let pendingAiAnalyzeButton = null;
 let pendingAiAction = null;
 let callSheetLoadToken = 0;
+let characterProfileLoadToken = 0;
+let characterDetailLoadToken = 0;
 const aiAnalysisLoading = new Set();
 const aiInspectorSuggestionsByScene = new Map();
 
@@ -1132,6 +1134,193 @@ async function request(url, options = {}) {
   }
 
   return response.json();
+}
+
+function normalizedCharacterName(value) {
+  return String(value || "")
+    .replace(/\s*\(.*$/, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleUpperCase();
+}
+
+function getCharacterSceneAppearance(scene, characterName) {
+  const targetName = normalizedCharacterName(characterName);
+  const lines = sceneToSemanticLines(scene);
+  const sceneCharacterNames = new Set();
+  let currentSpeaker = "";
+  let speaks = false;
+
+  for (const line of lines) {
+    if (line.type === "character") {
+      currentSpeaker = normalizedCharacterName(line.text);
+      if (currentSpeaker) {
+        sceneCharacterNames.add(currentSpeaker);
+      }
+    } else if (
+      line.type === "dialogue"
+      && line.text.trim()
+      && currentSpeaker
+    ) {
+      if (currentSpeaker === targetName) speaks = true;
+    } else if (line.type !== "parenthetical" && line.type !== "dialogue") {
+      currentSpeaker = "";
+    }
+  }
+
+  const breakdownCharacterNames = (scene.breakdown_items || [])
+    .filter(item => ["character", "characters", "personaje", "personajes"]
+      .includes(String(item.category || "").trim().toLocaleLowerCase()))
+    .map(item => String(item.name || "").trim())
+    .filter(Boolean);
+
+  breakdownCharacterNames.forEach(name => {
+    sceneCharacterNames.add(normalizedCharacterName(name));
+  });
+
+  const bodyText = [
+    scene.body || "",
+    ...lines
+      .filter(line => line.type === "action")
+      .map(line => line.text),
+  ].join("\n");
+  const mentionPattern = new RegExp(
+    `(?<![\\p{L}\\p{N}_])${targetName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}_])`,
+    "iu",
+  );
+  const mentionedInAction = mentionPattern.test(bodyText);
+  const isInBreakdown = breakdownCharacterNames.some(
+    name => normalizedCharacterName(name) === targetName,
+  );
+  const appears = sceneCharacterNames.has(targetName)
+    || isInBreakdown
+    || mentionedInAction;
+
+  return {
+    appears,
+    speaks,
+    otherCharacters: [...sceneCharacterNames]
+      .filter(name => name && name !== targetName)
+      .sort(),
+  };
+}
+
+async function renderCharacterDetail(name) {
+  const detail = $("#characterDetailView");
+  const projectId = state.project?.id;
+  const loadToken = ++characterDetailLoadToken;
+  if (!projectId) {
+    detail.textContent = "Selecciona un proyecto para consultar esta ficha.";
+    return;
+  }
+
+  detail.dataset.characterName = name;
+  detail.style.cssText = [
+    "display:flex",
+    "flex:1 1 0",
+    "flex-direction:column",
+    "min-width:0",
+    "min-height:0",
+    "width:100%",
+    "overflow-y:auto",
+    "padding:24px",
+    "color:#f4f0e8",
+    "background:#111315",
+  ].join(";");
+  detail.innerHTML = `
+    <p style="color:#9da3a9;">Cargando ficha de ${escapeHtml(name)}…</p>
+  `;
+
+  const appearances = state.scenes
+    .map(scene => ({
+      scene,
+      appearance: getCharacterSceneAppearance(scene, name),
+    }))
+    .filter(item => item.appearance.appears);
+
+  let profile = null;
+  let profileError = "";
+  try {
+    profile = await request(
+      `/api/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(name)}/profile`
+    );
+  } catch (error) {
+    console.error("Error cargando la ficha del personaje", error);
+    profileError = error.message || "No fue posible cargar los datos de la ficha.";
+  }
+
+  if (
+    loadToken !== characterDetailLoadToken
+    || state.project?.id !== projectId
+    || detail.dataset.characterName !== name
+    || detail.hidden
+  ) {
+    return;
+  }
+
+  const safePhoto = typeof profile?.photo_base64 === "string"
+    && /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/i.test(profile.photo_base64)
+    ? profile.photo_base64
+    : "";
+  const escapeAttribute = value => escapeHtml(value)
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+  const scenesMarkup = appearances.length
+    ? appearances.map(({ scene, appearance }) => {
+      const sceneCharacters = [...new Set(
+        (scene.breakdown_items || [])
+          .filter(item => ["character", "characters", "personaje", "personajes"]
+            .includes(String(item.category || "").trim().toLocaleLowerCase()))
+          .map(item => String(item.name || "").trim())
+          .filter(Boolean),
+      )];
+      const otherNames = new Set(appearance.otherCharacters);
+      sceneCharacters.forEach(otherName => {
+        if (normalizedCharacterName(otherName) !== normalizedCharacterName(name)) {
+          otherNames.add(normalizedCharacterName(otherName));
+        }
+      });
+      const sceneNumber = scene.production_number || scene.scene_number || scene.id;
+      const otherCharacters = [...otherNames].sort();
+      return `
+        <article style="padding:14px; margin-bottom:10px; background:#1a1d20; border:1px solid #34383d; border-radius:6px;">
+          <strong>ESC. ${escapeHtml(sceneNumber)}: ${escapeHtml(scene.heading || "Sin encabezado")}</strong>
+          <p style="margin:8px 0 0; color:#c8cdd2;">
+            ${appearance.speaks ? "Habla" : "No habla (solo aparece en acción)"}
+          </p>
+          ${otherCharacters.length
+            ? `<p style="margin:6px 0 0; color:#9da3a9;">Otros personajes en la escena: ${otherCharacters.map(escapeHtml).join(", ")}</p>`
+            : ""}
+        </article>
+      `;
+    }).join("")
+    : '<p style="color:#9da3a9;">No se encontraron apariciones de este personaje en el guion.</p>';
+
+  detail.innerHTML = `
+    <header style="display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid #34383d;">
+      <h2 style="margin:0; color:#d8a64f;">${escapeHtml(name)}</h2>
+      <button id="editCharacterProfileButton" type="button" data-character-name="${escapeAttribute(name)}" style="padding:8px 12px; border:1px solid #d8a64f; border-radius:4px; background:transparent; color:#d8a64f; cursor:pointer;">✏️ Editar Ficha</button>
+    </header>
+    ${profileError
+      ? `<p role="alert" style="color:#ff9b9b;">${escapeHtml(profileError)}</p>`
+      : ""}
+    <section style="display:flex; align-items:flex-start; gap:20px; flex-wrap:wrap; margin-bottom:24px;">
+      ${safePhoto
+        ? `<img src="${escapeAttribute(safePhoto)}" alt="Foto de ${escapeAttribute(name)}" style="width:112px; height:112px; border-radius:50%; object-fit:cover; border:2px solid #d8a64f;">`
+        : '<div aria-label="Sin foto" style="width:112px; height:112px; flex:0 0 112px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:#333; border:2px solid #555; color:#888; font-size:12px;">Sin foto</div>'}
+      <dl style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); flex:1; min-width:min(100%,260px); gap:12px; margin:0;">
+        <div><dt style="color:#9da3a9;">Actor / Actriz</dt><dd style="margin:4px 0 0;">${escapeHtml(profile?.actor_name || "Sin definir")}</dd></div>
+        <div><dt style="color:#9da3a9;">Edad</dt><dd style="margin:4px 0 0;">${escapeHtml(profile?.age || "Sin definir")}</dd></div>
+        <div><dt style="color:#9da3a9;">Rasgos físicos</dt><dd style="margin:4px 0 0;">${escapeHtml(profile?.physical_traits || "Sin definir")}</dd></div>
+        <div><dt style="color:#9da3a9;">Motivación</dt><dd style="margin:4px 0 0; white-space:pre-wrap;">${escapeHtml(profile?.motivation || "Sin definir")}</dd></div>
+        <div><dt style="color:#9da3a9;">Arco</dt><dd style="margin:4px 0 0; white-space:pre-wrap;">${escapeHtml(profile?.arc || "Sin definir")}</dd></div>
+      </dl>
+    </section>
+    <section>
+      <h3 style="margin:0 0 12px; color:#d8a64f;">Apariciones en el guion</h3>
+      ${scenesMarkup}
+    </section>
+  `;
 }
 
 function activeScene() {
@@ -5729,6 +5918,8 @@ async function loadProject(
 
   $("#characterDetailView")
     .hidden = true;
+  characterDetailLoadToken += 1;
+  $("#characterDetailView").dataset.characterName = "";
 
   $("#sidebarContextTitle")
     .textContent =
@@ -6300,8 +6491,172 @@ function setupScreenplayContextMenu() {
   document.addEventListener("scroll", hideContextMenu, true);
 }
 
+function displayCharacterPhoto(photoData) {
+  const preview = $("#cpPhotoPreview");
+  const safeImageData = typeof photoData === "string"
+    && /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/i.test(photoData);
+
+  preview.style.backgroundImage = safeImageData
+    ? `url("${photoData}")`
+    : "";
+  preview.textContent = safeImageData ? "" : "Sin foto";
+}
+
+window.openCharacterProfile = async function(name) {
+  if (!state.project) {
+    alert("No hay un proyecto seleccionado.");
+    return;
+  }
+
+  const projectId = state.project.id;
+  const loadToken = ++characterProfileLoadToken;
+  const modal = $("#characterProfileModal");
+  const saveButton = $("#btnSaveCP");
+
+  $("#cpCharacterName").value = name;
+  $("#cpModalTitle").textContent = `Ficha de ${name}`;
+  $("#cpActorName").value = "";
+  $("#cpPlayerType").value = "Principal";
+  $("#cpAge").value = "";
+  $("#cpPhysicalTraits").value = "";
+  $("#cpMotivation").value = "";
+  $("#cpArc").value = "";
+  $("#cpWardrobe").value = "";
+  $("#cpPhotoInput").value = "";
+  window.tempCharacterPhoto = "";
+  displayCharacterPhoto("");
+  saveButton.disabled = true;
+  modal.hidden = false;
+  modal.classList.remove("hidden");
+
+  try {
+    const profile = await request(
+      `/api/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(name)}/profile`
+    );
+    if (
+      loadToken !== characterProfileLoadToken
+      || state.project?.id !== projectId
+      || $("#cpCharacterName").value !== name
+    ) {
+      return;
+    }
+
+    $("#cpActorName").value = profile.actor_name || "";
+    $("#cpPlayerType").value = profile.player_type || "Principal";
+    $("#cpAge").value = profile.age || "";
+    $("#cpPhysicalTraits").value = profile.physical_traits || "";
+    $("#cpMotivation").value = profile.motivation || "";
+    $("#cpArc").value = profile.arc || "";
+    $("#cpWardrobe").value = profile.wardrobe_notes || "";
+    window.tempCharacterPhoto = profile.photo_base64 || "";
+    displayCharacterPhoto(window.tempCharacterPhoto);
+  } catch (error) {
+    if (loadToken !== characterProfileLoadToken) {
+      return;
+    }
+    console.error("Error cargando la ficha del personaje", error);
+    alert(error.message || "No fue posible cargar la ficha del personaje.");
+    modal.hidden = true;
+  } finally {
+    if (loadToken === characterProfileLoadToken) {
+      saveButton.disabled = false;
+    }
+  }
+};
+
+function setupCharacterProfile() {
+  const modal = $("#characterProfileModal");
+  const photoInput = $("#cpPhotoInput");
+
+  $("#btnUploadCpPhoto").addEventListener("click", () => {
+    photoInput.click();
+  });
+
+  photoInput.addEventListener("change", () => {
+    const file = photoInput.files?.[0];
+    if (!file) return;
+
+    if (
+      !["image/png", "image/jpeg", "image/webp"].includes(file.type)
+      || file.size > 4 * 1024 * 1024
+    ) {
+      alert("Elige una imagen PNG, JPEG o WebP de hasta 4 MB.");
+      photoInput.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      if (typeof reader.result !== "string") {
+        alert("No fue posible leer la imagen seleccionada.");
+        photoInput.value = "";
+        return;
+      }
+
+      window.tempCharacterPhoto = reader.result;
+      displayCharacterPhoto(reader.result);
+    });
+    reader.addEventListener("error", () => {
+      alert("No fue posible leer la imagen seleccionada.");
+      photoInput.value = "";
+    });
+    reader.readAsDataURL(file);
+  });
+
+  const closeModal = () => {
+    characterProfileLoadToken += 1;
+    modal.hidden = true;
+  };
+  $("#btnCloseCP").addEventListener("click", closeModal);
+  modal.addEventListener("click", event => {
+    if (event.target === modal) closeModal();
+  });
+
+  $("#btnSaveCP").addEventListener("click", async event => {
+    const saveButton = event.currentTarget;
+    const name = $("#cpCharacterName").value;
+    const projectId = state.project?.id;
+    if (!projectId || !name) {
+      alert("No se pudo identificar el proyecto o el personaje.");
+      return;
+    }
+
+    saveButton.disabled = true;
+    try {
+      await request(
+        `/api/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(name)}/profile`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            actor_name: $("#cpActorName").value,
+            player_type: $("#cpPlayerType").value,
+            age: $("#cpAge").value,
+            physical_traits: $("#cpPhysicalTraits").value,
+            motivation: $("#cpMotivation").value,
+            arc: $("#cpArc").value,
+            wardrobe_notes: $("#cpWardrobe").value,
+            photo_base64: window.tempCharacterPhoto || "",
+          }),
+        }
+      );
+
+      closeModal();
+      alert("Ficha guardada");
+      document
+        .querySelector('#elementList [data-element-view="characters"]')
+        ?.click();
+    } catch (error) {
+      console.error("Error guardando la ficha del personaje", error);
+      alert(error.message || "No fue posible guardar la ficha del personaje.");
+    } finally {
+      saveButton.disabled = false;
+    }
+  });
+}
+
 function setupEvents() {
   setupScreenplayContextMenu();
+  setupCharacterProfile();
 
   $("#btnEditCallSheet").addEventListener(
     "click",
@@ -6527,6 +6882,7 @@ function setupEvents() {
           if (manageAliasesBtn) manageAliasesBtn.style.display = "none";
 
           $("#characterDetailView").hidden = true;
+          characterDetailLoadToken += 1;
           if (state.activeMainView === "guion") {
             $("#screenplayViewport").hidden = false;
           }
@@ -6547,42 +6903,62 @@ function setupEvents() {
           return;
         }
 
-        const detail = character || location || resource;
-        const name = character
-          ? detail.dataset.characterName
-          : location
-            ? detail.dataset.locationName
-            : detail.dataset.resourceName;
-        const firstScene = character
-          ? detail.dataset.characterFirstScene
-          : location
-            ? detail.dataset.locationFirstScene
-            : detail.dataset.resourceFirstScene;
-        const sceneCount = character
-          ? detail.dataset.characterSceneCount
-          : location
-            ? detail.dataset.locationSceneCount
-            : detail.dataset.resourceSceneCount;
-        const sceneNumbers = character
-          ? detail.dataset.characterSceneNumbers
-          : location
-            ? detail.dataset.locationSceneNumbers
-            : detail.dataset.resourceSceneNumbers;
+        if (character) {
+          const name = character.dataset.characterName;
+          $("#screenplayViewport").hidden = true;
+          $("#characterDetailView").hidden = false;
+          renderCharacterDetail(name);
+          return;
+        }
+
+        const detail = location || resource;
+        const name = location
+          ? detail.dataset.locationName
+          : detail.dataset.resourceName;
+        const firstScene = location
+          ? detail.dataset.locationFirstScene
+          : detail.dataset.resourceFirstScene;
+        const sceneCount = location
+          ? detail.dataset.locationSceneCount
+          : detail.dataset.resourceSceneCount;
+        const sceneNumbers = location
+          ? detail.dataset.locationSceneNumbers
+          : detail.dataset.resourceSceneNumbers;
         const category = resource
           ? detail.dataset.resourceCategory
           : "";
 
         $("#screenplayViewport").hidden = true;
-        $("#characterDetailView").hidden = false;
-        $("#characterDetailView").innerHTML = `
+        const characterDetail = $("#characterDetailView");
+        characterDetail.hidden = false;
+        characterDetail.dataset.characterName = "";
+        characterDetail.innerHTML = `
           <h2>${escapeHtml(name)}</h2>
           ${category ? `<p>Categoría: ${escapeHtml(category)}</p>` : ""}
           <p>Primera aparición: escena ${escapeHtml(firstScene)}</p>
           <p>Cantidad de escenas: ${escapeHtml(sceneCount)}</p>
           <p>Números de escena: ${escapeHtml(sceneNumbers)}</p>
         `;
+        characterDetail.style.cssText = [
+          "display:flex",
+          "flex:1 1 0",
+          "flex-direction:column",
+          "min-width:0",
+          "min-height:0",
+          "width:100%",
+          "overflow-y:auto",
+          "padding:24px",
+          "color:#f4f0e8",
+          "background:#111315",
+        ].join(";");
       }
     );
+
+  $("#characterDetailView").addEventListener("click", event => {
+    const editButton = event.target.closest("#editCharacterProfileButton");
+    const name = editButton?.dataset.characterName;
+    if (name) window.openCharacterProfile(name);
+  });
 
   $("#projectSelect")
     .addEventListener(
