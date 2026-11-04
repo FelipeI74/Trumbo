@@ -143,6 +143,19 @@ def migrate(connection: sqlite3.Connection) -> None:
             "ALTER TABLE shots ADD COLUMN camera_angle TEXT NOT NULL DEFAULT 'Normal'"
         )
 
+    character_profile_columns = (
+        ("age", "TEXT"),
+        ("physical_traits", "TEXT"),
+        ("motivation", "TEXT"),
+        ("arc", "TEXT"),
+        ("photo_base64", "TEXT"),
+    )
+    for column_name, column_definition in character_profile_columns:
+        if not column_exists(connection, "character_profiles", column_name):
+            connection.execute(
+                f"ALTER TABLE character_profiles ADD COLUMN {column_name} {column_definition}"
+            )
+
 
 def initialize() -> None:
     schema = """

@@ -189,3 +189,15 @@ class CharacterAliasEntry(BaseModel):
 
 class CharacterAliasList(BaseModel):
     aliases: list[CharacterAliasEntry] = Field(default_factory=list)
+
+
+class CharacterProfileUpdate(BaseModel):
+    actor_name: str | None = None
+    player_type: str | None = None
+    age: str | None = None
+    physical_traits: str | None = None
+    motivation: str | None = None
+    arc: str | None = None
+    wardrobe_notes: str | None = None
+    general_notes: str | None = None
+    photo_base64: str | None = None

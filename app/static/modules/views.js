@@ -1,65 +1,57 @@
 // --- MÓDULO DE VISTAS: PRODUCCIÓN Y CALENDARIO ---
 
-document.addEventListener("click", (event) => {
-  const tab = event.target.closest(".main-nav-tab");
+document.addEventListener("click", event => {
+  const target = event.target instanceof Element ? event.target : null;
+  const tab = target?.closest(".main-nav-tab");
   if (!tab) return;
 
   const view = tab.dataset.view;
+  const viewIds = {
+    guion: "screenplayViewport",
+    desglose: "productionBreakdownView",
+    "plan-rodaje": "scheduleView",
+    informes: "reportsView",
+    produccion: "productionView",
+    calendario: "calendarView",
+  };
+  const allViewIds = [
+    "screenplayViewport",
+    "productionBreakdownView",
+    "scheduleView",
+    "productionView",
+    "calendarView",
+    "reportsView",
+    "characterDetailView",
+  ];
 
-  // 1. SIEMPRE, al hacer clic en cualquier pestaña, limpiamos las vistas nuevas
-  // para que no se queden "pegadas" encima de las otras.
-  const prodView = document.getElementById("productionView");
-  const calView = document.getElementById("calendarView");
-  
-  if (prodView) prodView.hidden = true;
-  if (calView) calView.hidden = true;
+  allViewIds.forEach(id => {
+    const element = document.getElementById(id);
+    if (element) element.hidden = true;
+  });
 
-  // Referencias a los elementos que queremos controlar
-  const footer = document.querySelector(".scene-footer");
+  const selectedView = document.getElementById(viewIds[view]);
+  if (selectedView) selectedView.hidden = false;
+
   const toolbar = document.querySelector(".editor-toolbar");
+  const footer = document.querySelector(".scene-footer");
+  const inspector = document.querySelector(".inspector");
+  const elementSidebar = document.querySelector(".sidebar");
+  const workspace = document.querySelector(".workspace");
+  const isScriptView = view === "guion";
+  const isInspectorView = isScriptView || view === "desglose";
 
-  // 2. Si el clic fue en "guion", restauramos el editor clásico
-  if (view === "guion") {
-    document.getElementById("screenplayViewport").hidden = false;
-    if (toolbar) toolbar.hidden = false;
-    if (footer) footer.hidden = false;
-    return; // Terminamos aquí para no ocultar el editor
+  if (elementSidebar) elementSidebar.hidden = !isScriptView;
+  if (workspace) {
+    workspace.classList.toggle("main-view-expanded", !isScriptView);
   }
+  if (toolbar) toolbar.hidden = !isScriptView;
+  if (footer) footer.hidden = !isScriptView;
+  if (inspector) inspector.hidden = !isInspectorView;
 
-  // 3. Si el clic fue en "produccion" o "calendario", las mostramos
-  if (view === "produccion" || view === "calendario") {
-    
-    // Ocultar las vistas clásicas (desglose, plan, informes)
-    document.getElementById("screenplayViewport").hidden = true;
-    document.getElementById("productionBreakdownView").hidden = true;
-    document.getElementById("scheduleView").hidden = true;
-    document.getElementById("reportsView").hidden = true;
-    document.getElementById("characterDetailView").hidden = true;
-    
-    // Ocultar toolbar y footer
-    if (toolbar) toolbar.hidden = true;
-    if (footer) footer.hidden = true;
-
-    // Forzar que se oculten después de que app.js termine su ciclo,
-    // porque app.js vuelve a mostrarlos si detecta que está en "guion".
-    setTimeout(() => {
-        if (footer) footer.hidden = true;
-        if (toolbar) toolbar.hidden = true;
-    }, 0);
-
-    // Mostrar la vista que corresponda
-    if (view === "produccion") {
-      if (prodView) prodView.hidden = false;
-      if (typeof window.initProductionBoard === "function") {
-        window.initProductionBoard();
-      }
-    }
-
-    if (view === "calendario") {
-      if (calView) calView.hidden = false;
-      if (typeof window.initCalendar === "function") {
-        window.initCalendar();
-      }
-    }
+  if (view === "produccion" && typeof window.initProductionBoard === "function") {
+    window.initProductionBoard();
+  }
+  if (view === "calendario" && typeof window.initCalendar === "function") {
+    window.initCalendar();
   }
 });

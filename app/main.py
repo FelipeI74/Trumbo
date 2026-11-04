@@ -79,6 +79,7 @@ from .schemas import (
     BreakdownItemUpdate,
     CallSheetDailyUpdate,
     CharacterAliasList,
+    CharacterProfileUpdate,
     NoteCreate,
     ProjectCreate,
     ProjectUpdate,
@@ -602,6 +603,134 @@ def list_project_characters(
     project_id: int,
 ) -> dict:
     return _list_project_characters(project_id)
+
+
+@app.get("/api/projects/{project_id}/characters/{character_name}/profile")
+def get_character_profile(
+    project_id: int,
+    character_name: str,
+) -> dict:
+    primary_name = character_name.strip()
+    if not primary_name:
+        raise HTTPException(400, "El nombre del personaje es obligatorio")
+
+    with connect() as connection:
+        project_exists = connection.execute(
+            "SELECT 1 FROM projects WHERE id = ?",
+            (project_id,),
+        ).fetchone()
+        if project_exists is None:
+            raise HTTPException(404, "Proyecto no encontrado")
+
+        profile = connection.execute(
+            """
+            SELECT actor_name, player_type, age, physical_traits, motivation,
+                   arc, wardrobe_notes, general_notes, photo_base64
+            FROM character_profiles
+            WHERE project_id = ? AND primary_name = ?
+            """,
+            (project_id, primary_name),
+        ).fetchone()
+
+    fields = (
+        "actor_name",
+        "player_type",
+        "age",
+        "physical_traits",
+        "motivation",
+        "arc",
+        "wardrobe_notes",
+        "general_notes",
+        "photo_base64",
+    )
+    result = {
+        "project_id": project_id,
+        "primary_name": primary_name,
+    }
+    result.update(
+        {
+            field: (profile[field] or "") if profile is not None else ""
+            for field in fields
+        }
+    )
+    return result
+
+
+@app.put("/api/projects/{project_id}/characters/{character_name}/profile")
+def update_character_profile(
+    project_id: int,
+    character_name: str,
+    payload: CharacterProfileUpdate,
+) -> dict:
+    primary_name = character_name.strip()
+    if not primary_name:
+        raise HTTPException(400, "El nombre del personaje es obligatorio")
+
+    fields = (
+        "actor_name",
+        "player_type",
+        "age",
+        "physical_traits",
+        "motivation",
+        "arc",
+        "wardrobe_notes",
+        "general_notes",
+        "photo_base64",
+    )
+    updates = payload.model_dump(exclude_unset=True)
+
+    with connect() as connection:
+        project_exists = connection.execute(
+            "SELECT 1 FROM projects WHERE id = ?",
+            (project_id,),
+        ).fetchone()
+        if project_exists is None:
+            raise HTTPException(404, "Proyecto no encontrado")
+
+        current = connection.execute(
+            """
+            SELECT actor_name, player_type, age, physical_traits, motivation,
+                   arc, wardrobe_notes, general_notes, photo_base64
+            FROM character_profiles
+            WHERE project_id = ? AND primary_name = ?
+            """,
+            (project_id, primary_name),
+        ).fetchone()
+        values = {
+            field: updates.get(field, current[field] if current else None)
+            for field in fields
+        }
+        if values["player_type"] is None:
+            values["player_type"] = "Principal"
+
+        connection.execute(
+            """
+            INSERT INTO character_profiles(
+                project_id, primary_name, actor_name, player_type, age,
+                physical_traits, motivation, arc, wardrobe_notes,
+                general_notes, photo_base64
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(project_id, primary_name) DO UPDATE SET
+                actor_name = excluded.actor_name,
+                player_type = excluded.player_type,
+                age = excluded.age,
+                physical_traits = excluded.physical_traits,
+                motivation = excluded.motivation,
+                arc = excluded.arc,
+                wardrobe_notes = excluded.wardrobe_notes,
+                general_notes = excluded.general_notes,
+                photo_base64 = excluded.photo_base64,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (
+                project_id,
+                primary_name,
+                *(values[field] for field in fields),
+            ),
+        )
+
+    return get_character_profile(project_id, primary_name)
 
 
 @app.get("/api/projects/{project_id}/character-aliases")

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import os
@@ -15,7 +15,7 @@ except ImportError:
 
 
 class OpenRouterServiceError(Exception):
-    """ExcepciÃ³n para errores controlados al interactuar con OpenRouter API."""
+    """Excepción para errores controlados al interactuar con OpenRouter API."""
     pass
 
 
@@ -46,21 +46,21 @@ def build_system_prompt(known_elements: list[str] | None = None) -> str:
     """Construye el prompt de sistema inyectando los elementos ya detectados por el motor local."""
     known_str = ", ".join(known_elements) if known_elements else "ninguno"
     return (
-        "Eres un experto 1er Asistente de DirecciÃ³n de cine en LatinoamÃ©rica.\n"
-        "Analiza el texto de la escena y extrae el desglose de producciÃ³n.\n\n"
+        "Eres un experto 1er Asistente de Dirección de cine en Latinoamérica.\n"
+        "Analiza el texto de la escena y extrae el desglose de producción.\n\n"
         "REGLAS ESTRICTAS:\n"
-        "1. IDIOMA: Responde SIEMPRE en ESPAÃ‘OL (ej. \"HOMBRE\", \"CONDUCTOR\", \"Mochila\").\n"
-        "2. STUNTS: Si hay caÃ­das, golpes, vehÃ­culos a alta velocidad o riesgo fÃ­sico (ej. \"frenazo brusco\", \"mejilla aplastada\"), "
-        "DEBES agregar la categorÃ­a \"Stunt\" (ej. \"Doble de acciÃ³n para HOMBRE\").\n"
-        "3. CONTEXTO: Si estÃ¡n dentro de un AUTO, el \"CinturÃ³n\" es del auto, no vestuario. "
-        "El \"Frente\" es una direcciÃ³n, no un animal.\n"
+        "1. IDIOMA: Responde SIEMPRE en ESPAÑOL (ej. \"HOMBRE\", \"CONDUCTOR\", \"Mochila\").\n"
+        "2. STUNTS: Si hay caídas, golpes, vehículos a alta velocidad o riesgo físico (ej. \"frenazo brusco\", \"mejilla aplastada\"), "
+        "DEBES agregar la categoría \"Stunt\" (ej. \"Doble de acción para HOMBRE\").\n"
+        "3. CONTEXTO: Si están dentro de un AUTO, el \"Cinturón\" es del auto, no vestuario. "
+        "El \"Frente\" es una dirección, no un animal.\n"
         f"4. NO REPETIR: El motor local ya ha detectado [{known_str}]. "
         "Tu tarea es SOLO sugerir elementos nuevos (como Stunts, VFX o errores corregidos) que el motor local no vio.\n\n"
         "Devuelve estrictamente un JSON con esta estructura:\n"
         "[\n"
-        "  {\"category\": \"Stunt\", \"name\": \"Doble de acciÃ³n para HOMBRE\"}\n"
+        "  {\"category\": \"Stunt\", \"name\": \"Doble de acción para HOMBRE\"}\n"
         "]\n\n"
-        "Devuelve ÃšNICAMENTE el array JSON, sin bloques de cÃ³digo markdown ni texto adicional. Si no hay sugerencias, devuelve []."
+        "Devuelve ÚNICAMENTE el array JSON, sin bloques de código markdown ni texto adicional. Si no hay sugerencias, devuelve []."
     )
 
 
@@ -68,7 +68,7 @@ SYSTEM_PROMPT = build_system_prompt()
 
 
 def _clean_json_markdown(text: str) -> str:
-    """Remueve bloques delimitadores markdown (```json ... ```) si estÃ¡n presentes, o extrae el JSON."""
+    """Remueve bloques delimitadores markdown (```json ... ```) si están presentes, o extrae el JSON."""
     stripped = text.strip()
     match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", stripped, re.IGNORECASE)
     if match:
@@ -90,10 +90,10 @@ def analyze_scene_with_openrouter(
 ) -> list[dict[str, str]]:
     """Analiza una escena usando la API de OpenRouter para sugerir elementos de desglose.
 
-    ParÃ¡metros:
+    Parámetros:
         heading: Encabezado de la escena (ej. 'INT. COCINA - DIA').
-        body: Contenido o acciones y diÃ¡logos de la escena.
-        known_elements: Lista de elementos previamente detectados para evitar duplicaciÃ³n.
+        body: Contenido o acciones y diálogos de la escena.
+        known_elements: Lista de elementos previamente detectados para evitar duplicación.
 
     Retorna:
         Lista de hasta 30 sugerencias sin duplicados, cada una con 'category' y 'name'.
@@ -108,7 +108,7 @@ def analyze_scene_with_openrouter(
     )
     if not api_key:
         raise OpenRouterServiceError(
-            "La variable de entorno OPENROUTER_API_KEY no estÃ¡ configurada o estÃ¡ vacÃ­a."
+            "La variable de entorno OPENROUTER_API_KEY no está configurada o está vacía."
         )
 
     model = os.environ.get("OPENROUTER_MODEL", "").strip() or DEFAULT_OPENROUTER_MODEL
@@ -117,7 +117,7 @@ def analyze_scene_with_openrouter(
     system_content = build_system_prompt(known_elements)
     user_content = (
         f"Analiza la siguiente escena de guion audiovisual y sugiere elementos nuevos "
-        f"para el desglose de producciÃ³n en formato JSON.\n\n"
+        f"para el desglose de producción en formato JSON.\n\n"
         f"ENCABEZADO:\n{heading.strip()}\n\n"
         f"CUERPO:\n{body.strip()}"
     )
@@ -151,13 +151,13 @@ def analyze_scene_with_openrouter(
     except urllib.error.HTTPError as err:
         status = err.code
         if status in (401, 403):
-            detail = "Credenciales de OpenRouter invÃ¡lidas o no autorizadas."
+            detail = "Credenciales de OpenRouter inválidas o no autorizadas."
         elif status == 402:
             detail = "Fondos insuficientes en la cuenta de OpenRouter."
         elif status == 404:
             detail = "El modelo o endpoint de OpenRouter no fue encontrado."
         elif status == 429:
-            detail = "LÃ­mite de solicitudes de OpenRouter alcanzado o modelo saturado temporalmente."
+            detail = "Límite de solicitudes de OpenRouter alcanzado o modelo saturado temporalmente."
         elif status in (500, 502, 503, 504):
             detail = "El servicio de OpenRouter no se encuentra disponible temporalmente."
         else:
@@ -169,7 +169,7 @@ def analyze_scene_with_openrouter(
                 f"Tiempo de espera agotado ({API_TIMEOUT_SECONDS}s) al conectar con OpenRouter."
             ) from None
         raise OpenRouterServiceError(
-            "Error de red o conexiÃ³n al intentar comunicarse con OpenRouter."
+            "Error de red o conexión al intentar comunicarse con OpenRouter."
         ) from None
     except TimeoutError:
         raise OpenRouterServiceError(
@@ -185,7 +185,7 @@ def analyze_scene_with_openrouter(
 
     choices = data.get("choices")
     if not isinstance(choices, list) or not choices:
-        raise OpenRouterServiceError("OpenRouter no devolviÃ³ opciones de respuesta.")
+        raise OpenRouterServiceError("OpenRouter no devolvió opciones de respuesta.")
 
     choice = choices[0]
     message = choice.get("message") if isinstance(choice, dict) else None
@@ -194,7 +194,7 @@ def analyze_scene_with_openrouter(
 
     raw_text = message.get("content")
     if not isinstance(raw_text, str) or not raw_text.strip():
-        # Si el contenido estÃ¡ vacÃ­o, devolver lista vacÃ­a [] sin lanzar error
+        # Si el contenido está vacío, devolver lista vacía [] sin lanzar error
         return []
 
     cleaned_text = _clean_json_markdown(raw_text.strip())
@@ -205,7 +205,7 @@ def analyze_scene_with_openrouter(
         parsed = json.loads(cleaned_text)
     except json.JSONDecodeError:
         raise OpenRouterServiceError(
-            "El contenido generado por OpenRouter no tiene un formato JSON vÃ¡lido."
+            "El contenido generado por OpenRouter no tiene un formato JSON válido."
         ) from None
 
     if isinstance(parsed, list):

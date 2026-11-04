@@ -20,8 +20,8 @@ from app.services.openrouter_service import (
 
 
 class OpenRouterAnalysisUnitTests(unittest.TestCase):
-    def test_default_model_is_mistral(self):
-        self.assertEqual(DEFAULT_OPENROUTER_MODEL, "mistralai/mistral-7b-instruct:free")
+    def test_default_model_is_openrouter_free(self):
+        self.assertEqual(DEFAULT_OPENROUTER_MODEL, "openrouter/free")
 
     def test_missing_api_key_raises_error(self):
         with patch.dict("os.environ", {"OPENROUTER_API_KEY": "", "DEEPSEEK_API_KEY": ""}):
