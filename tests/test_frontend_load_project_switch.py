@@ -20,12 +20,25 @@ class FrontendLoadProjectSwitchTests(unittest.TestCase):
             / "modules"
             / "production.css"
         ).read_text(encoding="utf-8")
+        cls.styles_css = (
+            Path(__file__).resolve().parents[1]
+            / "app"
+            / "static"
+            / "styles.css"
+        ).read_text(encoding="utf-8")
         cls.production_js = (
             Path(__file__).resolve().parents[1]
             / "app"
             / "static"
             / "modules"
             / "production.js"
+        ).read_text(encoding="utf-8")
+        cls.views_js = (
+            Path(__file__).resolve().parents[1]
+            / "app"
+            / "static"
+            / "modules"
+            / "views.js"
         ).read_text(encoding="utf-8")
 
     def _load_project_body(self) -> str:
@@ -241,6 +254,81 @@ class FrontendLoadProjectSwitchTests(unittest.TestCase):
         self.assertIn('createCell("Director", director', self.production_js)
         self.assertIn("window.state?.project?.company_name || \"Por definir\"", self.production_js)
         self.assertIn("window.state?.project?.address || \"Por definir\"", self.production_js)
+
+    def test_sidebar_contains_reports_calendar_and_project_info_navigation(self):
+        main_nav = self.index_html.split('<nav class="main-nav">', 1)[1].split(
+            "</nav>", 1
+        )[0]
+        self.assertNotIn('data-view="informes"', main_nav)
+        self.assertNotIn('data-view="calendario"', main_nav)
+        self.assertNotIn('id="openProjectInfoBtn"', self.index_html)
+
+        self.assertIn(
+            '<li class="col-left-item main-nav-tab" data-view="informes" style="cursor: pointer;">Informes</li>',
+            self.index_html,
+        )
+        self.assertIn(
+            '<li class="col-left-item main-nav-tab" data-view="calendario" style="cursor: pointer;">Calendario</li>',
+            self.index_html,
+        )
+        self.assertIn(
+            '<li class="col-left-item" id="sidebarProjectInfoBtn" style="cursor: pointer;">Ficha del Proyecto</li>',
+            self.index_html,
+        )
+        self.assertIn('document.querySelectorAll(".main-nav-tab")', self.source)
+        self.assertIn("sidebarButton?.addEventListener(\"click\", openProjectInfo)", self.source)
+
+    def test_view_module_resets_every_view_before_showing_destination(self):
+        reset_start = self.views_js.index("const allViewIds = [")
+        reset_end = self.views_js.index("const selectedView =", reset_start)
+        reset_logic = self.views_js[reset_start:reset_end]
+
+        for view_id in (
+            "screenplayViewport",
+            "productionBreakdownView",
+            "scheduleView",
+            "productionView",
+            "calendarView",
+            "reportsView",
+            "characterDetailView",
+        ):
+            self.assertIn(f'"{view_id}"', reset_logic)
+        self.assertIn("if (element) element.hidden = true;", reset_logic)
+        self.assertIn("if (selectedView) selectedView.hidden = false;", self.views_js)
+        self.assertIn('informes: "reportsView"', self.views_js)
+
+    def test_sidebar_character_list_is_hidden_outside_screenplay_views(self):
+        self.assertIn('const elementSidebar = $(".sidebar");', self.source)
+        self.assertIn("elementSidebar.hidden = !isScriptView;", self.source)
+        self.assertIn('const elementSidebar = document.querySelector(".sidebar");', self.views_js)
+        self.assertIn("elementSidebar.hidden = !isScriptView;", self.views_js)
+        self.assertIn(
+            "body.inspector-collapsed .workspace.main-view-expanded",
+            self.styles_css,
+        )
+        self.assertIn(
+            "grid-template-columns: 160px minmax(0, 1fr);",
+            self.styles_css,
+        )
+        self.assertIn(
+            "body.inspector-collapsed .workspace.main-view-expanded > .inspector",
+            self.styles_css,
+        )
+        self.assertNotIn(
+            "grid-template-columns: 160px minmax(0, 1fr) !important;",
+            self.styles_css,
+        )
+
+    def test_element_categories_return_to_script_view_when_selected(self):
+        start = self.source.index('$("#elementList")')
+        end = self.source.index("const view = item.dataset.elementView;", start)
+        handler = self.source[start:end]
+
+        self.assertIn(
+            'if (!["guion", "script"].includes(state.activeMainView))',
+            handler,
+        )
+        self.assertIn('setMainView("guion");', handler)
 
     def test_plan_de_rodaje_oculta_inspector_y_lo_restaura_en_guion(self):
         start = self.source.find("function setMainView(view) {")

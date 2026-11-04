@@ -1044,29 +1044,58 @@ async function saveAdCallSheetDay() {
 function setMainView(view) {
   state.activeMainView = view;
 
-  const screenplay = $("#screenplayViewport");
-  const breakdown = $("#productionBreakdownView");
-  const schedule = $("#scheduleView");
-  const reports = $("#reportsView"); // NUEVO
+  const allViews = [
+    "screenplayViewport",
+    "productionBreakdownView",
+    "scheduleView",
+    "productionView",
+    "calendarView",
+    "reportsView",
+    "characterDetailView",
+  ];
+
+  allViews.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.hidden = true;
+  });
+
+  const viewTargets = {
+    guion: "screenplayViewport",
+    script: "screenplayViewport",
+    desglose: "productionBreakdownView",
+    "plan-rodaje": "scheduleView",
+    informes: "reportsView",
+    produccion: "productionView",
+    calendario: "calendarView",
+  };
+  const targetId = viewTargets[view] || `${view}View`;
+  const target = document.getElementById(targetId);
+  if (target && allViews.includes(targetId)) {
+    target.hidden = false;
+  }
+
   const toolbar = $(".editor-toolbar");
   const footer = $(".scene-footer");
   const inspector = $(".inspector");
-  const detail = $("#characterDetailView");
+  const elementSidebar = $(".sidebar");
+  const workspace = $(".workspace");
 
-  if (screenplay) screenplay.hidden = view !== "guion";
-  if (breakdown) breakdown.hidden = view !== "desglose";
-  if (schedule) schedule.hidden = view !== "plan-rodaje";
-  if (reports) reports.hidden = view !== "informes"; // NUEVO
+  document.querySelectorAll(".detail-panel").forEach(el => {
+    el.hidden = true;
+  });
+  document.querySelectorAll(".main-nav-tab").forEach(tab => {
+    tab.classList.toggle("active", tab.dataset.view === view);
+  });
 
-  const isProductionView =
-    view === "desglose" ||
-    view === "plan-rodaje" ||
-    view === "informes"; // NUEVO
-
+  const isProductionView = view !== "guion" && view !== "script";
+  const isScriptView = !isProductionView;
+  if (elementSidebar) elementSidebar.hidden = !isScriptView;
+  if (workspace) {
+    workspace.classList.toggle("main-view-expanded", !isScriptView);
+  }
   if (toolbar) toolbar.hidden = isProductionView;
   if (footer) footer.hidden = isProductionView;
-  if (inspector) inspector.hidden = false;
-  if (detail) detail.hidden = true;
+  if (inspector) inspector.hidden = !["guion", "script", "desglose"].includes(view);
 
   if (view === "desglose") {
     renderProductionBreakdown();
@@ -5796,6 +5825,8 @@ function setupProjectInfo() {
     document.getElementById("projectInfoModal");
   const openButton =
     document.getElementById("openProjectInfoBtn");
+  const sidebarButton =
+    document.getElementById("sidebarProjectInfoBtn");
   const closeButton =
     document.getElementById("closeProjectInfoBtn");
   const cancelButton =
@@ -5813,7 +5844,7 @@ function setupProjectInfo() {
 
   if (
     !modal ||
-    !openButton ||
+    (!openButton && !sidebarButton) ||
     !closeButton ||
     !cancelButton ||
     !saveButton ||
@@ -5836,7 +5867,7 @@ function setupProjectInfo() {
     modal.hidden = true;
   };
 
-  openButton.addEventListener("click", () => {
+  const openProjectInfo = () => {
     if (!state.project) {
       return;
     }
@@ -5869,7 +5900,10 @@ function setupProjectInfo() {
       );
     updateSeriesFieldsVisibility();
     modal.hidden = false;
-  });
+  };
+
+  openButton?.addEventListener("click", openProjectInfo);
+  sidebarButton?.addEventListener("click", openProjectInfo);
 
   projectTypeInput.addEventListener(
     "change",
@@ -6354,6 +6388,10 @@ function setupEvents() {
 
         if (!item) {
           return;
+        }
+
+        if (!["guion", "script"].includes(state.activeMainView)) {
+          setMainView("guion");
         }
 
         document
