@@ -39,6 +39,11 @@ class ProjectInfoTests(unittest.TestCase):
             ProjectUpdate(
                 title="Título actualizado",
                 author="Guionista",
+                company_name="Productora",
+                director="Dirección",
+                producer="Producción",
+                dop="Fotografía",
+                address="Dirección base",
                 project_type="Cortometraje",
                 manual_duration_seconds=3600,
             ),
@@ -46,6 +51,11 @@ class ProjectInfoTests(unittest.TestCase):
 
         self.assertEqual(updated["title"], "Título actualizado")
         self.assertEqual(updated["author"], "Guionista")
+        self.assertEqual(updated["company_name"], "Productora")
+        self.assertEqual(updated["director"], "Dirección")
+        self.assertEqual(updated["producer"], "Producción")
+        self.assertEqual(updated["dop"], "Fotografía")
+        self.assertEqual(updated["address"], "Dirección base")
         self.assertEqual(updated["project_type"], "Cortometraje")
         self.assertEqual(updated["manual_duration_seconds"], 3600)
 
@@ -178,6 +188,11 @@ class ProjectInfoTests(unittest.TestCase):
                 "manual_duration_seconds",
                 "season",
                 "episode",
+                "company_name",
+                "director",
+                "producer",
+                "dop",
+                "address",
             }.issubset(project_columns)
         )
         self.assertEqual(project["project_type"], "Largometraje")

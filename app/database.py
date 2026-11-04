@@ -102,6 +102,11 @@ def migrate(connection: sqlite3.Connection) -> None:
         ("manual_duration_seconds", "INTEGER NOT NULL DEFAULT 0"),
         ("season", "INTEGER"),
         ("episode", "INTEGER"),
+        ("company_name", "TEXT"),
+        ("director", "TEXT"),
+        ("producer", "TEXT"),
+        ("dop", "TEXT"),
+        ("address", "TEXT"),
     )
     for column_name, column_definition in project_info_columns:
         if not column_exists(connection, "projects", column_name):
@@ -146,6 +151,11 @@ def initialize() -> None:
         title TEXT NOT NULL,
         format TEXT NOT NULL DEFAULT 'feature',
         author TEXT,
+        company_name TEXT,
+        director TEXT,
+        producer TEXT,
+        dop TEXT,
+        address TEXT,
         project_type TEXT NOT NULL DEFAULT 'Largometraje',
         manual_duration_seconds INTEGER NOT NULL DEFAULT 0,
         season INTEGER,

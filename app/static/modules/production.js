@@ -1038,7 +1038,8 @@ window.openVirtualSlate = function(escena, plano, tamano, angulo, movimiento) {
         }
     });
 
-    const project = "ADÜMN - PROYECTO";
+    const project = window.state?.project?.company_name || "PROYECTO";
+    const director = window.state?.project?.director || "DIRECTOR";
     const board = document.createElement("div");
     board.className = "clapper-board";
     const sticks = document.createElement("div");
@@ -1067,7 +1068,8 @@ window.openVirtualSlate = function(escena, plano, tamano, angulo, movimiento) {
     const projectRow = document.createElement("div");
     projectRow.className = "clapper-row";
     projectRow.append(
-        createCell("Película", project, { flex: 1, fontSize: "24px" })
+        createCell("Productora", project, { flex: 1, fontSize: "24px" }),
+        createCell("Director", director, { flex: 1 })
     );
 
     const sceneRow = document.createElement("div");
@@ -1293,6 +1295,11 @@ window.openCallSheet = async function(dayNumber) {
     modal.innerHTML = `
         <div class="call-sheet-content">
             <h1>HOJA DE LLAMADO - DÍA ${escapeHtml(dayNumber)}</h1>
+            <div class="cs-project-info">
+                <p><strong>Productora:</strong> ${escapeHtml(window.state?.project?.company_name || "Por definir")}</p>
+                <p><strong>Director:</strong> ${escapeHtml(window.state?.project?.director || "Por definir")}</p>
+                <p><strong>Dirección:</strong> ${escapeHtml(window.state?.project?.address || "Por definir")}</p>
+            </div>
             <hr>
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px;">
                 <thead>

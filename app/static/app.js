@@ -30,6 +30,7 @@ const state = {
   lineTypeSelectorPointerDown: false,
   activeMainView: "guion",
 };
+window.state = state;
 let userProfileAvatar = null;
 let pendingAiSceneId = null;
 let pendingAiAnalyzeButton = null;
@@ -5844,6 +5845,16 @@ function setupProjectInfo() {
       state.project.title || "";
     document.getElementById("infoProjectAuthor").value =
       state.project.author || "";
+    document.getElementById("infoProjectCompany").value =
+      state.project.company_name || "";
+    document.getElementById("infoProjectDirector").value =
+      state.project.director || "";
+    document.getElementById("infoProjectProducer").value =
+      state.project.producer || "";
+    document.getElementById("infoProjectDop").value =
+      state.project.dop || "";
+    document.getElementById("infoProjectAddress").value =
+      state.project.address || "";
     projectTypeInput.value =
       state.project.project_type || "Largometraje";
     document.getElementById("infoProjectSeason").value =
@@ -5931,6 +5942,11 @@ function setupProjectInfo() {
           body: JSON.stringify({
             title,
             author: document.getElementById("infoProjectAuthor").value,
+            company_name: document.getElementById("infoProjectCompany").value,
+            director: document.getElementById("infoProjectDirector").value,
+            producer: document.getElementById("infoProjectProducer").value,
+            dop: document.getElementById("infoProjectDop").value,
+            address: document.getElementById("infoProjectAddress").value,
             project_type: projectTypeInput.value,
             manual_duration_seconds: durationMinutes * 60,
             season: isSeries ? season : null,

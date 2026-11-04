@@ -222,6 +222,26 @@ class FrontendLoadProjectSwitchTests(unittest.TestCase):
         self.assertIn("@media print", self.production_css)
         self.assertIn(".no-print {\n        display: none !important;", self.production_css)
 
+    def test_project_crew_metadata_is_saved_and_used_in_production_views(self):
+        for field_id in (
+            "infoProjectCompany",
+            "infoProjectDirector",
+            "infoProjectProducer",
+            "infoProjectDop",
+            "infoProjectAddress",
+        ):
+            self.assertIn(f'id="{field_id}"', self.index_html)
+        for field in ("company_name", "director", "producer", "dop", "address"):
+            self.assertIn(f"state.project.{field} ||", self.source)
+            self.assertIn(f"{field}: document.getElementById", self.source)
+
+        self.assertIn("window.state = state;", self.source)
+        self.assertIn('window.state?.project?.company_name || "PROYECTO"', self.production_js)
+        self.assertIn('window.state?.project?.director || "DIRECTOR"', self.production_js)
+        self.assertIn('createCell("Director", director', self.production_js)
+        self.assertIn("window.state?.project?.company_name || \"Por definir\"", self.production_js)
+        self.assertIn("window.state?.project?.address || \"Por definir\"", self.production_js)
+
     def test_plan_de_rodaje_oculta_inspector_y_lo_restaura_en_guion(self):
         start = self.source.find("function setMainView(view) {")
         self.assertNotEqual(start, -1, "No se encontró setMainView en app.js")

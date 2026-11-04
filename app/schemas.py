@@ -45,6 +45,11 @@ class ProjectUpdate(BaseModel):
         default=None,
         max_length=200,
     )
+    company_name: str | None = Field(default=None, max_length=200)
+    director: str | None = Field(default=None, max_length=200)
+    producer: str | None = Field(default=None, max_length=200)
+    dop: str | None = Field(default=None, max_length=200)
+    address: str | None = Field(default=None, max_length=500)
     project_type: str | None = Field(
         default=None,
         max_length=50,
