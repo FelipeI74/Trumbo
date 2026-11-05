@@ -1106,6 +1106,10 @@ function setMainView(view) {
   if (view === "plan-rodaje") {
     loadSchedulePreview();
   }
+
+  if (view === "produccion") {
+    window.initProductionBoard?.();
+  }
 }
 
 async function request(url, options = {}) {
@@ -7246,11 +7250,6 @@ loadProjects()
       ) {
         state.scheduleLoaded = false;
         loadSchedulePreview();
-      } else if (tab.dataset.view === "produccion") {
-        const productionRoot = document.getElementById("stripboard-root");
-        if (productionRoot) {
-          productionRoot.dataset.loadedProjectId = "";
-        }
       }
     });
   });

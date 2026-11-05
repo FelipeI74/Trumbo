@@ -7,24 +7,27 @@ let productionSceneById = new Map();
 let productionResolveScene = null;
 let currentViewMode = "proyecto";
 let productionProjectId = null;
+let productionLoadToken = 0;
 
 async function initProductionBoard() {
+    const loadToken = ++productionLoadToken;
     const root = document.getElementById("stripboard-root");
     if (!root) return;
-        const projectSelect = document.getElementById("projectSelect");
+    closeSceneModal();
+    root.innerHTML = "";
+    delete root.dataset.loadedProjectId;
+    productionProjectId = null;
+
+    const projectSelect = document.getElementById("projectSelect");
     const projectId = projectSelect?.value;
 
-    if (!projectId) return;
+    if (!projectId) {
+        root.textContent = "Selecciona un proyecto para ver el plan de rodaje.";
+        return;
+    }
     productionProjectId = projectId;
 
     ensureSceneModal(root);
-
-    // CACHÉ: Si este tablero ya está pintado para este proyecto, no hacemos nada.
-    if (root.dataset.loadedProjectId === String(projectId) && root.innerHTML.trim() !== "") {
-        return;
-    }
-
-    closeSceneModal();
 
     root.innerHTML = `
         <div class="stripboard-wrapper">
@@ -58,10 +61,10 @@ async function initProductionBoard() {
 
         const encodedProjectId = encodeURIComponent(projectId);
 
-                const [scheduleResponse, scenesResponse, storyboardResponse] = await Promise.all([
-            fetch(`/api/projects/${encodedProjectId}/schedule-preview`),
-            fetch(`/api/projects/${encodedProjectId}/scheduling-input`),
-            fetch(`/api/projects/${encodedProjectId}/storyboard`)
+        const [scheduleResponse, scenesResponse, storyboardResponse] = await Promise.all([
+            fetch(`/api/projects/${encodedProjectId}/schedule-preview`, { cache: "no-store" }),
+            fetch(`/api/projects/${encodedProjectId}/scheduling-input`, { cache: "no-store" }),
+            fetch(`/api/projects/${encodedProjectId}/storyboard`, { cache: "no-store" })
         ]);
 
         if (!scheduleResponse.ok || !scenesResponse.ok || !storyboardResponse.ok) {
@@ -73,6 +76,8 @@ async function initProductionBoard() {
             scenesResponse.json(),
             storyboardResponse.json()
         ]);
+
+        if (loadToken !== productionLoadToken) return;
 
         if (!Array.isArray(scenesData?.scenes)) {
             throw new Error("La respuesta de escenas no tiene el formato esperado.");
@@ -190,6 +195,7 @@ async function initProductionBoard() {
         }
         root.dataset.loadedProjectId = String(projectId);
     } catch (error) {
+        if (loadToken !== productionLoadToken) return;
         console.error("Error cargando el tablero de producción:", error);
 
         root.innerHTML = `
