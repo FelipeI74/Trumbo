@@ -209,10 +209,22 @@ def build_project_scheduling_input(
             normalized = unicodedata.normalize("NFD", name)
             return "".join(c for c in normalized if unicodedata.category(c) != "Mn").casefold()
 
-        aliases_map = {
-            normalize_name(row["alias_name"]): row["primary_name"]
-            for row in alias_rows
-        }
+        aliases_map = {}
+        for row in alias_rows:
+            primary_name = str(row["primary_name"] or "").strip()
+            alias_name = str(row["alias_name"] or "").strip()
+            if not primary_name or not alias_name:
+                continue
+            aliases_map.setdefault(
+                primary_name.casefold(),
+                primary_name,
+            )
+            aliases_map.setdefault(
+                normalize_name(primary_name),
+                primary_name,
+            )
+            aliases_map[alias_name.casefold()] = primary_name
+            aliases_map[normalize_name(alias_name)] = primary_name
         known_characters = _get_project_character_names(
             connection,
             project_id,
@@ -238,14 +250,18 @@ def build_project_scheduling_input(
                 set(),
             )
 
-            if resource_key in seen_scene_cast:
-                continue
-
-            seen_scene_cast.add(resource_key)
-            scene_cast_by_scene.setdefault(
-                scene_id,
-                [],
-            ).append(resource_name)
+            for character in parse_character_cue(resource_name):
+                resolved_name = resolve_character_alias(
+                    character["name"],
+                    aliases_map,
+                ).strip()
+                resolved_key = resolved_name.casefold()
+                if not resolved_key or resolved_key in seen_scene_cast:
+                    continue
+                seen_scene_cast.add(resolved_key)
+                scene_cast_by_scene.setdefault(scene_id, []).append(
+                    resolved_name
+                )
             continue
 
         seen_resources = seen_resources_by_scene.setdefault(
@@ -283,7 +299,7 @@ def build_project_scheduling_input(
                 continue
 
             for personaje in parse_character_cue(line.get("text") or ""):
-                name = resolve_character_alias(personaje["name"], aliases_map)
+                name = resolve_character_alias(personaje["name"], aliases_map).strip()
                 key = name.casefold()
 
                 if not name or key in seen_characters:
@@ -310,18 +326,24 @@ def build_project_scheduling_input(
             if re.search(r"\b(?:DE|DEL)\s+$", prefix, re.IGNORECASE):
                 continue
 
-            seen_characters.add(character_key)
-            characters.append(known_character)
+            resolved_name = resolve_character_alias(
+                known_character,
+                aliases_map,
+            ).strip()
+            resolved_key = resolved_name.casefold()
+            if not resolved_key or resolved_key in seen_characters:
+                continue
+            seen_characters.add(resolved_key)
+            characters.append(resolved_name)
 
         scene_cast = list(characters)
         seen_scene_cast = {name.strip().casefold() for name in scene_cast}
         for name in scene_cast_by_scene.get(scene_id, []):
-            resolved = resolve_character_alias(name, aliases_map)
-            key = resolved.strip().casefold()
+            key = name.strip().casefold()
             if not key or key in seen_scene_cast:
                 continue
             seen_scene_cast.add(key)
-            scene_cast.append(resolved)
+            scene_cast.append(name.strip())
 
         scenes.append(
             {
@@ -339,6 +361,7 @@ def build_project_scheduling_input(
                 "characters": characters,
                 "voice_over_characters": voice_over_characters,
                 "scene_cast": scene_cast,
+                "cast": list(scene_cast),
                 "resources": resources_by_scene.get(scene_id, []),
             }
         )

@@ -1154,28 +1154,8 @@ window.openCallSheet = async function(dayNumber) {
 
     scenes.forEach(scene => {
         addUnique(locations, scene.location || scene.general_location);
-
-        [
-            scene.scene_cast,
-            scene.cast,
-            scene.characters,
-        ].forEach(sceneCast => {
-            if (Array.isArray(sceneCast)) {
-                sceneCast.forEach(name => addUnique(cast, name));
-            }
-        });
-
-        const resources = [
-            ...(Array.isArray(scene.resources) ? scene.resources : []),
-            ...(Array.isArray(scene.breakdown_items) ? scene.breakdown_items : []),
-        ];
-        resources.forEach(item => {
-            if (["cast", "scene_cast", "character"].includes(
-                String(item.category ?? "").trim().toLowerCase()
-            )) {
-                addUnique(cast, item.name);
-            }
-        });
+        (Array.isArray(scene.cast) ? scene.cast : [])
+            .forEach(name => addUnique(cast, name));
     });
 
     const runtimeSeconds = normalizeRuntime(dayData.runtime_seconds);
@@ -1218,33 +1198,9 @@ window.openCallSheet = async function(dayNumber) {
         const intExt = scene.int_ext || "";
         const timeOfDay = scene.time_of_day || "";
         const pages = (normalizeRuntime(scene.runtime_seconds) / 60).toFixed(1);
-        const sceneCast = new Map();
-        const addCastMember = value => {
-            const name = String(value ?? "").trim();
-            if (name && !sceneCast.has(name.toLocaleLowerCase())) {
-                sceneCast.set(name.toLocaleLowerCase(), name);
-            }
-        };
-        [
-            scene.scene_cast,
-            scene.cast,
-            scene.characters,
-        ].forEach(names => {
-            if (Array.isArray(names)) {
-                names.forEach(addCastMember);
-            }
-        });
-        [
-            ...(Array.isArray(scene.resources) ? scene.resources : []),
-            ...(Array.isArray(scene.breakdown_items) ? scene.breakdown_items : []),
-        ].forEach(item => {
-            if (["cast", "scene_cast", "character"].includes(
-                String(item.category ?? "").trim().toLowerCase()
-            )) {
-                addCastMember(item.name);
-            }
-        });
-        const castText = [...sceneCast.values()].join(", ") || "-";
+        const castText = Array.isArray(scene.cast)
+            ? scene.cast.join(", ") || "-"
+            : "-";
         const summary = scene.synopsis || "Sin sinopsis";
         const location = scene.location || "-";
 

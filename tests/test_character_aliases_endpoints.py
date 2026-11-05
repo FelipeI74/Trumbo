@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 import app.database as database
 import app.main as main
-from app.schemas import ProjectCreate
+from app.schemas import CharacterProfileUpdate, ProjectCreate
 
 
 class CharacterAliasEndpointsTests(unittest.TestCase):
@@ -119,6 +119,31 @@ class CharacterAliasEndpointsTests(unittest.TestCase):
             project_id=999999,
         )
         self.assertEqual(response.status_code, 404)
+
+    def test_profile_get_and_update_resolve_alias_and_voice_over_cue(self):
+        self._put([
+            {"primary_name": "ANDRÉS", "alias_name": "ANDRES"},
+        ])
+
+        saved = main.update_character_profile(
+            self.project["id"],
+            "ANDRES (V.O.)",
+            CharacterProfileUpdate(actor_name="Actor"),
+        )
+        loaded = main.get_character_profile(
+            self.project["id"],
+            "ANDRES (V.O.)",
+        )
+
+        self.assertEqual(saved["primary_name"], "ANDRÉS")
+        self.assertEqual(loaded["primary_name"], "ANDRÉS")
+        self.assertEqual(loaded["actor_name"], "Actor")
+        with database.connect() as connection:
+            profile_count = connection.execute(
+                "SELECT COUNT(*) FROM character_profiles WHERE project_id = ?",
+                (self.project["id"],),
+            ).fetchone()[0]
+        self.assertEqual(profile_count, 1)
 
 
 if __name__ == "__main__":

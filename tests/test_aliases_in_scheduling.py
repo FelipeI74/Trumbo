@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import app.database as database
 import app.main as main
-from app.schemas import ProjectCreate, SceneCreate
+from app.schemas import BreakdownItemCreate, ProjectCreate, SceneCreate
 
 
 class AliasesInSchedulingTests(unittest.TestCase):
@@ -95,6 +95,22 @@ class AliasesInSchedulingTests(unittest.TestCase):
         scene = result["scenes"][0]
         self.assertEqual(scene["characters"], ["FELIPE AMADO"])
         self.assertEqual(scene["voice_over_characters"], ["FELIPE AMADO"])
+
+    def test_cast_unifies_voice_over_and_breakdown_aliases(self):
+        scene = self._create_scene("ANDRÉS (V.O.)")
+        self._insert_alias("ANDRÉS", "ANDRES")
+        main.add_breakdown_item(
+            scene["id"],
+            BreakdownItemCreate(category="character", name="andres"),
+        )
+        main.add_breakdown_item(
+            scene["id"],
+            BreakdownItemCreate(category="cast", name="ANDRÉS (V.O.)"),
+        )
+
+        result = self._get_scheduling()
+
+        self.assertEqual(result["scenes"][0]["cast"], ["ANDRÉS"])
 
 
 if __name__ == "__main__":

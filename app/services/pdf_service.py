@@ -515,6 +515,12 @@ def export_project_breakdown_pdf(
 
         scenes = [scene_with_metadata(connection, row) for row in scene_rows]
 
+    scheduling_input = build_project_scheduling_input(project_id)
+    cast_by_scene_id = {
+        int(scene["scene_id"]): scene.get("cast", [])
+        for scene in scheduling_input.get("scenes", [])
+    }
+
     COLORES = {
         "cast": HexColor("#F14646"),
         "stunt": HexColor("#F7A138"),
@@ -548,13 +554,9 @@ def export_project_breakdown_pdf(
 
     cast_order = []
     cast_seen = set()
-    for scene in scenes:
-        for item in scene.get("breakdown_items", []):
-            if item.get("category") not in {"character", "cast", "scene_cast"}:
-                continue
-            if item.get("state", "confirmed") == "rejected":
-                continue
-            name = str(item.get("name") or "").strip()
+    for scene in scheduling_input.get("scenes", []):
+        for raw_name in scene.get("cast", []):
+            name = str(raw_name or "").strip()
             if name.upper() in _CSV_TRANSITION_SKIP:
                 continue
             key = name.casefold()
@@ -694,17 +696,18 @@ def export_project_breakdown_pdf(
                 continue
             if name.upper() in _CSV_TRANSITION_SKIP:
                 continue
+            if cat in {"character", "cast", "scene_cast"}:
+                continue
             for cat_key, _, cat_set in CATEGORIAS_HOJA:
                 if cat in cat_set:
-                    if cat_key == "cast":
-                        num = cast_numbers.get(name.casefold())
-                        if num:
-                            items_by_cat[cat_key].append("#%d %s" % (num, name))
-                        else:
-                            items_by_cat[cat_key].append(name)
-                    else:
-                        items_by_cat[cat_key].append(name)
+                    items_by_cat[cat_key].append(name)
                     break
+
+        for name in cast_by_scene_id.get(int(scene["id"]), []):
+            num = cast_numbers.get(str(name).casefold())
+            items_by_cat["cast"].append(
+                "#%d %s" % (num, name) if num else str(name)
+            )
 
         for cat_key, label, _ in CATEGORIAS_HOJA:
             if y < 1.5 * inch:
@@ -758,13 +761,6 @@ def export_project_schedule_pdf(project_id: int):
 
         scheduling_input = build_project_scheduling_input(project_id)
         scene_lookup = {s["scene_id"]: s for s in scheduling_input.get("scenes", [])}
-
-        # Obtenemos los bodies de las escenas para el filtro de elenco
-        scene_rows = connection.execute(
-            "SELECT id, body FROM scenes WHERE project_id = ?",
-            (project_id,)
-        ).fetchall()
-        body_lookup = {r["id"]: r["body"] for r in scene_rows}
 
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=landscape(LETTER))
@@ -893,23 +889,8 @@ def export_project_schedule_pdf(project_id: int):
             sec = scene.get("runtime_seconds", 0)
             dur = f"{sec // 60:02d}:{sec % 60:02d}"
             
-            # --- FILTRO INTELIGENTE DE ELENCO ---
-            raw_cast = scene.get("scene_cast") or scene.get("characters") or []
-            cast = []
-            body_text = str(body_lookup.get(scene_id, "")).upper()
-            
-            for char_name in raw_cast:
-                # Si el personaje se menciona en la acción (como sujeto o en una frase), se muestra
-                if char_name.upper() in body_text:
-                    cast.append(char_name)
-                # Si el personaje no está en la acción, pero tampoco es un "falso positivo" (como Elena), se muestra
-                # Para este caso, solo filtramos a "ELENA" si sabemos que es la muerta (en la Escena 1)
-                elif char_name.upper() == "ELENA" and "ATAÚD" in body_text:
-                    continue # Elena está en el ataúd, no la mostramos
-                else:
-                    cast.append(char_name)
-            
-            cast_str = ", ".join(cast) if cast else "—"
+            cast = scene.get("cast") or []
+            cast_str = ", ".join(str(name) for name in cast) if cast else "—"
 
             # Truncar textos
             if len(locacion) > 20: locacion = locacion[:17] + "..."

@@ -606,13 +606,44 @@ def list_project_characters(
     return _list_project_characters(project_id)
 
 
+def _resolve_project_character_name(
+    connection: Any,
+    project_id: int,
+    character_name: str,
+) -> str:
+    parsed_cue = parse_character_cue(character_name)
+    clean_name = (
+        parsed_cue[0]["name"]
+        if len(parsed_cue) == 1
+        else character_name.strip()
+    )
+    alias_rows = connection.execute(
+        """
+        SELECT primary_name, alias_name
+        FROM character_aliases
+        WHERE project_id = ?
+        """,
+        (project_id,),
+    ).fetchall()
+    aliases_map = {}
+    for row in alias_rows:
+        primary_name = str(row["primary_name"] or "").strip()
+        alias_name = str(row["alias_name"] or "").strip()
+        if not primary_name:
+            continue
+        aliases_map.setdefault(primary_name.casefold(), primary_name)
+        if alias_name:
+            aliases_map[alias_name.casefold()] = primary_name
+    return resolve_character_alias(clean_name, aliases_map).strip()
+
+
 @app.get("/api/projects/{project_id}/characters/{character_name}/profile")
 def get_character_profile(
     project_id: int,
     character_name: str,
 ) -> dict:
-    primary_name = character_name.strip()
-    if not primary_name:
+    requested_name = character_name.strip()
+    if not requested_name:
         raise HTTPException(400, "El nombre del personaje es obligatorio")
 
     with connect() as connection:
@@ -623,6 +654,11 @@ def get_character_profile(
         if project_exists is None:
             raise HTTPException(404, "Proyecto no encontrado")
 
+        primary_name = _resolve_project_character_name(
+            connection,
+            project_id,
+            requested_name,
+        )
         profile = connection.execute(
             """
             SELECT actor_name, player_type, age, physical_traits, motivation,
@@ -663,8 +699,8 @@ def update_character_profile(
     character_name: str,
     payload: CharacterProfileUpdate,
 ) -> dict:
-    primary_name = character_name.strip()
-    if not primary_name:
+    requested_name = character_name.strip()
+    if not requested_name:
         raise HTTPException(400, "El nombre del personaje es obligatorio")
 
     fields = (
@@ -688,6 +724,11 @@ def update_character_profile(
         if project_exists is None:
             raise HTTPException(404, "Proyecto no encontrado")
 
+        primary_name = _resolve_project_character_name(
+            connection,
+            project_id,
+            requested_name,
+        )
         current = connection.execute(
             """
             SELECT actor_name, player_type, age, physical_traits, motivation,

@@ -220,7 +220,7 @@ class FrontendLoadProjectSwitchTests(unittest.TestCase):
         self.assertIn("csData.catering_notes", self.production_js)
         self.assertIn("csData.tech_notes", self.production_js)
         self.assertIn("csData.general_notes", self.production_js)
-        self.assertIn("scene.scene_cast", self.production_js)
+        self.assertIn("scene.cast", self.production_js)
         self.assertIn("const scenesTableRows = scenes.map(scene =>", self.production_js)
         self.assertIn("<th>Resumen</th>", self.production_js)
         self.assertIn("<th>Pág</th>", self.production_js)
