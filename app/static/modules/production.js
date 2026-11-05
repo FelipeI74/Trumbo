@@ -1176,13 +1176,11 @@ window.openCallSheet = async function(dayNumber) {
     const durationMins = Math.floor(runtimeSeconds / 60);
     const durationSecs = runtimeSeconds % 60;
     const timeStr = `${durationMins}m ${durationSecs}s`;
-    const projectStartDate = window.lastSchedulingInput?.project_start_date;
     let callSheetDate = "Por definir";
-    const dayOffset = Number(dayNumber) - 1;
-    const dateParts = typeof projectStartDate === "string"
-        ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(projectStartDate.trim())
+    const dateParts = typeof dayData.shoot_date === "string"
+        ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(dayData.shoot_date.trim())
         : null;
-    if (dateParts && Number.isInteger(dayOffset) && dayOffset >= 0) {
+    if (dateParts) {
         const [, year, month, day] = dateParts;
         const date = new Date(Number(year), Number(month) - 1, Number(day));
         if (
@@ -1190,7 +1188,6 @@ window.openCallSheet = async function(dayNumber) {
             date.getMonth() === Number(month) - 1 &&
             date.getDate() === Number(day)
         ) {
-            date.setDate(date.getDate() + dayOffset);
             const formattedDate = new Intl.DateTimeFormat("es", {
                 weekday: "long",
                 day: "numeric",

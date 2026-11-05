@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import csv
 import hashlib
@@ -815,13 +815,13 @@ def export_project_schedule_pdf(project_id: int):
     table_header_drawn_on_page = False
     for day in days:
         day_num = day.get("day", "—")
-        start_date = project["start_date"]
+        shoot_date = day.get("shoot_date")
         fecha_str = "Por definir"
-        if start_date:
+        if shoot_date:
             try:
-                start = datetime.strptime(str(start_date), "%Y-%m-%d")
-                fecha_str = (
-                    start + timedelta(days=int(day_num) - 1)
+                fecha_str = datetime.strptime(
+                    str(shoot_date),
+                    "%Y-%m-%d",
                 ).strftime("%d/%m/%Y")
             except (TypeError, ValueError):
                 fecha_str = "Por definir"

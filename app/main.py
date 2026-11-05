@@ -47,6 +47,7 @@ from .services.scheduling_service import (
     _validate_manual_schedule_days,
     parse_heading_fields,
     parse_heading_fields as _parse_heading_fields,
+    calculate_shoot_date,
 )
 from .services.pdf_service import (
     export_project_pdf as _export_project_pdf,
@@ -1192,19 +1193,35 @@ def get_project_schedule_preview(
             )
             stale = current_fp != stored["input_fingerprint"]
 
-            return {
+            schedule_result = {
                 "best_schedule": {"days": reconciled},
                 "engine": "manual",
                 "stale": stale,
                 "fallback_used": False,
             }
+        else:
+            schedule_result = optimize_schedule(
+                scheduling_input["scenes"],
+                shoot_rate_seconds=shoot_rate_seconds,
+            )
+    else:
+        schedule_result = optimize_schedule(
+            scheduling_input["scenes"],
+            shoot_rate_seconds=shoot_rate_seconds,
+        )
 
-    # 4. Si no hay plan guardado, calcular con CP-SAT
-    calculated = optimize_schedule(
-        scheduling_input["scenes"],
-        shoot_rate_seconds=shoot_rate_seconds,
-    )
-    return calculated
+    days = schedule_result.get("best_schedule", {}).get("days", [])
+    for index, day in enumerate(days, start=1):
+        try:
+            day["shoot_date"] = calculate_shoot_date(
+                scheduling_input.get("project_start_date"),
+                int(day.get("day", index)),
+                scheduling_input.get("project_work_days"),
+            )
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from error
+
+    return schedule_result
 
 
 @app.put("/api/projects/{project_id}/schedule-manual-order")

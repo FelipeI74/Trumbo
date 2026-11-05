@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from datetime import date, timedelta
 from typing import Any
 import logging
 
@@ -97,13 +98,51 @@ def _parse_heading_fields(heading: str) -> dict:
 parse_heading_fields = _parse_heading_fields
 
 
+def calculate_shoot_date(
+    start_date_str: str | None,
+    day_number: int,
+    work_days_str: str | None,
+) -> str | None:
+    if not start_date_str:
+        return None
+    if day_number < 1:
+        raise ValueError("day_number debe ser mayor que cero")
+
+    try:
+        start_date = date.fromisoformat(start_date_str)
+    except ValueError as error:
+        raise ValueError("start_date_str debe tener formato YYYY-MM-DD") from error
+
+    configured_days = work_days_str or "1,2,3,4,5"
+    try:
+        work_days = {
+            int(value.strip())
+            for value in configured_days.split(",")
+            if value.strip()
+        }
+    except ValueError as error:
+        raise ValueError("work_days_str debe contener días del 1 al 7") from error
+
+    if not work_days or any(day < 1 or day > 7 for day in work_days):
+        raise ValueError("work_days_str debe contener días del 1 al 7")
+
+    current_date = start_date
+    workday_count = 0
+    while True:
+        if current_date.isoweekday() in work_days:
+            workday_count += 1
+            if workday_count == day_number:
+                return current_date.isoformat()
+        current_date += timedelta(days=1)
+
+
 def build_project_scheduling_input(
     project_id: int,
 ) -> dict:
     with connect() as connection:
         project = connection.execute(
             """
-            SELECT start_date
+            SELECT start_date, work_days
             FROM projects
             WHERE id = ?
             """,
@@ -307,6 +346,7 @@ def build_project_scheduling_input(
     return {
         "scenes": scenes,
         "project_start_date": project["start_date"],
+        "project_work_days": project["work_days"],
     }
 
 _build_project_scheduling_input = build_project_scheduling_input
