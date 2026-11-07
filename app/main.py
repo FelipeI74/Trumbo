@@ -6,6 +6,7 @@ from collections import Counter
 import csv
 from datetime import datetime, timezone
 import hashlib
+import logging
 from io import BytesIO, StringIO
 import json
 import os
@@ -26,6 +27,7 @@ from fastapi.responses import Response
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from . import database
 from .database import connect, initialize, rows
 from .document_projection import (
     derive_scenes_from_document_lines,
@@ -74,6 +76,7 @@ from .services.synopsis_service import (
     SynopsisServiceError,
     suggest_scene_synopsis,
 )
+from .services.backup_service import create_backup
 from .storage import SecurityError, StoryboardStorage
 from .schemas import (
     BreakdownItemCreate,
@@ -100,6 +103,7 @@ app = FastAPI(
     version="0.3.1",
 )
 
+logger = logging.getLogger(__name__)
 storage_service = StoryboardStorage()
 
 def get_utc_now_iso() -> str:
@@ -280,7 +284,18 @@ def spelling_candidates(
 
 @app.on_event("startup")
 def startup() -> None:
+    database_exists = database.DB_PATH.exists()
     initialize()
+    if database_exists:
+        try:
+            create_backup()
+        except Exception:
+            logger.exception("No se pudo crear el backup automático al iniciar")
+
+
+@app.post("/api/admin/backup")
+def create_manual_backup() -> dict[str, str | int]:
+    return create_backup()
 
 
 @app.get("/")
