@@ -1082,6 +1082,7 @@ function setMainView(view) {
   const footer = $(".scene-footer");
   const inspector = $(".inspector");
   const elementSidebar = $(".sidebar");
+  const navigationRail = $(".col-left");
   const workspace = $(".workspace");
 
   document.querySelectorAll(".detail-panel").forEach(el => {
@@ -1096,6 +1097,16 @@ function setMainView(view) {
   if (elementSidebar) elementSidebar.hidden = !isScriptView;
   if (workspace) {
     workspace.classList.toggle("main-view-expanded", !isScriptView);
+    if (view === "informes" || view === "calendario") {
+      const navigationRailVisible =
+        navigationRail &&
+        getComputedStyle(navigationRail).display !== "none";
+      workspace.style.gridTemplateColumns = navigationRailVisible
+        ? "160px minmax(0, 1fr)"
+        : "minmax(0, 1fr)";
+    } else {
+      workspace.style.gridTemplateColumns = "";
+    }
   }
   if (toolbar) toolbar.hidden = isProductionView;
   if (footer) footer.hidden = isProductionView;
@@ -3370,7 +3381,7 @@ function handleLineKeydown(event) {
 
     if (
       (event.key === "Enter" && !event.shiftKey) ||
-      (event.key === "Tab" && !event.shiftKey)
+      (event.key === "Tab" && !event.shiftKey && type !== "heading")
     ) {
       event.preventDefault();
 
@@ -6370,6 +6381,8 @@ function toggleInspector() {
 function setupScreenplayContextMenu() {
   const editor = $("#screenplayEditor");
   const contextMenu = $("#customContextMenu");
+  const spellingSection = $("#ctxSpellingSection");
+  const spellingSuggestions = $("#ctxSpellingSuggestions");
 
   if (!editor || !contextMenu) {
     return;
@@ -6377,12 +6390,26 @@ function setupScreenplayContextMenu() {
 
   let contextLine = null;
   let contextRange = null;
+  let contextSpellingRange = null;
+  let spellingRequestToken = 0;
+
+  const hideSpellingSection = () => {
+    if (spellingSection) {
+      spellingSection.hidden = true;
+      spellingSection.classList.add("hidden");
+    }
+    spellingSuggestions?.replaceChildren();
+  };
 
   const hideContextMenu = () => {
+    spellingRequestToken += 1;
     contextMenu.classList.remove("active");
     contextMenu.hidden = true;
     contextLine = null;
     contextRange = null;
+    contextSpellingRange = null;
+    window.currentSpellingWord = "";
+    hideSpellingSection();
   };
 
   const restoreEditorSelection = (line, range) => {
@@ -6404,6 +6431,138 @@ function setupScreenplayContextMenu() {
     return true;
   };
 
+  const isSpellingLetter = character =>
+    Boolean(character && /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(character));
+
+  const getWordRange = range => {
+    if (
+      !range ||
+      !editor.contains(range.commonAncestorContainer)
+    ) {
+      return null;
+    }
+
+    if (!range.collapsed) {
+      const selectedWord = range.toString().trim();
+      if (/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{3,}$/.test(selectedWord)) {
+        return {
+          word: selectedWord,
+          range: range.cloneRange(),
+        };
+      }
+      return null;
+    }
+
+    const textNode = range.startContainer;
+    if (textNode.nodeType !== Node.TEXT_NODE) {
+      return null;
+    }
+
+    const text = textNode.textContent || "";
+    let start = range.startOffset;
+    let end = start;
+
+    while (start > 0 && isSpellingLetter(text[start - 1])) {
+      start -= 1;
+    }
+    while (end < text.length && isSpellingLetter(text[end])) {
+      end += 1;
+    }
+
+    if (end - start < 3) {
+      return null;
+    }
+
+    const wordRange = document.createRange();
+    wordRange.setStart(textNode, start);
+    wordRange.setEnd(textNode, end);
+    return {
+      word: text.slice(start, end),
+      range: wordRange,
+    };
+  };
+
+  const getCaretRangeAtPoint = (x, y) => {
+    if (document.caretRangeFromPoint) {
+      return document.caretRangeFromPoint(x, y);
+    }
+
+    const position = document.caretPositionFromPoint?.(x, y);
+    if (!position) {
+      return null;
+    }
+    const range = document.createRange();
+    range.setStart(position.offsetNode, position.offset);
+    range.collapse(true);
+    return range;
+  };
+
+  const showSpellingSuggestions = async (sceneId, word, line, requestToken) => {
+    if (!sceneId || !word || !spellingSection || !spellingSuggestions) {
+      return;
+    }
+
+    try {
+      const data = await request(`/api/scenes/${sceneId}/spelling`);
+      if (
+        requestToken !== spellingRequestToken ||
+        contextMenu.hidden ||
+        !editor.contains(line)
+      ) {
+        return;
+      }
+
+      const misspelling = data.misspellings?.find(
+        item => item.word?.toLocaleLowerCase() === word.toLocaleLowerCase()
+      );
+      const suggestions = Array.isArray(misspelling?.suggestions)
+        ? misspelling.suggestions.filter(
+          suggestion => typeof suggestion === "string" && suggestion.trim()
+        )
+        : [];
+      if (!suggestions.length) {
+        return;
+      }
+
+      spellingSuggestions.replaceChildren();
+      suggestions.forEach(suggestion => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "ctx-item ctx-spelling-suggestion";
+        button.setAttribute("role", "menuitem");
+        button.tabIndex = -1;
+        button.textContent = suggestion;
+        button.style.background = "transparent";
+        button.style.border = "0";
+        button.style.width = "100%";
+        button.style.textAlign = "left";
+        button.style.font = "inherit";
+        spellingSuggestions.append(button);
+      });
+
+      spellingSection.hidden = false;
+      spellingSection.classList.remove("hidden");
+      positionContextMenu(lastContextMenuX, lastContextMenuY);
+    } catch (error) {
+      if (requestToken === spellingRequestToken) {
+        console.warn("No fue posible obtener sugerencias ortográficas.", error);
+        hideSpellingSection();
+      }
+    }
+  };
+
+  let lastContextMenuX = 0;
+  let lastContextMenuY = 0;
+  const positionContextMenu = (x, y) => {
+    const bounds = contextMenu.getBoundingClientRect();
+    contextMenu.style.left = `${
+      Math.max(0, Math.min(x, window.innerWidth - bounds.width))
+    }px`;
+    contextMenu.style.top = `${
+      Math.max(0, Math.min(y, window.innerHeight - bounds.height))
+    }px`;
+  };
+
   editor.addEventListener("contextmenu", event => {
     const line = event.target instanceof Element
       ? event.target.closest(".script-line")
@@ -6414,6 +6573,10 @@ function setupScreenplayContextMenu() {
 
     event.preventDefault();
     contextLine = line;
+    const requestToken = ++spellingRequestToken;
+    window.currentSpellingWord = "";
+    contextSpellingRange = null;
+    hideSpellingSection();
 
     const selection = window.getSelection();
     contextRange =
@@ -6422,15 +6585,33 @@ function setupScreenplayContextMenu() {
         ? selection.getRangeAt(0).cloneRange()
         : null;
 
+    const activeSelection = selection?.rangeCount
+      ? selection.getRangeAt(0)
+      : null;
+    const selectedWord = activeSelection && !activeSelection.collapsed
+      ? getWordRange(activeSelection)
+      : null;
+    const pointRange = getCaretRangeAtPoint(event.clientX, event.clientY);
+    const clickedWord = selectedWord || getWordRange(pointRange);
+    if (clickedWord) {
+      window.currentSpellingWord = clickedWord.word;
+      contextSpellingRange = clickedWord.range.cloneRange();
+    }
+
     contextMenu.hidden = false;
     contextMenu.classList.add("active");
-    const bounds = contextMenu.getBoundingClientRect();
-    contextMenu.style.left = `${
-      Math.max(0, Math.min(event.clientX, window.innerWidth - bounds.width))
-    }px`;
-    contextMenu.style.top = `${
-      Math.max(0, Math.min(event.clientY, window.innerHeight - bounds.height))
-    }px`;
+    lastContextMenuX = event.clientX;
+    lastContextMenuY = event.clientY;
+    positionContextMenu(lastContextMenuX, lastContextMenuY);
+
+    if (clickedWord) {
+      showSpellingSuggestions(
+        state.activeSceneId,
+        clickedWord.word,
+        line,
+        requestToken
+      );
+    }
   });
 
   contextMenu.addEventListener("mousedown", event => {
@@ -6438,6 +6619,21 @@ function setupScreenplayContextMenu() {
   });
 
   contextMenu.addEventListener("click", async event => {
+    const spellingButton = event.target instanceof Element
+      ? event.target.closest(".ctx-spelling-suggestion")
+      : null;
+    if (spellingButton) {
+      const line = contextLine;
+      const range = contextSpellingRange;
+      const suggestion = spellingButton.textContent || "";
+      hideContextMenu();
+
+      if (suggestion && restoreEditorSelection(line, range)) {
+        document.execCommand("insertText", false, suggestion);
+      }
+      return;
+    }
+
     const item = event.target instanceof Element
       ? event.target.closest(".ctx-item")
       : null;
