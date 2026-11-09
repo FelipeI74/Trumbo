@@ -68,6 +68,25 @@ class ProjectUpdate(BaseModel):
     )
 
 
+class TeamMemberCreate(BaseModel):
+    name: str
+    role: str
+    email: str | None = None
+    phone: str | None = None
+
+
+class TeamMemberUpdate(BaseModel):
+    name: str | None = None
+    role: str | None = None
+    email: str | None = None
+    phone: str | None = None
+
+
+class SettingsUpdate(BaseModel):
+    ai_provider: str | None = None
+    api_key: str | None = None
+
+
 class UserProfileUpdate(BaseModel):
     avatar_base64: str | None = Field(
         default=None,

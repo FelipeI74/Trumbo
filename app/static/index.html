@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ADÜMN Alpha 0.3</title>
+  <link rel="icon" type="image/x-icon" href="/static/img/ico.ico">
   
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="stylesheet" href="/static/modules/production.css">
@@ -537,6 +538,10 @@
     <div class="ctx-item ctx-typing-action" data-action="character" role="menuitem" tabindex="-1">Convertir a Personaje</div>
     <div class="ctx-item ctx-typing-action" data-action="action" role="menuitem" tabindex="-1">Convertir a Acción</div>
     <div class="ctx-item ctx-typing-action" data-action="dialogue" role="menuitem" tabindex="-1">Convertir a Diálogo</div>
+    <div id="ctxSpellingSection" class="ctx-section hidden" hidden style="border-top: 1px solid #444; margin-top: 4px; padding-top: 4px;">
+      <div style="padding: 4px 15px; color: #888; font-size: 11px;">Ortografía</div>
+      <div id="ctxSpellingSuggestions"></div>
+    </div>
   </div>
 
   <div id="characterProfileModal" class="modal-overlay hidden" hidden style="position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 99999;">

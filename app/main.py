@@ -95,6 +95,9 @@ from .schemas import (
     ShotOut,
     ShotReorderRequest,
     ShotUpdate,
+    SettingsUpdate,
+    TeamMemberCreate,
+    TeamMemberUpdate,
     UserProfileUpdate,
 )
 
@@ -541,6 +544,152 @@ def get_project(
             "project": dict(project),
             "scenes": scenes,
         }
+
+
+@app.get("/api/projects/{project_id}/team")
+def list_project_team(project_id: int) -> dict:
+    with connect() as connection:
+        project = connection.execute(
+            "SELECT id FROM projects WHERE id = ?",
+            (project_id,),
+        ).fetchone()
+        if project is None:
+            raise HTTPException(404, "Proyecto no encontrado")
+
+        members = rows(
+            connection,
+            """
+            SELECT id, project_id, name, role, email, phone, created_at
+            FROM team_members
+            WHERE project_id = ?
+            ORDER BY id
+            """,
+            (project_id,),
+        )
+        return {"project_id": project_id, "members": members}
+
+
+@app.post("/api/projects/{project_id}/team")
+def create_project_team_member(
+    project_id: int,
+    payload: TeamMemberCreate,
+) -> dict:
+    with connect() as connection:
+        project = connection.execute(
+            "SELECT id FROM projects WHERE id = ?",
+            (project_id,),
+        ).fetchone()
+        if project is None:
+            raise HTTPException(404, "Proyecto no encontrado")
+
+        cursor = connection.execute(
+            """
+            INSERT INTO team_members (project_id, name, role, email, phone)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                project_id,
+                payload.name,
+                payload.role,
+                payload.email,
+                payload.phone,
+            ),
+        )
+        member = connection.execute(
+            """
+            SELECT id, project_id, name, role, email, phone, created_at
+            FROM team_members
+            WHERE id = ?
+            """,
+            (cursor.lastrowid,),
+        ).fetchone()
+        return dict(member)
+
+
+@app.put("/api/team/{member_id}")
+def update_team_member(
+    member_id: int,
+    payload: TeamMemberUpdate,
+) -> dict:
+    updates = payload.model_dump(exclude_unset=True)
+    if "name" in updates and updates["name"] is None:
+        raise HTTPException(422, "El nombre del miembro no puede ser nulo")
+    if "role" in updates and updates["role"] is None:
+        raise HTTPException(422, "El rol del miembro no puede ser nulo")
+
+    with connect() as connection:
+        member = connection.execute(
+            "SELECT id FROM team_members WHERE id = ?",
+            (member_id,),
+        ).fetchone()
+        if member is None:
+            raise HTTPException(404, "Miembro del equipo no encontrado")
+
+        if updates:
+            assignments = ", ".join(f"{field} = ?" for field in updates)
+            connection.execute(
+                f"UPDATE team_members SET {assignments} WHERE id = ?",
+                (*updates.values(), member_id),
+            )
+
+        updated_member = connection.execute(
+            """
+            SELECT id, project_id, name, role, email, phone, created_at
+            FROM team_members
+            WHERE id = ?
+            """,
+            (member_id,),
+        ).fetchone()
+        return dict(updated_member)
+
+
+@app.delete("/api/team/{member_id}")
+def delete_team_member(member_id: int) -> dict:
+    with connect() as connection:
+        cursor = connection.execute(
+            "DELETE FROM team_members WHERE id = ?",
+            (member_id,),
+        )
+        if cursor.rowcount == 0:
+            raise HTTPException(404, "Miembro del equipo no encontrado")
+        return {"status": "deleted", "id": member_id}
+
+
+@app.get("/api/settings")
+def get_app_settings() -> dict:
+    with connect() as connection:
+        settings = {
+            row["key"]: row["value"]
+            for row in connection.execute(
+                "SELECT key, value FROM app_settings"
+            ).fetchall()
+        }
+
+    api_key = settings.get("api_key")
+    return {
+        "ai_provider": settings.get("ai_provider") or "gemini",
+        "api_key": "***" if api_key else "",
+    }
+
+
+@app.put("/api/settings")
+def update_app_settings(payload: SettingsUpdate) -> dict:
+    settings = payload.model_dump(exclude_unset=True)
+    key_map = {
+        "ai_provider": "ai_provider",
+        "api_key": "api_key",
+    }
+    with connect() as connection:
+        for field, value in settings.items():
+            connection.execute(
+                """
+                INSERT INTO app_settings (key, value)
+                VALUES (?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                """,
+                (key_map[field], value),
+            )
+    return {"status": "ok"}
 
 
 @app.get("/api/projects/{project_id}/reports/breakdown")

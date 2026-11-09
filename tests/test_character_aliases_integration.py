@@ -6,6 +6,7 @@ from unittest.mock import patch
 import app.database as database
 import app.main as main
 from app.schemas import ProjectCreate, SceneCreate
+from app.services.character_service import get_project_character_names
 
 
 class CharacterAliasesIntegrationTests(unittest.TestCase):
@@ -54,6 +55,26 @@ class CharacterAliasesIntegrationTests(unittest.TestCase):
                 "INSERT INTO character_aliases (project_id, primary_name, alias_name) VALUES (?, ?, ?)",
                 (self.project["id"], primary_name, alias_name),
             )
+
+    def test_project_character_names_strip_voice_over_parenthetical_from_breakdown(self):
+        with database.connect() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO scenes (project_id, scene_number)
+                VALUES (?, 1)
+                """,
+                (self.project["id"],),
+            )
+            conn.execute(
+                """
+                INSERT INTO breakdown_items (scene_id, category, name)
+                VALUES (?, 'character', 'PEDRO (V.O.)')
+                """,
+                (cursor.lastrowid,),
+            )
+            names = get_project_character_names(conn, self.project["id"])
+
+        self.assertEqual(names, ["PEDRO"])
 
     def test_no_aliases_returns_names_unchanged(self):
         self._create_scene_with_characters(["FELIPE AMADO", "MARTA"])

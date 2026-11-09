@@ -122,7 +122,7 @@ def get_project_character_names(
             name = row[0]
             if name:
                 # Limpiar: quitar (VO), (O.S.), y dos puntos
-                name = re.sub(r"\s\*\(**.*?**\)", "", name).strip()
+                name = re.sub(r"\s*\(.*?\)", "", name).strip()
                 name = name.rstrip(":").strip()
                 if name:
                     names.add(name.upper())
