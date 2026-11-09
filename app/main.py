@@ -84,6 +84,7 @@ from .schemas import (
     CallSheetDailyUpdate,
     CharacterAliasList,
     CharacterProfileUpdate,
+    LocationProfileUpdate,
     NoteCreate,
     ProjectCreate,
     ProjectUpdate,
@@ -788,6 +789,117 @@ def update_character_profile(
         )
 
     return get_character_profile(project_id, primary_name)
+
+
+@app.get("/api/projects/{project_id}/locations/{location_name}/profile")
+def get_location_profile(
+    project_id: int,
+    location_name: str,
+) -> dict:
+    requested_name = location_name.strip()
+    if not requested_name:
+        raise HTTPException(400, "El nombre de la locación es obligatorio")
+
+    with connect() as connection:
+        project_exists = connection.execute(
+            "SELECT 1 FROM projects WHERE id = ?",
+            (project_id,),
+        ).fetchone()
+        if project_exists is None:
+            raise HTTPException(404, "Proyecto no encontrado")
+
+        profile = connection.execute(
+            """
+            SELECT address, notes, contact_name, contact_phone, photo_base64
+            FROM location_profiles
+            WHERE project_id = ? AND location_name = ?
+            """,
+            (project_id, requested_name),
+        ).fetchone()
+
+    fields = (
+        "address",
+        "notes",
+        "contact_name",
+        "contact_phone",
+        "photo_base64",
+    )
+    result = {
+        "project_id": project_id,
+        "location_name": requested_name,
+    }
+    result.update(
+        {
+            field: (profile[field] or "") if profile is not None else ""
+            for field in fields
+        }
+    )
+    return result
+
+
+@app.put("/api/projects/{project_id}/locations/{location_name}/profile")
+def update_location_profile(
+    project_id: int,
+    location_name: str,
+    payload: LocationProfileUpdate,
+) -> dict:
+    requested_name = location_name.strip()
+    if not requested_name:
+        raise HTTPException(400, "El nombre de la locación es obligatorio")
+
+    fields = (
+        "address",
+        "notes",
+        "contact_name",
+        "contact_phone",
+        "photo_base64",
+    )
+    updates = payload.model_dump(exclude_unset=True)
+
+    with connect() as connection:
+        project_exists = connection.execute(
+            "SELECT 1 FROM projects WHERE id = ?",
+            (project_id,),
+        ).fetchone()
+        if project_exists is None:
+            raise HTTPException(404, "Proyecto no encontrado")
+
+        current = connection.execute(
+            """
+            SELECT address, notes, contact_name, contact_phone, photo_base64
+            FROM location_profiles
+            WHERE project_id = ? AND location_name = ?
+            """,
+            (project_id, requested_name),
+        ).fetchone()
+        values = {
+            field: updates.get(field, current[field] if current else None)
+            for field in fields
+        }
+
+        connection.execute(
+            """
+            INSERT INTO location_profiles(
+                project_id, location_name, address, notes, contact_name,
+                contact_phone, photo_base64
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(project_id, location_name) DO UPDATE SET
+                address = excluded.address,
+                notes = excluded.notes,
+                contact_name = excluded.contact_name,
+                contact_phone = excluded.contact_phone,
+                photo_base64 = excluded.photo_base64,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (
+                project_id,
+                requested_name,
+                *(values[field] for field in fields),
+            ),
+        )
+
+    return get_location_profile(project_id, requested_name)
 
 
 @app.get("/api/projects/{project_id}/character-aliases")

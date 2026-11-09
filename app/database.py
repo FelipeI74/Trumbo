@@ -334,6 +334,20 @@ def initialize() -> None:
         FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS location_profiles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        location_name TEXT NOT NULL,
+        address TEXT,
+        notes TEXT,
+        contact_name TEXT,
+        contact_phone TEXT,
+        photo_base64 TEXT,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        UNIQUE(project_id, location_name)
+    );
+
     """
 
     with connect() as connection:

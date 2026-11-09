@@ -201,3 +201,11 @@ class CharacterProfileUpdate(BaseModel):
     wardrobe_notes: str | None = None
     general_notes: str | None = None
     photo_base64: str | None = None
+
+
+class LocationProfileUpdate(BaseModel):
+    address: str | None = None
+    notes: str | None = None
+    contact_name: str | None = None
+    contact_phone: str | None = None
+    photo_base64: str | None = None

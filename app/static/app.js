@@ -37,7 +37,9 @@ let pendingAiAnalyzeButton = null;
 let pendingAiAction = null;
 let callSheetLoadToken = 0;
 let characterProfileLoadToken = 0;
+let locationProfileLoadToken = 0;
 let characterDetailLoadToken = 0;
+let tempLocationPhoto = "";
 const aiAnalysisLoading = new Set();
 const aiInspectorSuggestionsByScene = new Map();
 
@@ -6658,9 +6660,161 @@ function setupCharacterProfile() {
   });
 }
 
+function displayLocationPhoto(photoData) {
+  const preview = $("#lpPhotoPreview");
+  const safeImageData = typeof photoData === "string"
+    && /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/i.test(photoData);
+
+  preview.style.backgroundImage = safeImageData
+    ? `url("${photoData}")`
+    : "";
+  preview.textContent = safeImageData ? "" : "Sin foto";
+}
+
+window.openLocationProfile = async function(locationName) {
+  if (!state.project) {
+    alert("No hay un proyecto seleccionado.");
+    return;
+  }
+
+  const projectId = state.project.id;
+  const loadToken = ++locationProfileLoadToken;
+  const modal = $("#locationProfileModal");
+  const saveButton = $("#btnSaveLP");
+
+  $("#lpLocationName").value = locationName;
+  $("#lpModalTitle").textContent = `Ficha de ${locationName}`;
+  $("#lpAddress").value = "";
+  $("#lpContactName").value = "";
+  $("#lpContactPhone").value = "";
+  $("#lpNotes").value = "";
+  $("#lpPhotoInput").value = "";
+  tempLocationPhoto = "";
+  displayLocationPhoto("");
+  saveButton.disabled = true;
+  modal.hidden = false;
+  modal.classList.remove("hidden");
+
+  try {
+    const profile = await request(
+      `/api/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(locationName)}/profile`
+    );
+    if (
+      loadToken !== locationProfileLoadToken
+      || state.project?.id !== projectId
+      || $("#lpLocationName").value !== locationName
+    ) {
+      return;
+    }
+
+    $("#lpAddress").value = profile.address || "";
+    $("#lpContactName").value = profile.contact_name || "";
+    $("#lpContactPhone").value = profile.contact_phone || "";
+    $("#lpNotes").value = profile.notes || "";
+    tempLocationPhoto = profile.photo_base64 || "";
+    displayLocationPhoto(tempLocationPhoto);
+  } catch (error) {
+    if (loadToken !== locationProfileLoadToken) {
+      return;
+    }
+    console.error("Error cargando la ficha de la locación", error);
+    alert(error.message || "No fue posible cargar la ficha de la locación.");
+    modal.hidden = true;
+  } finally {
+    if (loadToken === locationProfileLoadToken) {
+      saveButton.disabled = false;
+    }
+  }
+};
+
+function setupLocationProfile() {
+  const modal = $("#locationProfileModal");
+  const photoInput = $("#lpPhotoInput");
+
+  $("#btnUploadLpPhoto").addEventListener("click", () => {
+    photoInput.click();
+  });
+
+  photoInput.addEventListener("change", () => {
+    const file = photoInput.files?.[0];
+    if (!file) return;
+
+    if (
+      !["image/png", "image/jpeg", "image/webp"].includes(file.type)
+      || file.size > 4 * 1024 * 1024
+    ) {
+      alert("Elige una imagen PNG, JPEG o WebP de hasta 4 MB.");
+      photoInput.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      if (typeof reader.result !== "string") {
+        alert("No fue posible leer la imagen seleccionada.");
+        photoInput.value = "";
+        return;
+      }
+
+      tempLocationPhoto = reader.result;
+      displayLocationPhoto(reader.result);
+    });
+    reader.addEventListener("error", () => {
+      alert("No fue posible leer la imagen seleccionada.");
+      photoInput.value = "";
+    });
+    reader.readAsDataURL(file);
+  });
+
+  const closeModal = () => {
+    locationProfileLoadToken += 1;
+    modal.hidden = true;
+  };
+  $("#btnCloseLP").addEventListener("click", closeModal);
+  modal.addEventListener("click", event => {
+    if (event.target === modal) closeModal();
+  });
+
+  $("#btnSaveLP").addEventListener("click", async event => {
+    const saveButton = event.currentTarget;
+    const name = $("#lpLocationName").value;
+    const projectId = state.project?.id;
+    if (!projectId || !name) {
+      alert("No se pudo identificar el proyecto o la locación.");
+      return;
+    }
+
+    saveButton.disabled = true;
+    try {
+      await request(
+        `/api/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(name)}/profile`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            address: $("#lpAddress").value,
+            notes: $("#lpNotes").value,
+            contact_name: $("#lpContactName").value,
+            contact_phone: $("#lpContactPhone").value,
+            photo_base64: tempLocationPhoto,
+          }),
+        }
+      );
+
+      closeModal();
+      alert("Ficha de locación guardada");
+    } catch (error) {
+      console.error("Error guardando la ficha de la locación", error);
+      alert(error.message || "No fue posible guardar la ficha de la locación.");
+    } finally {
+      saveButton.disabled = false;
+    }
+  });
+}
+
 function setupEvents() {
   setupScreenplayContextMenu();
   setupCharacterProfile();
+  setupLocationProfile();
 
   $("#btnEditCallSheet").addEventListener(
     "click",
@@ -6832,6 +6986,12 @@ function setupEvents() {
                   <div class="scene-card-runtime">
                     ${location.scene_count} escenas · ${location.scene_numbers.join(", ")}
                   </div>
+                  <button
+                    type="button"
+                    class="secondary"
+                    data-location-profile-name="${escapeHtml(location.name)}"
+                    style="margin-top: 8px;"
+                  >Editar Ficha</button>
                 </div>
               `).join("")
             : '<div class="empty">No hay locaciones.</div>';
@@ -6899,6 +7059,12 @@ function setupEvents() {
     .addEventListener(
       "click",
       event => {
+        const editLocationProfile = event.target.closest("[data-location-profile-name]");
+        if (editLocationProfile) {
+          window.openLocationProfile(editLocationProfile.dataset.locationProfileName);
+          return;
+        }
+
         const character = event.target.closest("[data-character-name]");
         const location = event.target.closest("[data-location-name]");
         const resource = event.target.closest("[data-resource-name]");
