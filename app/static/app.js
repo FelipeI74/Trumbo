@@ -7599,6 +7599,24 @@ loadProjects()
 
 // Navegación principal
 {
+  const sidebarViewByLabel = {
+    "guión": "guion",
+    guion: "guion",
+    desglose: "desglose",
+    "plan de rodaje": "plan-rodaje",
+    informes: "informes",
+    calendario: "calendario",
+  };
+  document.querySelectorAll(".col-left .col-left-item").forEach(item => {
+    const view = sidebarViewByLabel[
+      item.textContent.trim().toLocaleLowerCase("es")
+    ];
+    if (view) {
+      item.dataset.view = view;
+      item.classList.add("main-nav-tab");
+    }
+  });
+
   const mainNavTabs = document.querySelectorAll(".main-nav-tab");
   mainNavTabs.forEach(tab => {
     tab.addEventListener("click", () => {
