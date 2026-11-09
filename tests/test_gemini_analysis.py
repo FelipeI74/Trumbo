@@ -322,6 +322,41 @@ class GeminiAnalysisEndpointTests(unittest.TestCase):
         request = mock_urlopen.call_args.args[0]
         self.assertIn("generateContent", request.full_url)
 
+    @patch("app.services.synopsis_service.urllib.request.urlopen")
+    def test_synopsis_service_sends_bearer_auth_for_openai_compatible_providers(
+        self, mock_urlopen
+    ):
+        response = mock_urlopen.return_value.__enter__.return_value
+        response.read.return_value = (
+            b'{"choices":[{"message":{"content":"Sinopsis breve."}}]}'
+        )
+
+        for provider, api_key in (
+            ("openrouter", "fake-openrouter-key"),
+            ("deepseek", "fake-deepseek-key"),
+        ):
+            with self.subTest(provider=provider):
+                mock_urlopen.reset_mock()
+                with patch.dict(
+                    "os.environ",
+                    {
+                        "AI_PROVIDER": provider,
+                        "OPENROUTER_API_KEY": api_key,
+                        "DEEPSEEK_API_KEY": api_key,
+                    },
+                ):
+                    synopsis = suggest_scene_synopsis(
+                        heading="INT. CASA - DIA",
+                        body="ANA entra en la habitación.",
+                    )
+
+                self.assertEqual(synopsis, "Sinopsis breve.")
+                request = mock_urlopen.call_args.args[0]
+                self.assertEqual(
+                    request.get_header("Authorization"),
+                    f"Bearer {api_key}",
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

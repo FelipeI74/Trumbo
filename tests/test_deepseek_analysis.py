@@ -52,6 +52,8 @@ class DeepSeekAnalysisUnitTests(unittest.TestCase):
         self.assertEqual(len(results), 2)
         self.assertEqual(results[0], {"category": "character", "name": "JUAN"})
         self.assertEqual(results[1], {"category": "prop", "name": "Vaso"})
+        request = mock_urlopen.call_args.args[0]
+        self.assertEqual(request.get_header("Authorization"), "Bearer test_key")
 
     @patch("urllib.request.urlopen")
     def test_successful_analysis_with_raw_list(self, mock_urlopen):
@@ -137,4 +139,3 @@ class DeepSeekAnalysisEndpointTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
