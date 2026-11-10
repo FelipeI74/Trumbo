@@ -612,5 +612,43 @@
   <script src="/static/modules/calendar.js"></script>
   <script src="/static/modules/views.js"></script>
   <script src="/static/app.js"></script>
+<!-- Modal de Equipo -->
+<div id="teamModal" class="modal-overlay hidden" style="position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 99999;">
+    <div style="width: 90%; max-width: 500px; background: #1a1d20; color: white; padding: 24px; border-radius: 8px; border: 1px solid #d8a64f;">
+        <h2 style="color: #d8a64f; margin-top:0;">Equipo de Trabajo</h2>
+        <div id="teamList" style="max-height: 200px; overflow-y: auto; margin-bottom: 15px; font-size: 14px;"></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+            <input type="text" id="teamName" placeholder="Nombre" style="padding:8px; background:#111; border:1px solid #444; color:white;">
+            <input type="text" id="teamRole" placeholder="Rol (Ej. DOP)" style="padding:8px; background:#111; border:1px solid #444; color:white;">
+            <input type="email" id="teamEmail" placeholder="Email" style="padding:8px; background:#111; border:1px solid #444; color:white;">
+            <input type="text" id="teamPhone" placeholder="Teléfono" style="padding:8px; background:#111; border:1px solid #444; color:white;">
+        </div>
+        <div style="display:flex; justify-content:space-between;">
+            <button id="addTeamMemberBtn" style="background:#d8a64f; color:black; padding:8px 16px; border:none; border-radius:4px; cursor:pointer;">Añadir Miembro</button>
+            <button id="closeTeamModalBtn" style="background:transparent; color:white; border:1px solid #555; padding:8px 16px; border-radius:4px; cursor:pointer;">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Configuración -->
+<div id="settingsModal" class="modal-overlay hidden" style="position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 99999;">
+    <div style="width: 90%; max-width: 450px; background: #1a1d20; color: white; padding: 24px; border-radius: 8px; border: 1px solid #d8a64f;">
+        <h2 style="color: #d8a64f; margin-top:0;">Configuración de IA</h2>
+        <label>Proveedor
+            <select id="settingsProvider" style="width:100%; padding:8px; margin-top:4px; background:#111; border:1px solid #444; color:white; margin-bottom:10px;">
+                <option value="openrouter">OpenRouter</option>
+                <option value="gemini">Gemini</option>
+                <option value="deepseek">DeepSeek</option>
+            </select>
+        </label>
+        <label>API Key
+            <input type="password" id="settingsApiKey" placeholder="sk-..." style="width:100%; padding:8px; margin-top:4px; background:#111; border:1px solid #444; color:white; margin-bottom:15px;">
+        </label>
+        <div style="display:flex; justify-content:space-between;">
+            <button id="saveSettingsBtn" style="background:#d8a64f; color:black; padding:8px 16px; border:none; border-radius:4px; cursor:pointer;">Guardar</button>
+            <button id="closeSettingsModalBtn" style="background:transparent; color:white; border:1px solid #555; padding:8px 16px; border-radius:4px; cursor:pointer;">Cerrar</button>
+        </div>
+    </div>
+</div>
 </body>
 </html>

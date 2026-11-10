@@ -8360,6 +8360,77 @@ document.addEventListener("click", (event) => {
     event.target.style.display = "none";
   }
 });
+// --- LÓGICA DE EQUIPO Y CONFIGURACIÓN ---
+
+async function loadTeam() {
+    if (!state.project) return;
+    const list = document.getElementById('teamList');
+    if (!list) return;
+    try {
+        const res = await fetch(`/api/projects/${state.project.id}/team`);
+        const data = await res.json();
+        const members = data.members || data;
+        list.innerHTML = members.map(m => `<div style="border-bottom: 1px solid #333; padding: 5px 0;"><strong>${m.name}</strong> - ${m.role} <br><span style="color:#888; font-size:12px;">${m.email || ''} ${m.phone || ''}</span></div>`).join('');
+    } catch (e) { console.error(e); }
+}
+
+// Botones de Configuración
+async function loadSettings() {
+    try {
+        const res = await fetch('/api/settings');
+        const data = await res.json();
+        document.getElementById('settingsProvider').value = data.ai_provider || 'openrouter';
+        document.getElementById('settingsApiKey').value = data.api_key === '***' ? '' : (data.api_key || '');
+    } catch (e) { console.error(e); }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Botones de modal Equipo
+    document.getElementById('closeTeamModalBtn')?.addEventListener('click', () => { document.getElementById('teamModal').classList.add('hidden'); document.getElementById('teamModal').style.display = 'none'; });
+    document.getElementById('addTeamMemberBtn')?.addEventListener('click', async () => {
+        const name = document.getElementById('teamName').value;
+        const role = document.getElementById('teamRole').value;
+        if (!name || !role) return alert('Nombre y Rol son obligatorios');
+        await fetch(`/api/projects/${state.project.id}/team`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name, role, email: document.getElementById('teamEmail').value, phone: document.getElementById('teamPhone').value})
+        });
+        document.getElementById('teamName').value = ''; document.getElementById('teamRole').value = '';
+        document.getElementById('teamEmail').value = ''; document.getElementById('teamPhone').value = '';
+        loadTeam();
+    });
+
+    // Botones de modal Configuración
+    document.getElementById('closeSettingsModalBtn')?.addEventListener('click', () => { document.getElementById('settingsModal').classList.add('hidden'); document.getElementById('settingsModal').style.display = 'none'; });
+    document.getElementById('saveSettingsBtn')?.addEventListener('click', async () => {
+        const provider = document.getElementById('settingsProvider').value;
+        const key = document.getElementById('settingsApiKey').value;
+        await fetch('/api/settings', {
+            method: 'PUT', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ai_provider: provider, api_key: key})
+        });
+        alert('Configuración guardada');
+        document.getElementById('settingsModal').classList.add('hidden');
+        document.getElementById('settingsModal').style.display = 'none';
+    });
+
+    // Abrir modales
+    const teamCircles = document.querySelectorAll('.team-circle');
+    teamCircles.forEach(circle => circle.addEventListener('click', () => {
+        document.getElementById('teamModal').classList.remove('hidden');
+        document.getElementById('teamModal').style.display = 'flex';
+        loadTeam();
+    }));
+
+    const configBtn = Array.from(document.querySelectorAll('.col-left-item')).find(el => el.textContent.includes('Configuración'));
+    if (configBtn) {
+        configBtn.addEventListener('click', () => {
+            document.getElementById('settingsModal').classList.remove('hidden');
+            document.getElementById('settingsModal').style.display = 'flex';
+            loadSettings();
+        });
+    }
+});
 
 // --- Agregar Alias ---
 document.addEventListener("click", async (event) => {
