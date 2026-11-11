@@ -4,9 +4,15 @@ import sqlite3
 from contextlib import contextmanager
 from collections.abc import Generator
 from pathlib import Path
+import os
+import sys
 
-
-DB_PATH = Path(__file__).resolve().parent.parent / "trumbo.db"
+if getattr(sys, "frozen", False):
+    _base_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ADUMN"
+    _base_dir.mkdir(parents=True, exist_ok=True)
+    DB_PATH = _base_dir / "trumbo.db"
+else:
+    DB_PATH = Path(__file__).resolve().parent.parent / "trumbo.db"
 
 
 @contextmanager

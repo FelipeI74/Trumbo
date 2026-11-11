@@ -24,22 +24,22 @@ def abrir_navegador():
     webbrowser.open("http://127.0.0.1:8000")
 
 if __name__ == "__main__":
-    # Comprobar la fecha antes de hacer nada
+    FECHA_LIMITE = date(2026, 12, 31)  # Margen amplio para el beta
+
     if date.today() > FECHA_LIMITE:
         print("========================================")
         print("   EL PERIODO DE PRUEBA HA EXPIRADO.")
-        print("   Gracias por usar ADUMN Beta.")
-        print("   Tus datos estan guardados en la carpeta del programa.")
+        print("   Contacta con el equipo de ADUMN para renovar tu licencia.")
         print("========================================")
-        time.sleep(10) # Espera 10 segundos antes de cerrarse
-        sys.exit(0) # Cierra el programa
+        time.sleep(10)
+        sys.exit(0)
 
     print("Iniciando ADUMN Beta...")
-    print("El navegador se abrirá automáticamente.")
-    print("No cierres esta ventana negra mientras uses ADUMN.")
-    
-    # Abre el navegador en un hilo aparte
+    print("El navegador se abrira automaticamente.")
+    print("No cierres esta ventana mientras uses ADUMN.")
+
     threading.Thread(target=abrir_navegador, daemon=True).start()
-    
-    # Arranca el servidor ADUMN
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8000)
+
+    # FIX CRÍTICO: Importar la app directamente (no como string)
+    from app.main import app as adumn_app
+    uvicorn.run(adumn_app, host="127.0.0.1", port=8000)
